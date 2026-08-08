@@ -38,3 +38,19 @@ describe("App", () => {
   });
 });
 
+describe("checkSystem", () => {
+  it("checks only the health endpoint for Issue 2", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: "ok", service: "TokTickIT API" }),
+    });
+
+    global.fetch = fetchMock;
+
+    const { checkSystem } = await import("../../src/api");
+    await expect(checkSystem()).resolves.toEqual({ online: true, categories: [] });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:3000/api/health");
+  });
+});

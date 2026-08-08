@@ -25,6 +25,7 @@ app.use(express.json());
 // It must return HTTP 200 with JSON: { status: "ok", service: "TokTickIT API" }
 // ---------------------------------------------------------------------------
 app.get("/api/health", (_req: Request, res: Response) => {
+  // Issue 2: return a simple health JSON used by tests and the frontend.
   res.status(200).json({ status: "ok", service: "TokTickIT API" });
 });
 
