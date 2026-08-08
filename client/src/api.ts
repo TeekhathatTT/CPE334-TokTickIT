@@ -11,14 +11,17 @@ export interface SystemStatus {
 }
 
 export async function checkSystem(): Promise<SystemStatus> {
-  const healthRes = await fetch(`${API_URL}/api/health`);
-
-  if (!healthRes.ok) {
-    throw new Error(`Health check failed: ${healthRes.status}`);
+  // Issue 2 & 4: implement the two fetch calls described above.
+  const healthResp = await fetch(`${API_URL}/api/health`);
+  if (!healthResp.ok) {
+    throw new Error(`health check failed: ${healthResp.status}`);
   }
 
-  return {
-    online: true,
-    categories: [],
-  };
+  const catsResp = await fetch(`${API_URL}/api/categories`);
+  if (!catsResp.ok) {
+    throw new Error(`categories fetch failed: ${catsResp.status}`);
+  }
+
+  const categories: Category[] = await catsResp.json();
+  return { online: true, categories };
 }
