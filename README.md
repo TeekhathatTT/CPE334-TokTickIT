@@ -1,15 +1,51 @@
 # TokTickIT
 
-## Local database setup
+Local setup instructions for frontend (Vite + React + TypeScript) and backend (Express + TypeScript + Prisma).
 
-Before running the backend or Prisma commands, create a local PostgreSQL database and set the required environment variables in `.env` (for example `DATABASE_URL` and `PORT`).
+Prerequisites:
+- Node.js 18+ and a package manager (npm/pnpm/yarn)
+- PostgreSQL running locally
 
-Run the Prisma migration and seed locally with:
+Quick start (root of repo):
 
-```bash
-cd server
-npx prisma migrate dev --name init
-npm run prisma:seed
+1. Copy environment example and edit values:
+
+```
+cp .env.example .env
 ```
 
-If you are using a different local database name/user/password, update `DATABASE_URL` in `.env` first.
+2. Install dependencies for both packages (from repo root):
+
+```
+cd client
+npm install
+cd ../server
+npm install
+```
+
+Run frontend:
+
+```
+cd client
+npm run dev
+```
+
+Run backend (dev):
+
+```
+cd server
+npm run dev
+```
+
+Run tests (both):
+
+```
+cd client
+npm test
+cd ../server
+npm test
+```
+
+Notes:
+- Do not commit `.env` or `node_modules`. Use `.env.example` for sharing env vars.
+- Compiled/transpiled files in `client/src` should not be committed; keep source files (`.tsx`, `.ts`).# TokTickIT 
