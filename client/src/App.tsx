@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { checkSystem, Category } from "./api.js";
+import { checkSystem, Category } from "./api";
 
 // UI states you must handle for Issue 4: idle, loading, success, error.
 type UiState = "idle" | "loading" | "success" | "error";
