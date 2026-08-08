@@ -21,6 +21,12 @@ datasource db {
 
 model Category {
   id        Int      @id @default(autoincrement())
+  // Case-sensitive uniqueness is the Prisma default for String. If you need
+  // case-insensitive uniqueness, use a database-specific solution such as CITEXT.
   name      String   @unique
+  // Using Prisma's @default(now()) with PostgreSQL keeps timestamps at the DB
+  // level. If you need timezone-aware values explicitly, switch to timestamptz
+  // in the migration (for example, `createdAt DateTime @default(now())` on a
+  // PostgreSQL timestamptz column via a migration).
   createdAt DateTime @default(now())
 }

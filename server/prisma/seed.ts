@@ -12,22 +12,27 @@ async function main() {
     "Network",
   ] as const;
 
-  for (const name of categories) {
-    await prisma.category.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    });
-  }
+  try {
+    for (const name of categories) {
+      try {
+        await prisma.category.upsert({
+          where: { name },
+          update: {},
+          create: { name },
+        });
+      } catch (error) {
+        console.error(`Failed to seed category "${name}"`, error);
+        throw error;
+      }
+    }
 
-  console.log(`Seeded ${categories.length} categories.`);
+    console.log(`Seeded ${categories.length} categories.`);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await getPrisma().$disconnect();
-  });
+main().catch((error) => {
+  console.error("Seed failed", error);
+  process.exit(1);
+});
