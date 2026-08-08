@@ -3,19 +3,36 @@ import { getPrisma } from "../src/prisma.js";
 // Issue 3 — seed the four supported categories.
 // The four names are: Account and Access, Hardware, Software, Network.
 // Requirement: running the seed twice must NOT create duplicates.
-// Hint: prisma.category.upsert({ where:{name}, update:{}, create:{name} }).
 async function main() {
   const prisma = getPrisma();
-  void prisma;
-  // TODO(Issue 3): upsert each category so the seed is idempotent.
-  console.log("TODO: implement the category seed.");
+  const categories = [
+    "Account and Access",
+    "Hardware",
+    "Software",
+    "Network",
+  ] as const;
+
+  try {
+    for (const name of categories) {
+      try {
+        await prisma.category.upsert({
+          where: { name },
+          update: {},
+          create: { name },
+        });
+      } catch (error) {
+        console.error(`Failed to seed category "${name}"`, error);
+        throw error;
+      }
+    }
+
+    console.log(`Seeded ${categories.length} categories.`);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await getPrisma().$disconnect();
-  });
+main().catch((error) => {
+  console.error("Seed failed", error);
+  process.exit(1);
+});
