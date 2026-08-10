@@ -1,15 +1,51 @@
 # TokTickIT
 
-## Run with Docker
+Local setup instructions for frontend (Vite + React + TypeScript) and backend (Express + TypeScript + Prisma).
 
-1. From the project root, run:
-   ```bash
-   docker compose up --build
-   ```
-2. The API will be available at http://localhost:3000
-3. The PostgreSQL database will be available at localhost:5432
+Prerequisites:
+- Node.js 18+ and a package manager (npm/pnpm/yarn)
+- PostgreSQL running locally
 
-## Environment
+Quick start (root of repo):
 
-The server uses the DATABASE_URL from [server/.env](server/.env) or [server/.env.example](server/.env.example).
-For Docker Compose, the default connection string points to the `db` service name.
+1. Copy environment example and edit values:
+
+```
+cp .env.example .env
+```
+
+2. Install dependencies for both packages (from repo root):
+
+```
+cd client
+npm install
+cd ../server
+npm install
+```
+
+Run frontend:
+
+```
+cd client
+npm run dev
+```
+
+Run backend (dev):
+
+```
+cd server
+npm run dev
+```
+
+Run tests (both):
+
+```
+cd client
+npm test
+cd ../server
+npm test
+```
+
+Notes:
+- Do not commit `.env` or `node_modules`. Use `.env.example` for sharing env vars.
+- Compiled/transpiled files in `client/src` should not be committed; keep source files (`.tsx`, `.ts`).# TokTickIT 

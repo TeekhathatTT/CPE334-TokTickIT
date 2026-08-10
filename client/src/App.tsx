@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { checkSystem, Category } from "./api.js";
+import { checkSystem, Category } from "./api";
 
 // UI states you must handle for Issue 4: idle, loading, success, error.
 type UiState = "idle" | "loading" | "success" | "error";
@@ -7,19 +7,14 @@ type UiState = "idle" | "loading" | "success" | "error";
 export default function App() {
   const [state, setState] = useState<UiState>("idle");
   const [categories, setCategories] = useState<Category[]>([]);
-  const [errorMessage, setErrorMessage] = useState("");
 
   async function handleCheck() {
     setState("loading");
-    setErrorMessage("");
-
     try {
       const result = await checkSystem();
-      setCategories(result.categories);
+      setCategories(result.categories ?? []);
       setState("success");
-    } catch (error) {
-      setCategories([]);
-      setErrorMessage(error instanceof Error ? error.message : "Unable to reach the API");
+    } catch (err) {
       setState("error");
     }
   }
@@ -30,29 +25,35 @@ export default function App() {
         TokTickIT <span className="text-success">IT Service Desk</span>
       </h1>
 
-      <button className="btn btn-success" onClick={handleCheck} disabled={state === "loading"}>
+      <button type="button" className="btn btn-success" onClick={handleCheck} disabled={state === "loading"}>
         {state === "loading" ? "Loading…" : "Check System"}
       </button>
 
-      {state === "loading" && <p className="mt-3">Loading categories…</p>}
+      <div className="mt-4">
+        {state === "loading" && <div>Loading…</div>}
 
-      {state === "success" && (
-        <div className="mt-3">
-          <p className="text-success fw-semibold">Online</p>
-          <ul>
-            {categories.map((category) => (
-              <li key={category.id}>{category.name}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+        {state === "success" && (
+          <div>
+            <h2>System Status: <span className="text-success">Online</span></h2>
+            {categories.length > 0 ? (
+              <ul>
+                {categories.map((c) => (
+                  <li key={c.id}>{c.name}</li>
+                ))}
+              </ul>
+            ) : (
+              <div>No categories loaded.</div>
+            )}
+          </div>
+        )}
 
-      {state === "error" && (
-        <div className="mt-3">
-          <p className="text-danger fw-semibold">Offline</p>
-          <p>{errorMessage}</p>
-        </div>
-      )}
+        {state === "error" && (
+          <div>
+            <h2>System Status: <span className="text-danger">Offline</span></h2>
+            <div>Unable to reach the backend API. Please ensure the server is running.</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
