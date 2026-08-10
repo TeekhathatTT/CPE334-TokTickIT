@@ -7,13 +7,21 @@ type UiState = "idle" | "loading" | "success" | "error";
 export default function App() {
   const [state, setState] = useState<UiState>("idle");
   const [categories, setCategories] = useState<Category[]>([]);
-  void categories;
+  const [errorMessage, setErrorMessage] = useState("");
 
   async function handleCheck() {
-    // TODO(Issue 4): set loading, call checkSystem(), then either
-    //   - success: store categories and show Online + the list, or
-    //   - error: show Offline + a useful message.
     setState("loading");
+    setErrorMessage("");
+
+    try {
+      const result = await checkSystem();
+      setCategories(result.categories);
+      setState("success");
+    } catch (error) {
+      setCategories([]);
+      setErrorMessage(error instanceof Error ? error.message : "Unable to reach the API");
+      setState("error");
+    }
   }
 
   return (
@@ -26,7 +34,25 @@ export default function App() {
         {state === "loading" ? "Loading…" : "Check System"}
       </button>
 
-      {/* TODO(Issue 4): render loading / success (Online + categories) / error (Offline) states. */}
+      {state === "loading" && <p className="mt-3">Loading categories…</p>}
+
+      {state === "success" && (
+        <div className="mt-3">
+          <p className="text-success fw-semibold">Online</p>
+          <ul>
+            {categories.map((category) => (
+              <li key={category.id}>{category.name}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {state === "error" && (
+        <div className="mt-3">
+          <p className="text-danger fw-semibold">Offline</p>
+          <p>{errorMessage}</p>
+        </div>
+      )}
     </div>
   );
 }
