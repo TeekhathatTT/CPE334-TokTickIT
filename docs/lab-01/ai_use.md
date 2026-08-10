@@ -2,7 +2,7 @@
 
 **LLM/agent used:** ChatGPT (GPT-5.6 Luna)
 
-## Selected key prompts (6–10)
+## Selected key prompts
 
 | # | Prompt (summarised) | What I did with the result |
 |---|---------------------|----------------------------|
