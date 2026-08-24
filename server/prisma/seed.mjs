@@ -1,29 +1,48 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-async function main() {
-  const categories = [
-    'Account and Access',
-    'Hardware',
-    'Software',
-    'Network',
-  ];
+const requesters = [
+  {
+    name: "Jennifer Anderson",
+    email: "jennifer.anderson@example.com",
+    isActive: true,
+  },
+  {
+    name: "Michael Chen",
+    email: "michael.chen@example.com",
+    isActive: true,
+  },
+  {
+    name: "Sarah Williams",
+    email: "sarah.williams@example.com",
+    isActive: true,
+  },
+  {
+    name: "David Brown",
+    email: "david.brown@example.com",
+    isActive: false,
+  },
+];
 
-  for (const name of categories) {
-    await prisma.category.upsert({
-      where: { name },
-      update: {},
-      create: { name },
+async function main() {
+  for (const requester of requesters) {
+    await prisma.requester.upsert({
+      where: { email: requester.email },
+      update: {
+        name: requester.name,
+        isActive: requester.isActive,
+      },
+      create: requester,
     });
   }
 
-  console.log('Seeded categories successfully.');
+  console.log(`Seeded ${requesters.length} requesters.`);
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
+  .catch((error) => {
+    console.error("Requester seed failed:", error);
     process.exit(1);
   })
   .finally(async () => {
