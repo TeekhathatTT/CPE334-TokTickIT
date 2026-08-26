@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import { app } from "../../src/app.js";
+import app from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
 
-vi.mock("../src/prisma.js", () => ({
+vi.mock("../../src/prisma.js", () => ({
   getPrisma: vi.fn(),
 }));
 
@@ -29,6 +29,7 @@ describe("GET /api/requesters", () => {
     const response = await request(app).get("/api/requesters");
 
     expect(response.status).toBe(200);
+
     expect(response.body).toEqual({
       data: [
         {
@@ -61,13 +62,16 @@ describe("GET /api/requesters", () => {
   it("returns a safe 500 response when the database fails", async () => {
     vi.mocked(getPrisma).mockReturnValue({
       requester: {
-        findMany: vi.fn().mockRejectedValue(new Error("database failure")),
+        findMany: vi.fn().mockRejectedValue(
+          new Error("database failure")
+        ),
       },
     } as never);
 
     const response = await request(app).get("/api/requesters");
 
     expect(response.status).toBe(500);
+
     expect(response.body).toEqual({
       error: {
         code: "INTERNAL_ERROR",
