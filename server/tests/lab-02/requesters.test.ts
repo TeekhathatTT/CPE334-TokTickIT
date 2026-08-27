@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import app from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
 
 vi.mock("../../src/prisma.js", () => ({
   getPrisma: vi.fn(),
 }));
+
+const { default: app } = await import("../../src/app.js");
 
 describe("GET /api/requesters", () => {
   it("returns active requesters only", async () => {
