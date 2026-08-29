@@ -13,6 +13,28 @@ export const app = express();
 app.use(cors());          // already wired: lets the Vite dev server call this API
 app.use(express.json());
 
+import multer from "multer";
+import {
+  createTicket,
+  getRelatedSystems,
+  getTicket,
+  getTickets,
+} from "./tickets.js";
+import {
+  addAttachment,
+  getAttachment,
+  downloadAttachment,
+  removeAttachment,
+} from "./attachments.js";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 5,
+  },
+});
+
 // ---------------------------------------------------------------------------
 // Issue 2 — API health check
 // Make the test in tests/lab-01/health.test.ts pass.
@@ -46,5 +68,47 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
 });
 
 app.get("/api/requesters", getRequesters);
+
+app.get(
+  "/api/related-systems",
+  getRelatedSystems,
+);
+
+app.post(
+  "/api/tickets",
+  upload.array("attachments", 5),
+  createTicket,
+);
+
+app.get(
+  "/api/tickets",
+  getTickets,
+);
+
+app.get(
+  "/api/tickets/:id",
+  getTicket,
+);
+
+app.post(
+  "/api/tickets/:id/attachments",
+  upload.single("file"),
+  addAttachment,
+);
+
+app.get(
+  "/api/attachments/:id",
+  getAttachment,
+);
+
+app.get(
+  "/api/attachments/:id/download",
+  downloadAttachment,
+);
+
+app.patch(
+  "/api/attachments/:id/remove",
+  removeAttachment,
+);
 
 export default app;
