@@ -27,3 +27,5 @@ server/dist/
 # Local env variants
 .env.local
 .env.*.local
+
+server/uploads/

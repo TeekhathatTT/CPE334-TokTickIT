@@ -19,13 +19,13 @@ import {
   getRelatedSystems,
   getTicket,
   getTickets,
-} from "./tickets.js";
+} from "./ticket.js";
 import {
   addAttachment,
   getAttachment,
   downloadAttachment,
   removeAttachment,
-} from "./attachments.js";
+} from "./attachment.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),

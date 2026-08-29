@@ -347,13 +347,13 @@ export async function getTickets(
     const requestedPriority = PRIORITIES.includes(
       req.query.requestedPriority as (typeof PRIORITIES)[number],
     )
-      ? req.query.requestedPriority
+      ? (req.query.requestedPriority as (typeof PRIORITIES)[number])
       : undefined;
 
     const itPriority = PRIORITIES.includes(
       req.query.itPriority as (typeof PRIORITIES)[number],
     )
-      ? req.query.itPriority
+      ? (req.query.itPriority as (typeof PRIORITIES)[number])
       : undefined;
 
     const allowedStatuses = [
@@ -367,7 +367,7 @@ export async function getTickets(
     const status = allowedStatuses.includes(
       req.query.status as (typeof allowedStatuses)[number],
     )
-      ? req.query.status
+      ? (req.query.status as (typeof allowedStatuses)[number])
       : undefined;
 
     const allowedSorts = [
@@ -379,7 +379,7 @@ export async function getTickets(
     const sort = allowedSorts.includes(
       req.query.sort as (typeof allowedSorts)[number],
     )
-      ? req.query.sort
+      ? (req.query.sort as (typeof allowedSorts)[number])
       : "createdAt";
 
     const order =
