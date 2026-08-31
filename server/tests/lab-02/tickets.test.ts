@@ -61,6 +61,8 @@ describe("POST /api/tickets", () => {
           createdAt: new Date("2026-08-19T09:14:00Z"),
           attachments: [],
         }),
+
+        
       },
     });
 
@@ -150,6 +152,99 @@ describe("POST /api/tickets", () => {
 
     expect(response.status).toBe(404);
     expect(response.body.error.code).toBe("NOT_FOUND");
+  });
+
+  it("creates ticket when one attachment fails validation", async () => {
+    vi.mocked(getPrisma).mockReturnValue({
+      requester: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 1,
+          name: "Jennifer Anderson",
+        }),
+      },
+      category: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 1,
+          name: "Hardware",
+          isActive: true,
+        }),
+      },
+      relatedSystem: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 1,
+          name: "Corporate Laptop",
+          isActive: true,
+        }),
+      },
+      ticket: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({
+          id: 101,
+          ticketNumber: "TKT-2026-000101",
+          requesterId: 1,
+          categoryId: 1,
+          relatedSystemId: 1,
+          summary: "Laptop problem",
+          description: "My laptop has a problem.",
+          requestedPriority: "MEDIUM",
+          itPriority: null,
+          status: "NEW",
+          createdAt: new Date("2026-08-19T09:14:00Z"),
+        }),
+      },
+      attachment: {
+        create: vi.fn().mockResolvedValue({
+          id: 501,
+          originalFilename: "screenshot.png",
+          sizeBytes: 240000,
+          uploadedAt: new Date("2026-08-19T09:14:00Z"),
+        }),
+      },
+    } as never);
+
+    const response = await request(app)
+      .post("/api/tickets")
+      .set("x-requester-id", "1")
+      .field("categoryId", "1")
+      .field("relatedSystemId", "1")
+      .field("summary", "Laptop problem")
+      .field(
+        "description",
+        "My laptop has a problem.",
+      )
+      .field("requestedPriority", "MEDIUM")
+      .attach(
+        "attachments",
+        Buffer.from("valid image"),
+        {
+          filename: "screenshot.png",
+          contentType: "image/png",
+        },
+      )
+      .attach(
+        "attachments",
+        Buffer.from("invalid file"),
+        {
+          filename: "malware.exe",
+          contentType: "application/octet-stream",
+        },
+      );
+
+    expect(response.status).toBe(201);
+
+    expect(response.body.data.attachments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          originalFilename: "screenshot.png",
+          uploadFailed: false,
+        }),
+        expect.objectContaining({
+          originalFilename: "malware.exe",
+          uploadFailed: true,
+          reason: "Unsupported file type.",
+        }),
+      ]),
+    );
   });
 });
 

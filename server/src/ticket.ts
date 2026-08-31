@@ -164,7 +164,10 @@ export async function createTicket(
       });
     }
 
-    const categoryId = parsePositiveInt(req.body.categoryId);
+    const categoryId = parsePositiveInt(
+      req.body.categoryId,
+    );
+
     const relatedSystemId = parsePositiveInt(
       req.body.relatedSystemId,
     );
@@ -179,19 +182,25 @@ export async function createTicket(
         ? req.body.description.trim()
         : "";
 
-    const requestedPriority = req.body.requestedPriority;
+    const requestedPriority =
+      req.body.requestedPriority;
 
     const fields: Record<string, string> = {};
 
     if (!categoryId) {
-      fields.categoryId = "Category is required.";
+      fields.categoryId =
+        "Category is required.";
     }
 
     if (!relatedSystemId) {
-      fields.relatedSystemId = "Related System is required.";
+      fields.relatedSystemId =
+        "Related System is required.";
     }
 
-    if (summary.length < 5 || summary.length > 120) {
+    if (
+      summary.length < 5 ||
+      summary.length > 120
+    ) {
       fields.summary =
         "Summary must be between 5 and 120 characters.";
     }
@@ -204,7 +213,11 @@ export async function createTicket(
         "Description must be between 10 and 2000 characters.";
     }
 
-    if (!PRIORITIES.includes(requestedPriority)) {
+    if (
+      !PRIORITIES.includes(
+        requestedPriority,
+      )
+    ) {
       fields.requestedPriority =
         "Requested Priority must be LOW, MEDIUM, or HIGH.";
     }
@@ -219,20 +232,22 @@ export async function createTicket(
 
     const prisma = getPrisma();
 
-    const [category, relatedSystem] = await Promise.all([
-      prisma.category.findFirst({
-        where: {
-          id: categoryId!,
-          isActive: true,
-        },
-      }),
-      prisma.relatedSystem.findFirst({
-        where: {
-          id: relatedSystemId!,
-          isActive: true,
-        },
-      }),
-    ]);
+    const [category, relatedSystem] =
+      await Promise.all([
+        prisma.category.findFirst({
+          where: {
+            id: categoryId!,
+            isActive: true,
+          },
+        }),
+
+        prisma.relatedSystem.findFirst({
+          where: {
+            id: relatedSystemId!,
+            isActive: true,
+          },
+        }),
+      ]);
 
     if (!category) {
       return res.status(404).json({
@@ -252,54 +267,237 @@ export async function createTicket(
       });
     }
 
-    const ticketNumber = await generateTicketNumber();
+    const ticketNumber =
+      await generateTicketNumber();
 
-    const ticket = await prisma.ticket.create({
-      data: {
-        ticketNumber,
-        requesterId: requester.id,
-        categoryId: category.id,
-        relatedSystemId: relatedSystem.id,
-        summary,
-        description,
-        requestedPriority,
-        status: "NEW",
-      },
-      include: {
-        attachments: {
-          where: {
-            removedAt: null,
-          },
-          orderBy: {
-            id: "asc",
-          },
+    /*
+     * Create the Ticket first.
+     *
+     * If Ticket creation itself fails, the catch block returns 500
+     * and no Ticket is returned to the client.
+     */
+    const ticket =
+      await prisma.ticket.create({
+        data: {
+          ticketNumber,
+          requesterId: requester.id,
+          categoryId: category.id,
+          relatedSystemId: relatedSystem.id,
+          summary,
+          description,
+          requestedPriority,
+          status: "NEW",
         },
-      },
+      });
+
+    const files = Array.isArray(req.files)
+      ? req.files
+      : [];
+
+    const attachmentResults: Array<{
+      id?: number;
+      originalFilename: string;
+      sizeBytes: number;
+      uploadFailed: boolean;
+      reason?: string;
+    }> = [];
+
+    const allowedMimeTypes = new Set([
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/pdf",
+    ]);
+
+    const allowedExtensions = new Set([
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".webp",
+      ".pdf",
+    ]);
+
+    const maxFileSize =
+      5 * 1024 * 1024;
+
+    const uploadDir =
+      process.env.UPLOAD_DIR ??
+      "uploads";
+
+    const fs =
+      await import("node:fs/promises");
+
+    const path =
+      await import("node:path");
+
+    const crypto =
+      await import("node:crypto");
+
+    const uploadPath =
+      path.resolve(uploadDir);
+
+    await fs.mkdir(uploadPath, {
+      recursive: true,
     });
+
+    /*
+     * Process every attachment independently.
+     *
+     * A failed attachment is recorded in the response,
+     * but does NOT cause the Ticket creation to fail.
+     */
+    for (const file of files) {
+      const extension = path
+        .extname(file.originalname)
+        .toLowerCase();
+
+      if (
+        !allowedMimeTypes.has(
+          file.mimetype,
+        )
+      ) {
+        attachmentResults.push({
+          originalFilename:
+            file.originalname,
+          sizeBytes: file.size,
+          uploadFailed: true,
+          reason:
+            "Unsupported file type.",
+        });
+
+        continue;
+      }
+
+      if (
+        !allowedExtensions.has(
+          extension,
+        )
+      ) {
+        attachmentResults.push({
+          originalFilename:
+            file.originalname,
+          sizeBytes: file.size,
+          uploadFailed: true,
+          reason:
+            "Unsupported file type.",
+        });
+
+        continue;
+      }
+
+      if (
+        file.size > maxFileSize
+      ) {
+        attachmentResults.push({
+          originalFilename:
+            file.originalname,
+          sizeBytes: file.size,
+          uploadFailed: true,
+          reason:
+            "File exceeds the 5MB limit.",
+        });
+
+        continue;
+      }
+
+      const storedFilename =
+        `${crypto.randomUUID()}${extension}`;
+
+      const storedPath =
+        path.join(
+          uploadPath,
+          storedFilename,
+        );
+
+      try {
+        await fs.writeFile(
+          storedPath,
+          file.buffer,
+        );
+
+        const attachment =
+          await prisma.attachment.create({
+            data: {
+              ticketId: ticket.id,
+              originalFilename:
+                file.originalname,
+              storedFilename,
+              mimeType:
+                file.mimetype,
+              sizeBytes:
+                file.size,
+            },
+          });
+
+        attachmentResults.push({
+          id: attachment.id,
+          originalFilename:
+            attachment.originalFilename,
+          sizeBytes:
+            attachment.sizeBytes,
+          uploadFailed: false,
+        });
+      } catch (attachmentError) {
+        console.error(
+          "Attachment upload failed",
+          attachmentError,
+        );
+
+        /*
+         * Clean up the physical file if it was written
+         * but the database insert failed.
+         */
+        try {
+          await fs.unlink(
+            storedPath,
+          );
+        } catch {
+          // Ignore cleanup failure.
+        }
+
+        attachmentResults.push({
+          originalFilename:
+            file.originalname,
+          sizeBytes: file.size,
+          uploadFailed: true,
+          reason:
+            "Attachment storage failed.",
+        });
+      }
+    }
 
     return res.status(201).json({
       data: {
         id: ticket.id,
-        ticketNumber: ticket.ticketNumber,
-        requesterId: ticket.requesterId,
-        categoryId: ticket.categoryId,
-        relatedSystemId: ticket.relatedSystemId,
-        summary: ticket.summary,
-        description: ticket.description,
-        requestedPriority: ticket.requestedPriority,
-        itPriority: ticket.itPriority,
-        status: ticket.status,
-        createdAt: ticket.createdAt.toISOString(),
-        attachments: ticket.attachments.map((attachment) => ({
-          id: attachment.id,
-          originalFilename: attachment.originalFilename,
-          sizeBytes: attachment.sizeBytes,
-          uploadFailed: false,
-        })),
+        ticketNumber:
+          ticket.ticketNumber,
+        requesterId:
+          ticket.requesterId,
+        categoryId:
+          ticket.categoryId,
+        relatedSystemId:
+          ticket.relatedSystemId,
+        summary:
+          ticket.summary,
+        description:
+          ticket.description,
+        requestedPriority:
+          ticket.requestedPriority,
+        itPriority:
+          ticket.itPriority,
+        status:
+          ticket.status,
+        createdAt:
+          ticket.createdAt.toISOString(),
+        attachments:
+          attachmentResults,
       },
     });
   } catch (error) {
-    console.error("Failed to create ticket", error);
+    console.error(
+      "Failed to create ticket",
+      error,
+    );
 
     return res.status(500).json({
       error: {
