@@ -6,11 +6,13 @@ describe("GET /api/categories", () => {
     const res = await request(app).get("/api/categories");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([
-      { id: 1, name: "Account and Access" },
-      { id: 2, name: "Hardware" },
-      { id: 3, name: "Software" },
-      { id: 4, name: "Network" },
-    ]);
+    expect(res.body).toEqual({
+      data: [
+        { id: 1, name: "Account and Access" },
+        { id: 2, name: "Hardware" },
+        { id: 3, name: "Software" },
+        { id: 4, name: "Network" },
+      ],
+    });
   });
 });
