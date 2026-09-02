@@ -1,59 +1,41 @@
-import { useState } from "react";
-import { checkSystem, Category } from "./api";
-
-// UI states you must handle for Issue 4: idle, loading, success, error.
-type UiState = "idle" | "loading" | "success" | "error";
+import { useMemo, useState } from "react";
+import { AppShell } from "./components/AppShell";
+import { RequesterSelectionPage } from "./pages/RequesterSelectionPage";
 
 export default function App() {
-  const [state, setState] = useState<UiState>("idle");
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedRequesterId, setSelectedRequesterId] = useState<number | null>(null);
+  const [currentView, setCurrentView] = useState<"my-tickets" | "create-ticket">("my-tickets");
 
-  async function handleCheck() {
-    setState("loading");
-    try {
-      const result = await checkSystem();
-      setCategories(result.categories ?? []);
-      setState("success");
-    } catch (err) {
-      setState("error");
+  const selectedRequesterName = useMemo(() => {
+    if (!selectedRequesterId) {
+      return "Requester";
     }
-  }
+
+    return `Requester ${selectedRequesterId}`;
+  }, [selectedRequesterId]);
+
+  const page = selectedRequesterId ? (
+    <div style={{ padding: "32px 0" }}>
+      <h2>Requester selected</h2>
+      <p>
+        The selected requester ID is <strong>{selectedRequesterId}</strong> and will be used for all Lab 2 ticket requests.
+      </p>
+    </div>
+  ) : (
+    <RequesterSelectionPage
+      selectedRequesterId={selectedRequesterId}
+      onRequesterChange={() => undefined}
+      onContinue={(requesterId) => setSelectedRequesterId(requesterId)}
+    />
+  );
 
   return (
-    <div className="container py-5" style={{ maxWidth: 640 }}>
-      <h1 className="h3 mb-4">
-        TokTickIT <span className="text-success">IT Service Desk</span>
-      </h1>
-
-      <button type="button" className="btn btn-success" onClick={handleCheck} disabled={state === "loading"}>
-        {state === "loading" ? "Loading…" : "Check System"}
-      </button>
-
-      <div className="mt-4">
-        {state === "loading" && <div>Loading…</div>}
-
-        {state === "success" && (
-          <div>
-            <h2>System Status: <span className="text-success">Online</span></h2>
-            {categories.length > 0 ? (
-              <ul>
-                {categories.map((c) => (
-                  <li key={c.id}>{c.name}</li>
-                ))}
-              </ul>
-            ) : (
-              <div>No categories loaded.</div>
-            )}
-          </div>
-        )}
-
-        {state === "error" && (
-          <div>
-            <h2>System Status: <span className="text-danger">Offline</span></h2>
-            <div>Unable to reach the backend API. Please ensure the server is running.</div>
-          </div>
-        )}
-      </div>
-    </div>
+    <AppShell
+      activeNav={currentView}
+      selectedRequesterName={selectedRequesterName}
+      onNavigate={setCurrentView}
+    >
+      {page}
+    </AppShell>
   );
 }
