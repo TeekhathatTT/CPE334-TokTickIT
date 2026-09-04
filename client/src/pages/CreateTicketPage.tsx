@@ -37,6 +37,7 @@ export default function CreateTicketPage({ requesterId, requesterName = "Jennife
   const [requestedPriority, setRequestedPriority] = useState<Priority | "">("");
   const [errors, setErrors] = useState<FormErrors>({});
   const [apiError, setApiError] = useState<string | null>(null);
+  const [uploadFailures, setUploadFailures] = useState<Array<{ name: string; reason?: string }>>([]);
 
   useEffect(() => {
     let active = true;
@@ -102,8 +103,8 @@ export default function CreateTicketPage({ requesterId, requesterName = "Jennife
         attachments,
       });
 
-      const payload = result as { data?: { ticketNumber?: string; summary?: string } } | { ticketNumber?: string; summary?: string };
-      const normalized = ("data" in payload && payload.data ? payload.data : payload) as { ticketNumber?: string; summary?: string };
+      const normalized = result as { ticketNumber?: string; summary?: string; attachments?: Array<{ originalFilename: string; uploadFailed?: boolean; reason?: string }> };
+      setUploadFailures((normalized.attachments ?? []).filter((attachment) => attachment.uploadFailed).map((attachment) => ({ name: attachment.originalFilename, reason: attachment.reason })));
 
       setTicketNumber(normalized.ticketNumber ?? "");
       setFormSubmitted(true);
@@ -138,6 +139,7 @@ export default function CreateTicketPage({ requesterId, requesterName = "Jennife
         <h2>Ticket Created</h2>
         <div className="success-panel__number">{ticketNumber || "TKT-2026-000101"}</div>
         <p>{summary || "Ticket created successfully."}</p>
+        {uploadFailures.length > 0 && <div className="partial-upload-warning" role="alert"><strong>Some attachments were not uploaded.</strong>{uploadFailures.map((failure) => <div key={failure.name}>{failure.name}: {failure.reason ?? "Upload failed."}</div>)}</div>}
         <div className="success-panel__actions">
           <button type="button" className="primary-button">View Ticket</button>
           <button type="button" className="secondary-button" onClick={() => {
@@ -151,6 +153,7 @@ export default function CreateTicketPage({ requesterId, requesterName = "Jennife
             setTicketNumber("");
             setErrors({});
             setApiError(null);
+            setUploadFailures([]);
           }}>Create Another Ticket</button>
         </div>
       </div>

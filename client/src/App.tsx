@@ -1,10 +1,14 @@
 import { useMemo, useState } from "react";
 import { AppShell } from "./components/AppShell";
 import { RequesterSelectionPage } from "./pages/RequesterSelectionPage";
+import MyTicketsPage from "./pages/MyTicketsPage";
+import CreateTicketPage from "./pages/CreateTicketPage";
+import TicketDetailPage from "./pages/TicketDetailPage";
 
 export default function App() {
   const [selectedRequesterId, setSelectedRequesterId] = useState<number | null>(null);
   const [currentView, setCurrentView] = useState<"my-tickets" | "create-ticket">("my-tickets");
+  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
 
   const selectedRequesterName = useMemo(() => {
     if (!selectedRequesterId) {
@@ -15,12 +19,7 @@ export default function App() {
   }, [selectedRequesterId]);
 
   const page = selectedRequesterId ? (
-    <div style={{ padding: "32px 0" }}>
-      <h2>Requester selected</h2>
-      <p>
-        The selected requester ID is <strong>{selectedRequesterId}</strong> and will be used for all Lab 2 ticket requests.
-      </p>
-    </div>
+    selectedTicketId ? <TicketDetailPage ticketId={selectedTicketId} requesterId={selectedRequesterId} onBack={() => setSelectedTicketId(null)} /> : currentView === "create-ticket" ? <CreateTicketPage requesterId={selectedRequesterId} /> : <MyTicketsPage requesterId={selectedRequesterId} onCreateTicket={() => setCurrentView("create-ticket")} onSelectTicket={setSelectedTicketId} />
   ) : (
     <RequesterSelectionPage
       selectedRequesterId={selectedRequesterId}
@@ -33,7 +32,8 @@ export default function App() {
     <AppShell
       activeNav={currentView}
       selectedRequesterName={selectedRequesterName}
-      onNavigate={setCurrentView}
+      onNavigate={(view) => { setSelectedTicketId(null); setCurrentView(view); }}
+      onChangeRequester={() => { setSelectedTicketId(null); setSelectedRequesterId(null); }}
     >
       {page}
     </AppShell>

@@ -30,7 +30,13 @@ export function AttachmentPicker({ value, onChange, maxFiles = 5 }) {
             }
             accepted.push(file);
         });
-        const combined = [...value, ...accepted].slice(0, maxFiles);
+        const availableSlots = Math.max(0, maxFiles - value.length);
+        if (accepted.length > availableSlots) {
+            accepted.slice(availableSlots).forEach((file) => {
+                nextRejected.push({ name: file.name, reason: `attachment limit reached. Maximum ${maxFiles} files.` });
+            });
+        }
+        const combined = [...value, ...accepted.slice(0, availableSlots)];
         onChange(combined);
         setRejected(nextRejected);
         if (inputRef.current) {
@@ -39,14 +45,15 @@ export function AttachmentPicker({ value, onChange, maxFiles = 5 }) {
     };
     const remaining = maxFiles - value.length;
     const hasReachedLimit = value.length >= maxFiles;
-    return (_jsxs("div", { className: "attachment-picker", children: [_jsxs("div", { className: "attachment-dropzone", onClick: () => inputRef.current?.click(), role: "button", tabIndex: 0, onKeyDown: (event) => {
+    return (_jsxs("div", { className: "attachment-picker", children: [_jsxs("div", { className: `attachment-dropzone ${value.length > 0 ? "attachment-dropzone--attached" : ""} ${hasReachedLimit ? "attachment-dropzone--disabled" : ""}`, onClick: () => !hasReachedLimit && inputRef.current?.click(), role: "button", tabIndex: hasReachedLimit ? -1 : 0, "aria-disabled": hasReachedLimit, title: hasReachedLimit ? `Maximum ${maxFiles} attachments reached` : undefined, onKeyDown: (event) => {
                     if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
-                        inputRef.current?.click();
+                        if (!hasReachedLimit)
+                            inputRef.current?.click();
                     }
                 }, children: [_jsx("input", { ref: inputRef, type: "file", multiple: true, accept: ".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf", hidden: true, onChange: (event) => {
                             if (event.target.files) {
                                 addFiles(event.target.files);
                             }
-                        } }), _jsx("div", { className: "attachment-dropzone__label", children: "Drag files here or Add" }), _jsxs("div", { className: "attachment-dropzone__count", children: [value.length, " of ", maxFiles, " attachments"] })] }), rejected.length > 0 && (_jsx("div", { className: "attachment-errors", "aria-live": "polite", children: rejected.map((item) => (_jsxs("div", { className: "attachment-error", children: [item.name, " \u2014 ", item.reason] }, `${item.name}-${item.reason}`))) })), value.length > 0 && (_jsx("ul", { className: "attachment-list", children: value.map((file, index) => (_jsxs("li", { className: "attachment-item", children: [_jsx("span", { children: file.name }), _jsx("span", { children: sizeLabel(file.size) }), _jsx("button", { type: "button", className: "icon-button", "aria-label": `Remove ${file.name}`, onClick: () => onChange(value.filter((_, itemIndex) => itemIndex !== index)), children: "\u2715" })] }, `${file.name}-${index}`))) })), _jsxs("div", { className: "attachment-picker__footer", children: [_jsxs("span", { children: [value.length, " of ", maxFiles, " attachments"] }), _jsx("button", { type: "button", className: "secondary-button", disabled: hasReachedLimit || remaining <= 0, onClick: () => inputRef.current?.click(), children: "Add" })] })] }));
+                        } }), _jsx("div", { className: "attachment-dropzone__label", children: "Drag files here or Add" }), _jsxs("div", { className: `attachment-dropzone__count ${hasReachedLimit ? "attachment-dropzone__count--warning" : ""}`, children: [value.length, " of ", maxFiles, " attachments"] })] }), rejected.length > 0 && (_jsx("div", { className: "attachment-errors", "aria-live": "polite", children: rejected.map((item) => (_jsxs("div", { className: "attachment-error", children: [item.name, " \u2014 ", item.reason] }, `${item.name}-${item.reason}`))) })), value.length > 0 && (_jsx("ul", { className: "attachment-list", children: value.map((file, index) => (_jsxs("li", { className: "attachment-item", children: [_jsxs("span", { className: "attachment-item__name", title: file.name, children: [_jsx("span", { "aria-hidden": "true", children: file.type === "application/pdf" ? "PDF" : "IMG" }), " ", file.name] }), _jsx("span", { children: sizeLabel(file.size) }), _jsx("button", { type: "button", className: "icon-button", "aria-label": `Remove ${file.name}`, onClick: () => onChange(value.filter((_, itemIndex) => itemIndex !== index)), children: "\u2715" })] }, `${file.name}-${index}`))) })), _jsxs("div", { className: "attachment-picker__footer", children: [_jsxs("span", { children: [value.length, " of ", maxFiles, " attachments"] }), _jsx("button", { type: "button", className: "secondary-button", disabled: hasReachedLimit || remaining <= 0, onClick: () => inputRef.current?.click(), title: hasReachedLimit ? `Maximum ${maxFiles} attachments reached` : "Add an attachment", children: "Add" })] })] }));
 }

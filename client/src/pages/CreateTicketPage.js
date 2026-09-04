@@ -22,6 +22,7 @@ export default function CreateTicketPage({ requesterId, requesterName = "Jennife
     const [requestedPriority, setRequestedPriority] = useState("");
     const [errors, setErrors] = useState({});
     const [apiError, setApiError] = useState(null);
+    const [uploadFailures, setUploadFailures] = useState([]);
     useEffect(() => {
         let active = true;
         async function loadOptions() {
@@ -82,8 +83,8 @@ export default function CreateTicketPage({ requesterId, requesterName = "Jennife
                 requesterId,
                 attachments,
             });
-            const payload = result;
-            const normalized = ("data" in payload && payload.data ? payload.data : payload);
+            const normalized = result;
+            setUploadFailures((normalized.attachments ?? []).filter((attachment) => attachment.uploadFailed).map((attachment) => ({ name: attachment.originalFilename, reason: attachment.reason })));
             setTicketNumber(normalized.ticketNumber ?? "");
             setFormSubmitted(true);
             setSummary(normalized.summary ?? summary);
@@ -115,7 +116,7 @@ export default function CreateTicketPage({ requesterId, requesterName = "Jennife
         }
     }, [firstFieldId]);
     if (formSubmitted) {
-        return (_jsxs("div", { className: "success-panel", children: [_jsx("div", { className: "success-panel__icon", "aria-hidden": "true", children: "\u2713" }), _jsx("h2", { children: "Ticket Created" }), _jsx("div", { className: "success-panel__number", children: ticketNumber || "TKT-2026-000101" }), _jsx("p", { children: summary || "Ticket created successfully." }), _jsxs("div", { className: "success-panel__actions", children: [_jsx("button", { type: "button", className: "primary-button", children: "View Ticket" }), _jsx("button", { type: "button", className: "secondary-button", onClick: () => {
+        return (_jsxs("div", { className: "success-panel", children: [_jsx("div", { className: "success-panel__icon", "aria-hidden": "true", children: "\u2713" }), _jsx("h2", { children: "Ticket Created" }), _jsx("div", { className: "success-panel__number", children: ticketNumber || "TKT-2026-000101" }), _jsx("p", { children: summary || "Ticket created successfully." }), uploadFailures.length > 0 && _jsxs("div", { className: "partial-upload-warning", role: "alert", children: [_jsx("strong", { children: "Some attachments were not uploaded." }), uploadFailures.map((failure) => _jsxs("div", { children: [failure.name, ": ", failure.reason ?? "Upload failed."] }, failure.name))] }), _jsxs("div", { className: "success-panel__actions", children: [_jsx("button", { type: "button", className: "primary-button", children: "View Ticket" }), _jsx("button", { type: "button", className: "secondary-button", onClick: () => {
                                 setFormSubmitted(false);
                                 setCategoryId("");
                                 setRelatedSystemId("");
@@ -126,6 +127,7 @@ export default function CreateTicketPage({ requesterId, requesterName = "Jennife
                                 setTicketNumber("");
                                 setErrors({});
                                 setApiError(null);
+                                setUploadFailures([]);
                             }, children: "Create Another Ticket" })] })] }));
     }
     return (_jsxs("div", { className: "page-card", children: [_jsx("h1", { className: "page-title", children: "Create Ticket" }), apiError && _jsx("div", { className: "error-panel", role: "alert", children: apiError }), _jsxs("div", { className: "ticket-grid", children: [_jsxs("div", { className: "form-row form-row--compact", children: [_jsx("label", { className: "field-label", htmlFor: "ticket-number", children: "Ticket Number" }), _jsx("input", { id: "ticket-number", className: "input-field input-field--readonly", value: "Generated after submission", readOnly: true })] }), _jsxs("div", { className: "form-row form-row--compact", children: [_jsx("label", { className: "field-label", htmlFor: "ticket-date", children: "Ticket Date" }), _jsx("input", { id: "ticket-date", className: "input-field input-field--readonly", value: todayLabel, readOnly: true })] }), _jsxs("div", { className: "form-row form-row--compact", children: [_jsx("label", { className: "field-label", htmlFor: "requester-name", children: "Requester" }), _jsx("input", { id: "requester-name", className: "input-field input-field--readonly", value: requesterName, readOnly: true })] })] }), _jsxs("div", { className: "ticket-grid ticket-grid--three", children: [_jsxs("div", { className: "form-row", children: [_jsxs("label", { className: "field-label", htmlFor: "categoryId", children: ["Category ", _jsx("span", { "aria-hidden": "true", children: "*" })] }), _jsxs("select", { id: "categoryId", className: `select-field ${errors.categoryId ? "field-invalid" : ""}`, value: categoryId, "aria-invalid": Boolean(errors.categoryId), "aria-describedby": errors.categoryId ? "categoryId-error" : undefined, onChange: (event) => {

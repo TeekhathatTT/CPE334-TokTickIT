@@ -42,7 +42,13 @@ export function AttachmentPicker({ value, onChange, maxFiles = 5 }: AttachmentPi
       accepted.push(file);
     });
 
-    const combined = [...value, ...accepted].slice(0, maxFiles);
+    const availableSlots = Math.max(0, maxFiles - value.length);
+    if (accepted.length > availableSlots) {
+      accepted.slice(availableSlots).forEach((file) => {
+        nextRejected.push({ name: file.name, reason: `attachment limit reached. Maximum ${maxFiles} files.` });
+      });
+    }
+    const combined = [...value, ...accepted.slice(0, availableSlots)];
     onChange(combined);
     setRejected(nextRejected);
 
@@ -56,10 +62,10 @@ export function AttachmentPicker({ value, onChange, maxFiles = 5 }: AttachmentPi
 
   return (
     <div className="attachment-picker">
-      <div className="attachment-dropzone" onClick={() => inputRef.current?.click()} role="button" tabIndex={0} onKeyDown={(event) => {
+      <div className={`attachment-dropzone ${value.length > 0 ? "attachment-dropzone--attached" : ""} ${hasReachedLimit ? "attachment-dropzone--disabled" : ""}`} onClick={() => !hasReachedLimit && inputRef.current?.click()} role="button" tabIndex={hasReachedLimit ? -1 : 0} aria-disabled={hasReachedLimit} title={hasReachedLimit ? `Maximum ${maxFiles} attachments reached` : undefined} onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          inputRef.current?.click();
+          if (!hasReachedLimit) inputRef.current?.click();
         }
       }}>
         <input
@@ -75,7 +81,7 @@ export function AttachmentPicker({ value, onChange, maxFiles = 5 }: AttachmentPi
           }}
         />
         <div className="attachment-dropzone__label">Drag files here or Add</div>
-        <div className="attachment-dropzone__count">{value.length} of {maxFiles} attachments</div>
+        <div className={`attachment-dropzone__count ${hasReachedLimit ? "attachment-dropzone__count--warning" : ""}`}>{value.length} of {maxFiles} attachments</div>
       </div>
 
       {rejected.length > 0 && (
@@ -92,7 +98,7 @@ export function AttachmentPicker({ value, onChange, maxFiles = 5 }: AttachmentPi
         <ul className="attachment-list">
           {value.map((file, index) => (
             <li key={`${file.name}-${index}`} className="attachment-item">
-              <span>{file.name}</span>
+              <span className="attachment-item__name" title={file.name}><span aria-hidden="true">{file.type === "application/pdf" ? "PDF" : "IMG"}</span> {file.name}</span>
               <span>{sizeLabel(file.size)}</span>
               <button
                 type="button"
@@ -114,6 +120,7 @@ export function AttachmentPicker({ value, onChange, maxFiles = 5 }: AttachmentPi
           className="secondary-button"
           disabled={hasReachedLimit || remaining <= 0}
           onClick={() => inputRef.current?.click()}
+          title={hasReachedLimit ? `Maximum ${maxFiles} attachments reached` : "Add an attachment"}
         >
           Add
         </button>
