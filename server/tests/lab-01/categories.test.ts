@@ -33,4 +33,22 @@ describe("GET /api/categories", () => {
       ],
     });
   });
+
+  it("returns the contract error envelope when the database fails", async () => {
+    vi.mocked(getPrisma).mockReturnValue({
+      category: {
+        findMany: vi.fn().mockRejectedValue(new Error("database failure")),
+      },
+    } as never);
+
+    const res = await request(app).get("/api/categories");
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Unable to fetch categories",
+      },
+    });
+  });
 });

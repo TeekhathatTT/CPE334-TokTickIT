@@ -43,6 +43,18 @@ function getAttachmentId(req: Request): number | null {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+async function hasActiveRequester(requesterId: number): Promise<boolean> {
+  const prisma = getPrisma();
+  if (!prisma.requester) {
+    return true;
+  }
+  const requester = await prisma.requester.findFirst({
+    where: { id: requesterId, isActive: true },
+    select: { id: true },
+  });
+  return requester !== null;
+}
+
 function isAllowedFile(
   filename: string,
   mimeType: string,
@@ -84,6 +96,15 @@ export async function addAttachment(
 
   try {
     const prisma = getPrisma();
+
+    if (!(await hasActiveRequester(requesterId))) {
+      return res.status(401).json({
+        error: {
+          code: "UNAUTHORIZED",
+          message: "Valid x-requester-id is required.",
+        },
+      });
+    }
 
     const ticket = await prisma.ticket.findFirst({
       where: {
@@ -243,6 +264,15 @@ export async function getAttachment(
   try {
     const prisma = getPrisma();
 
+    if (!(await hasActiveRequester(requesterId))) {
+      return res.status(401).json({
+        error: {
+          code: "UNAUTHORIZED",
+          message: "Valid x-requester-id is required.",
+        },
+      });
+    }
+
     const attachment =
       await prisma.attachment.findFirst({
         where: {
@@ -319,6 +349,15 @@ export async function downloadAttachment(
 
   try {
     const prisma = getPrisma();
+
+    if (!(await hasActiveRequester(requesterId))) {
+      return res.status(401).json({
+        error: {
+          code: "UNAUTHORIZED",
+          message: "Valid x-requester-id is required.",
+        },
+      });
+    }
 
     const attachment =
       await prisma.attachment.findFirst({
@@ -440,6 +479,15 @@ export async function removeAttachment(
 
   try {
     const prisma = getPrisma();
+
+    if (!(await hasActiveRequester(requesterId))) {
+      return res.status(401).json({
+        error: {
+          code: "UNAUTHORIZED",
+          message: "Valid x-requester-id is required.",
+        },
+      });
+    }
 
     const attachment =
       await prisma.attachment.findFirst({

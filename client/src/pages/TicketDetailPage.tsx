@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { addAttachment, downloadAttachment, getTicket, removeAttachment } from "../api";
+import { validateAttachment } from "../utils/attachment";
 
 interface AttachmentItem {
   id: number;
@@ -38,6 +39,9 @@ export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ti
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const cancelDialogRef = useRef<HTMLButtonElement | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -61,10 +65,23 @@ export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ti
 
     void loadTicket();
     return () => { active = false; };
-  }, [ticketId, requesterId]);
+  }, [ticketId, requesterId, retryToken]);
+
+  useEffect(() => {
+    if (!removeTarget) return;
+    cancelDialogRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setRemoveTarget(null);
+        setReason("");
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [removeTarget]);
 
   if (loading) return <div className="page-card">Loading ticket detail…</div>;
-  if (!ticket) return <div className="page-card">Ticket not found.</div>;
+  if (!ticket) return <div className="page-card"><div className="error-panel" role="alert">Ticket not found.</div><button type="button" className="secondary-button" onClick={() => { setLoading(true); setActionError(null); setRetryToken((token) => token + 1); }}>Retry</button></div>;
 
   const activeAttachments = ticket.attachments?.active ?? [];
   const removedAttachments = ticket.attachments?.removed ?? [];
@@ -72,7 +89,7 @@ export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ti
   const handleDownload = async (attachment: AttachmentItem) => {
     try { const blob = await downloadAttachment(attachment.id, requesterId); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = attachment.originalFilename; link.click(); URL.revokeObjectURL(url); } catch (downloadError) { setActionError(downloadError instanceof Error ? downloadError.message : "Download failed."); }
   };
-  const handleAdd = async (file: File) => { setActionBusy(true); setActionError(null); try { await addAttachment(ticketId, requesterId, file); await refreshTicket(); } catch (addError) { setActionError(addError instanceof Error ? addError.message : "Unable to add attachment."); } finally { setActionBusy(false); } };
+  const handleAdd = async (file: File) => { const validation = validateAttachment(file); if (!validation.accepted) { setActionError(validation.reason === "oversized" ? "File exceeds the 5MB limit." : "Unsupported file type. Allowed: JPG, PNG, WEBP, PDF."); return; } setActionBusy(true); setActionError(null); try { await addAttachment(ticketId, requesterId, file); await refreshTicket(); } catch (addError) { setActionError(addError instanceof Error ? addError.message : "Unable to add attachment."); } finally { setActionBusy(false); } };
   const handleRemove = async () => { if (!removeTarget || reason.trim().length < 5 || reason.trim().length > 200) return; setActionBusy(true); setActionError(null); try { await removeAttachment(removeTarget.id, requesterId, reason.trim()); setRemoveTarget(null); setReason(""); await refreshTicket(); } catch (removeError) { setActionError(removeError instanceof Error ? removeError.message : "Unable to remove attachment."); } finally { setActionBusy(false); } };
 
   return (
@@ -137,7 +154,7 @@ export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ti
           )}
         </div>
       </div>
-      {removeTarget && <div className="modal-backdrop" role="presentation"><div className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-title"><h2 id="remove-title">Remove attachment?</h2><p>{removeTarget.originalFilename}</p><label className="field-label" htmlFor="removal-reason">Reason (5–200 characters) *</label><textarea id="removal-reason" className="textarea-field" value={reason} onChange={(event) => setReason(event.target.value)} aria-describedby="removal-reason-error" /><div id="removal-reason-error" className="field-error" role="alert">{reason.length > 0 && (reason.trim().length < 5 || reason.trim().length > 200) ? "Reason must be between 5 and 200 characters." : ""}</div><div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => { setRemoveTarget(null); setReason(""); }}>Cancel</button><button type="button" className="destructive-button" disabled={actionBusy || reason.trim().length < 5 || reason.trim().length > 200} onClick={() => void handleRemove()}>Confirm Remove</button></div></div></div>}
+      {removeTarget && <div className="modal-backdrop" role="presentation"><div ref={dialogRef} className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-title"><h2 id="remove-title">Remove attachment?</h2><p>{removeTarget.originalFilename}</p><label className="field-label" htmlFor="removal-reason">Reason (5–200 characters) *</label><textarea id="removal-reason" className="textarea-field" value={reason} onChange={(event) => setReason(event.target.value)} aria-describedby="removal-reason-error" /><div id="removal-reason-error" className="field-error" role="alert">{reason.length > 0 && (reason.trim().length < 5 || reason.trim().length > 200) ? "Reason must be between 5 and 200 characters." : ""}</div><div className="dialog-actions"><button ref={cancelDialogRef} type="button" className="secondary-button" onClick={() => { setRemoveTarget(null); setReason(""); }}>Cancel</button><button type="button" className="destructive-button" disabled={actionBusy || reason.trim().length < 5 || reason.trim().length > 200} onClick={() => void handleRemove()}>Confirm Remove</button></div></div></div>}
     </div>
   );
 }

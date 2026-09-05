@@ -16,6 +16,9 @@ server/prisma/*.db
 # Ignore compiled/transpiled client artifacts that shouldn't be committed
 client/src/*.js
 client/src/*.jsx
+client/playwright-report/
+client/test-results/
+client/tests/*.js
 
 # Ignore local node_modules per-package
 client/node_modules/

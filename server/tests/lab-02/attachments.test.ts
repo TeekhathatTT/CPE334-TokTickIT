@@ -25,6 +25,28 @@ afterAll(async () => {
 });
 
 describe("POST /api/tickets/:id/attachments", () => {
+  it("rejects an inactive requester before checking attachment ownership", async () => {
+    mockPrisma({
+      requester: {
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+      ticket: {
+        findFirst: vi.fn(),
+      },
+    });
+
+    const response = await request(app)
+      .post("/api/tickets/101/attachments")
+      .set("x-requester-id", "1")
+      .attach("file", Buffer.from("%PDF-1.4 test file"), {
+        filename: "invoice.pdf",
+        contentType: "application/pdf",
+      });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe("UNAUTHORIZED");
+  });
+
   it("adds an attachment to an owned ticket", async () => {
     mockPrisma({
       ticket: {

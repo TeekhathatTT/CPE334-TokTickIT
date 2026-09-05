@@ -26,6 +26,8 @@ export default function MyTicketsPage({ requesterId, onCreateTicket, onSelectTic
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [retryToken, setRetryToken] = useState(0);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -51,7 +53,7 @@ export default function MyTicketsPage({ requesterId, onCreateTicket, onSelectTic
 
     void loadTickets();
     return () => { active = false; };
-  }, [requesterId, search, category, requestedPriority, itPriority, status, sort, order, page, pageSize]);
+  }, [requesterId, search, category, requestedPriority, itPriority, status, sort, order, page, pageSize, retryToken]);
 
   useEffect(() => { void getCategories().then(setCategories).catch(() => undefined); }, []);
   const clearFilters = () => { setSearch(""); setCategory(""); setRequestedPriority(""); setItPriority(""); setStatus(""); setPage(1); };
@@ -69,7 +71,8 @@ export default function MyTicketsPage({ requesterId, onCreateTicket, onSelectTic
           <div className="header-actions"><button type="button" className="secondary-button" onClick={clearFilters}>Clear Filters</button><button type="button" className="primary-button" onClick={onCreateTicket}>Create Ticket</button></div>
       </div>
 
-      <div className="filters-row">
+      <button type="button" className="filters-toggle secondary-button" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen}>Filters</button>
+      <div className={`filters-row ${filtersOpen ? "filters-row--open" : ""}`}>
         <input
           aria-label="Search tickets"
           className="input-field"
@@ -90,11 +93,12 @@ export default function MyTicketsPage({ requesterId, onCreateTicket, onSelectTic
         </select>
       </div>
 
-      {error ? <div className="error-panel" role="alert">{error}<button type="button" className="secondary-button" onClick={() => setPage((current) => current)}>Retry</button></div> : meta.isEmpty ? (
+      {error ? <div className="error-panel" role="alert">{error}<button type="button" className="secondary-button" onClick={() => setRetryToken((token) => token + 1)}>Retry</button></div> : meta.isEmpty ? (
         <div className="empty-state"><div aria-hidden="true">□</div><p>You have no tickets yet.</p><button type="button" className="primary-button" onClick={onCreateTicket}>Create your first ticket</button></div>
       ) : meta.isNoResults ? (
         <div className="empty-state"><p>No tickets match your filters.</p><button type="button" className="secondary-button" onClick={clearFilters}>Clear Filters</button></div>
       ) : (
+        <div className="ticket-table-wrap">
         <table className="ticket-table">
           <thead>
             <tr>
@@ -120,6 +124,19 @@ export default function MyTicketsPage({ requesterId, onCreateTicket, onSelectTic
             ))}
           </tbody>
         </table>
+        </div>
+      )}
+
+      {!error && !meta.isEmpty && !meta.isNoResults && (
+        <div className="ticket-cards">
+          {rows.map((row) => (
+            <article className="ticket-card" key={row.id}>
+              <div className="ticket-card__header"><button type="button" className="link-button" onClick={() => onSelectTicket?.(row.id)}>{row.ticketNumber}</button>{badge(row.status)}</div>
+              <p className="ticket-card__summary">{row.summary}</p>
+              <div className="ticket-card__grid"><span>Category<strong>{row.category}</strong></span><span>Requested<strong>{badge(row.requestedPriority)}</strong></span><span>IT Priority<strong>{badge(row.itPriority)}</strong></span><span>Last Updated<strong>{formatDate(row.updatedAt ?? row.createdAt)}</strong></span></div>
+            </article>
+          ))}
+        </div>
       )}
 
       <div className="pagination-row">
