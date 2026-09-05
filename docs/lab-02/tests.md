@@ -124,9 +124,9 @@ To be filled in once implementation lands on `lab2-staging` and tests run agains
 
 | Suite | Command | Pass/Fail | Notes |
 |---|---|---|---|
-| Server unit + API | `cd server && npm test` | Pending | |
-| Client UI | `cd client && npm test` | Pending | |
-| E2E/responsive | `npx playwright test e2e/lab-02` | Pending | |
+| Server unit + API | `cd server && npm test` | 31 passed | Vitest suite, including API ownership and partial-upload tests |
+| Client UI | `cd client && npm test` | 32 passed | Vitest + React Testing Library suite |
+| E2E/responsive | `cd client && npm run test:e2e` | 6 discovered; execution blocked | Docker Desktop/PostgreSQL was unavailable in the audit environment |
 
 ## 7. Known Limitations or Deferred Tests
 

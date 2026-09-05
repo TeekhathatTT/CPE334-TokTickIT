@@ -5,7 +5,7 @@ import type { Requester } from "../types/ticket";
 interface RequesterSelectionPageProps {
   selectedRequesterId: number | null;
   onRequesterChange: (requesterId: number) => void;
-  onContinue: (requesterId: number) => void;
+  onContinue: (requesterId: number, requesterName: string) => void;
 }
 
 export function RequesterSelectionPage({
@@ -17,6 +17,7 @@ export function RequesterSelectionPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [localSelection, setLocalSelection] = useState<number | null>(selectedRequesterId);
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -54,7 +55,7 @@ export function RequesterSelectionPage({
     return () => {
       active = false;
     };
-  }, []);
+  }, [retryToken]);
 
   const hasRequesters = requesters.length > 0;
   const selectedValue = localSelection ?? selectedRequesterId ?? "";
@@ -81,7 +82,7 @@ export function RequesterSelectionPage({
           <div className="error-panel" role="alert">
             <strong>Unable to load requesters.</strong>
             <p>{error}</p>
-            <button type="button" className="secondary-button" onClick={() => window.location.reload()}>
+            <button type="button" className="secondary-button" onClick={() => setRetryToken((token) => token + 1)}>
               Retry
             </button>
           </div>
@@ -128,7 +129,8 @@ export function RequesterSelectionPage({
             disabled={!localSelection || loading || !!error || !hasRequesters}
             onClick={() => {
               if (localSelection) {
-                onContinue(localSelection);
+                const requester = requesters.find((item) => item.id === localSelection);
+                onContinue(localSelection, requester?.name ?? "Requester");
               }
             }}
           >

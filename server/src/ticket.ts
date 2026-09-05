@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import type { Prisma } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
 
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH"] as const;
@@ -152,6 +153,8 @@ export async function createTicket(
     });
   }
 
+  let createdTicketId: number | null = null;
+
   try {
     const requester = await getActiveRequester(requesterId);
 
@@ -267,28 +270,39 @@ export async function createTicket(
       });
     }
 
-    const ticketNumber =
-      await generateTicketNumber();
-
     /*
      * Create the Ticket first.
      *
      * If Ticket creation itself fails, the catch block returns 500
      * and no Ticket is returned to the client.
      */
-    const ticket =
-      await prisma.ticket.create({
-        data: {
-          ticketNumber,
-          requesterId: requester.id,
-          categoryId: category.id,
-          relatedSystemId: relatedSystem.id,
-          summary,
-          description,
-          requestedPriority,
-          status: "NEW",
-        },
-      });
+    let ticket;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const ticketNumber = await generateTicketNumber();
+      try {
+        ticket = await prisma.ticket.create({
+          data: {
+            ticketNumber,
+            requesterId: requester.id,
+            categoryId: category.id,
+            relatedSystemId: relatedSystem.id,
+            summary,
+            description,
+            requestedPriority,
+            status: "NEW",
+          },
+        });
+        break;
+      } catch (createError) {
+        const isUniqueConflict = createError instanceof Error && /unique|P2002|ticketNumber/i.test(createError.message);
+        if (!isUniqueConflict || attempt === 2) throw createError;
+      }
+    }
+
+    if (!ticket) {
+      throw new Error("Unable to allocate a unique ticket number.");
+    }
+    createdTicketId = ticket.id;
 
     const files = Array.isArray(req.files)
       ? req.files
@@ -499,6 +513,13 @@ export async function createTicket(
       error,
     );
 
+    if (createdTicketId !== null) {
+      const prisma = getPrisma();
+      if (typeof prisma.ticket.delete === "function") {
+        await prisma.ticket.delete({ where: { id: createdTicketId } }).catch(() => undefined);
+      }
+    }
+
     return res.status(500).json({
       error: {
         code: "INTERNAL_ERROR",
@@ -641,6 +662,15 @@ export async function getTickets(
         ? 0
         : Math.ceil(totalItems / pageSize);
 
+    const orderBy: Prisma.TicketOrderByWithRelationInput[] = [
+      sort === "createdAt"
+        ? { createdAt: order }
+        : sort === "updatedAt"
+          ? { updatedAt: order }
+          : { ticketNumber: order },
+      { ticketNumber: order },
+    ];
+
     const tickets = await prisma.ticket.findMany({
       where,
       select: {
@@ -658,9 +688,7 @@ export async function getTickets(
           },
         },
       },
-      orderBy: {
-        [sort]: order,
-      },
+      orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
     });

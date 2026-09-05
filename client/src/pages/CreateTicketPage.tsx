@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { AttachmentPicker } from "../components/AttachmentPicker";
 import { getCategories, getRelatedSystems, createTicket } from "../api";
 import type { Category, RelatedSystem, Priority } from "../types/ticket";
+import { validateDescription, validatePriority, validateSummary } from "../utils/validation";
 
 interface CreateTicketPageProps {
   requesterId: number;
   requesterName?: string;
+  onCancel?: () => void;
+  onViewTicket?: (ticketId: number) => void;
 }
 
 interface FormErrors {
@@ -22,7 +25,7 @@ const todayLabel = new Date().toLocaleDateString("en-GB", {
   year: "numeric",
 });
 
-export default function CreateTicketPage({ requesterId, requesterName = "Jennifer Anderson" }: CreateTicketPageProps) {
+export default function CreateTicketPage({ requesterId, requesterName = "Jennifer Anderson", onCancel, onViewTicket }: CreateTicketPageProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [relatedSystems, setRelatedSystems] = useState<RelatedSystem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +33,7 @@ export default function CreateTicketPage({ requesterId, requesterName = "Jennife
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [ticketNumber, setTicketNumber] = useState<string>("");
+  const [ticketId, setTicketId] = useState<number | null>(null);
   const [summary, setSummary] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -68,13 +72,13 @@ export default function CreateTicketPage({ requesterId, requesterName = "Jennife
 
     if (!categoryId) nextErrors.categoryId = "Category is required.";
     if (!relatedSystemId) nextErrors.relatedSystemId = "Related System is required.";
-    if (summary.trim().length < 5 || summary.trim().length > 120) {
+    if (!validateSummary(summary)) {
       nextErrors.summary = "Summary must be between 5 and 120 characters.";
     }
-    if (description.trim().length < 10 || description.trim().length > 2000) {
+    if (!validateDescription(description)) {
       nextErrors.description = "Description must be between 10 and 2000 characters.";
     }
-    if (!requestedPriority || !["LOW", "MEDIUM", "HIGH"].includes(requestedPriority)) {
+    if (!validatePriority(requestedPriority)) {
       nextErrors.requestedPriority = "Requested priority is required.";
     }
 
@@ -103,10 +107,11 @@ export default function CreateTicketPage({ requesterId, requesterName = "Jennife
         attachments,
       });
 
-      const normalized = result as { ticketNumber?: string; summary?: string; attachments?: Array<{ originalFilename: string; uploadFailed?: boolean; reason?: string }> };
+      const normalized = result as { id?: number; ticketNumber?: string; summary?: string; attachments?: Array<{ originalFilename: string; uploadFailed?: boolean; reason?: string }> };
       setUploadFailures((normalized.attachments ?? []).filter((attachment) => attachment.uploadFailed).map((attachment) => ({ name: attachment.originalFilename, reason: attachment.reason })));
 
       setTicketNumber(normalized.ticketNumber ?? "");
+      setTicketId(normalized.id ?? null);
       setFormSubmitted(true);
       setSummary(normalized.summary ?? summary);
     } catch (error) {
@@ -141,7 +146,7 @@ export default function CreateTicketPage({ requesterId, requesterName = "Jennife
         <p>{summary || "Ticket created successfully."}</p>
         {uploadFailures.length > 0 && <div className="partial-upload-warning" role="alert"><strong>Some attachments were not uploaded.</strong>{uploadFailures.map((failure) => <div key={failure.name}>{failure.name}: {failure.reason ?? "Upload failed."}</div>)}</div>}
         <div className="success-panel__actions">
-          <button type="button" className="primary-button">View Ticket</button>
+          <button type="button" className="primary-button" disabled={ticketId === null} onClick={() => ticketId !== null && onViewTicket?.(ticketId)}>View Ticket</button>
           <button type="button" className="secondary-button" onClick={() => {
             setFormSubmitted(false);
             setCategoryId("");
@@ -151,6 +156,7 @@ export default function CreateTicketPage({ requesterId, requesterName = "Jennife
             setDescription("");
             setAttachments([]);
             setTicketNumber("");
+            setTicketId(null);
             setErrors({});
             setApiError(null);
             setUploadFailures([]);
@@ -286,7 +292,7 @@ export default function CreateTicketPage({ requesterId, requesterName = "Jennife
       </div>
 
       <div className="ticket-actions">
-        <button type="button" className="secondary-button">Cancel</button>
+        <button type="button" className="secondary-button" onClick={onCancel}>Cancel</button>
         <button type="button" className="primary-button" disabled={submitting || loading} onClick={handleSubmit}>
           {submitting ? "Submitting…" : "Create Ticket"}
         </button>

@@ -1,4 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import {
+  MAX_ATTACHMENTS,
+  validateAttachment,
+} from "../utils/attachment";
 
 export interface AttachmentPickerProps {
   value: File[];
@@ -6,12 +10,10 @@ export interface AttachmentPickerProps {
   maxFiles?: number;
 }
 
-const VALID_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".pdf"] as const;
-const MAX_SIZE_BYTES = 5 * 1024 * 1024;
-
-export function AttachmentPicker({ value, onChange, maxFiles = 5 }: AttachmentPickerProps) {
+export function AttachmentPicker({ value, onChange, maxFiles = MAX_ATTACHMENTS }: AttachmentPickerProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [rejected, setRejected] = useState<Array<{ name: string; reason: string }>>([]);
+  const [dragActive, setDragActive] = useState(false);
 
   const sizeLabel = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -25,16 +27,13 @@ export function AttachmentPicker({ value, onChange, maxFiles = 5 }: AttachmentPi
     const accepted: File[] = [];
 
     fileList.forEach((file) => {
-      const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
-      const isSupported = VALID_EXTENSIONS.includes(extension as (typeof VALID_EXTENSIONS)[number]);
-      const isUnderLimit = file.size <= MAX_SIZE_BYTES;
-
-      if (!isSupported) {
+      const validation = validateAttachment(file);
+      if (validation.reason === "unsupported") {
         nextRejected.push({ name: file.name, reason: "unsupported file type. Allowed: JPG, PNG, WEBP, PDF" });
         return;
       }
 
-      if (!isUnderLimit) {
+      if (validation.reason === "oversized") {
         nextRejected.push({ name: file.name, reason: "file exceeds 5MB limit." });
         return;
       }
@@ -62,7 +61,7 @@ export function AttachmentPicker({ value, onChange, maxFiles = 5 }: AttachmentPi
 
   return (
     <div className="attachment-picker">
-      <div className={`attachment-dropzone ${value.length > 0 ? "attachment-dropzone--attached" : ""} ${hasReachedLimit ? "attachment-dropzone--disabled" : ""}`} onClick={() => !hasReachedLimit && inputRef.current?.click()} role="button" tabIndex={hasReachedLimit ? -1 : 0} aria-disabled={hasReachedLimit} title={hasReachedLimit ? `Maximum ${maxFiles} attachments reached` : undefined} onKeyDown={(event) => {
+      <div className={`attachment-dropzone ${value.length > 0 ? "attachment-dropzone--attached" : ""} ${hasReachedLimit ? "attachment-dropzone--disabled" : ""} ${dragActive ? "attachment-dropzone--dragging" : ""}`} onClick={() => !hasReachedLimit && inputRef.current?.click()} role="button" tabIndex={hasReachedLimit ? -1 : 0} aria-disabled={hasReachedLimit} title={hasReachedLimit ? `Maximum ${maxFiles} attachments reached` : undefined} onDragOver={(event) => { event.preventDefault(); if (!hasReachedLimit) setDragActive(true); }} onDragLeave={() => setDragActive(false)} onDrop={(event) => { event.preventDefault(); setDragActive(false); if (!hasReachedLimit) addFiles(event.dataTransfer.files); }} onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           if (!hasReachedLimit) inputRef.current?.click();

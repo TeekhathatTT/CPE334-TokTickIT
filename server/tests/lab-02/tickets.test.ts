@@ -123,6 +123,35 @@ describe("POST /api/tickets", () => {
     expect(response.body.error.fields.summary).toBeDefined();
   });
 
+  it("returns field errors for every invalid ticket input", async () => {
+    mockPrisma({
+      requester: {
+        findFirst: vi.fn().mockResolvedValue(activeRequester),
+      },
+    });
+
+    const response = await request(app)
+      .post("/api/tickets")
+      .set("x-requester-id", "1")
+      .field("categoryId", "")
+      .field("relatedSystemId", "not-a-number")
+      .field("summary", "no")
+      .field("description", "short")
+      .field("requestedPriority", "URGENT");
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toMatchObject({
+      code: "VALIDATION_ERROR",
+      fields: {
+        categoryId: expect.any(String),
+        relatedSystemId: expect.any(String),
+        summary: expect.any(String),
+        description: expect.any(String),
+        requestedPriority: expect.any(String),
+      },
+    });
+  });
+
   it("returns 404 when categoryId does not reference an active category", async () => {
     mockPrisma({
       requester: {
