@@ -16,7 +16,7 @@
 | [PR #19](https://github.com/TeekhathatTT/CPE334-TokTickIT/pull/19) | `feature/spec-tests`     | Chessuker | Approved                     | Merged |
 | [PR #20](https://github.com/TeekhathatTT/CPE334-TokTickIT/pull/20) | `feature/lab2-requester` | Chessuker | Changes Requested → Approved | Merged |
 | [PR #23](https://github.com/TeekhathatTT/CPE334-TokTickIT/pull/23) | `feature/lab2-ticket`    | Khwanklao | Changes Requested → Resolved | Merged |
-| [PR #25](https://github.com/TeekhathatTT/CPE334-TokTickIT/pull/25) | `feature/lab2-frontend`  | Khwanklao | Changes Requested            | Merged   |
+| [PR #25](https://github.com/TeekhathatTT/CPE334-TokTickIT/pull/25) | `feature/lab2-frontend`  | Khwanklao | Changes Requested → Approved | Merged   |
 
 ---
 
