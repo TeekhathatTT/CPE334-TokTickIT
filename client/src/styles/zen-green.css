@@ -108,6 +108,17 @@ button:disabled {
   border-radius: 999px;
 }
 
+.profile-menu .tertiary-button {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.profile-menu .tertiary-button:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
 .page-shell {
   max-width: 1200px;
   margin: 0 auto;
