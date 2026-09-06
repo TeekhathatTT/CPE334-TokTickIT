@@ -8,14 +8,13 @@ Prerequisites:
 
 Quick start (root of repo):
 
-1. Copy the client environment example and edit the API URL:
+1. Copy environment example and edit values:
 
 ```
-cd client
 cp .env.example .env
 ```
 
-2. Install dependencies for both packages:
+2. Install dependencies for both packages (from repo root):
 
 ```
 cd client
@@ -47,14 +46,6 @@ cd ../server
 npm test
 ```
 
-Run browser E2E and responsive checks (requires Docker Desktop/PostgreSQL and seeded data):
-
-```
-cd client
-npm run test:e2e
-```
-
 Notes:
-- Do not commit `.env` or `node_modules`. The client uses `VITE_API_URL` from `client/.env.example`.
+- Do not commit `.env` or `node_modules`. Use `.env.example` for sharing env vars.
 - Compiled/transpiled files in `client/src` should not be committed; keep source files (`.tsx`, `.ts`).# TokTickIT 
-- Lab 2 unit, API, and UI tests run with the two `npm test` commands above. Playwright E2E and responsive tests are configured under `client/e2e` and require the database/application environment.
