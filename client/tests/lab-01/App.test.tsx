@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import App from "../../src/App";
 import * as api from "../../src/api";
 
@@ -7,34 +7,34 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("App", () => {
-  it("renders the TokTickIT heading", () => {
+describe("Requester selection", () => {
+  it("renders the requester selection screen and loads active requesters", async () => {
+    vi.spyOn(api, "getRequesters").mockResolvedValue([
+      { id: 1, name: "Jennifer Anderson", email: "jennifer.anderson@example.com" },
+    ]);
+
     render(<App />);
-    expect(screen.getByText(/TokTickIT/i)).toBeInTheDocument();
+
+    expect(screen.getByRole("heading", { name: /select development requester/i })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "Jennifer Anderson" })).toBeInTheDocument();
   });
 
-  it("shows Online and the seeded categories on success", async () => {
-    vi.spyOn(api, "checkSystem").mockResolvedValue({
-      online: true,
-      categories: [{ id: 1, name: "Hardware" }],
+  it("enables continue only after a requester is selected", async () => {
+    vi.spyOn(api, "getRequesters").mockResolvedValue([
+      { id: 1, name: "Jennifer Anderson", email: "jennifer.anderson@example.com" },
+    ]);
+
+    render(<App />);
+
+    const select = await screen.findByRole("combobox");
+    const continueButton = screen.getByRole("button", { name: /continue/i });
+    expect(continueButton).toBeDisabled();
+
+    fireEvent.change(select, {
+      target: { value: "1" },
     });
 
-    render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /check system/i }));
-
-    expect(await screen.findByText(/system status:/i)).toBeInTheDocument();
-    expect(screen.getByText(/online/i)).toBeInTheDocument();
-    expect(screen.getByText("Hardware")).toBeInTheDocument();
-  });
-
-  it("shows an Offline error message when the API is unavailable", async () => {
-    vi.spyOn(api, "checkSystem").mockRejectedValue(new Error("offline"));
-
-    render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /check system/i }));
-
-    expect(await screen.findByText(/offline/i)).toBeInTheDocument();
-    expect(screen.getByText(/unable to reach the backend api/i)).toBeInTheDocument();
+    await waitFor(() => expect(continueButton).toBeEnabled());
   });
 });
 
