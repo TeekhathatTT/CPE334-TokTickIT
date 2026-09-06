@@ -2,7 +2,7 @@
 
 ## 1. LLM Used
 
-The project used **ChatGPT (OpenAI)** as an AI-assisted development and documentation tool during Lab 2.
+The project used **ChatGPT and Claude Sonnet5** as an AI-assisted development and documentation tool during Lab 2.
 
 AI was used to support:
 
