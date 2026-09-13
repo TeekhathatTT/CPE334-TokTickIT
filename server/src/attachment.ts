@@ -72,7 +72,7 @@ export async function addAttachment(
     return res.status(401).json({
       error: {
         code: "UNAUTHORIZED",
-        message: "Valid x-requester-id is required.",
+        message: "An authenticated requester session is required.",
       },
     });
   }
@@ -93,7 +93,7 @@ export async function addAttachment(
       return res.status(401).json({
         error: {
           code: "UNAUTHORIZED",
-          message: "Valid x-requester-id is required.",
+          message: "An authenticated requester session is required.",
         },
       });
     }
@@ -239,7 +239,7 @@ export async function getAttachment(
     return res.status(401).json({
       error: {
         code: "UNAUTHORIZED",
-        message: "Valid x-requester-id is required.",
+        message: "An authenticated requester session is required.",
       },
     });
   }
@@ -260,7 +260,7 @@ export async function getAttachment(
       return res.status(401).json({
         error: {
           code: "UNAUTHORIZED",
-          message: "Valid x-requester-id is required.",
+          message: "An authenticated requester session is required.",
         },
       });
     }
@@ -325,7 +325,7 @@ export async function downloadAttachment(
     return res.status(401).json({
       error: {
         code: "UNAUTHORIZED",
-        message: "Valid x-requester-id is required.",
+        message: "An authenticated requester session is required.",
       },
     });
   }
@@ -346,7 +346,7 @@ export async function downloadAttachment(
       return res.status(401).json({
         error: {
           code: "UNAUTHORIZED",
-          message: "Valid x-requester-id is required.",
+          message: "An authenticated requester session is required.",
         },
       });
     }
@@ -436,7 +436,7 @@ export async function removeAttachment(
     return res.status(401).json({
       error: {
         code: "UNAUTHORIZED",
-        message: "Valid x-requester-id is required.",
+        message: "An authenticated requester session is required.",
       },
     });
   }
@@ -476,7 +476,7 @@ export async function removeAttachment(
       return res.status(401).json({
         error: {
           code: "UNAUTHORIZED",
-          message: "Valid x-requester-id is required.",
+          message: "An authenticated requester session is required.",
         },
       });
     }

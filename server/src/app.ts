@@ -23,16 +23,12 @@ void getPrisma;
 
 export const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: process.env.APP_ORIGIN,
+  credentials: true,
+}));
 app.use(express.json());
 app.use(loadSession);
-app.use((req, res, next) => {
-  if (["POST", "PATCH", "PUT", "DELETE"].includes(req.method) && req.header("origin")) {
-    const expectedOrigin = process.env.APP_ORIGIN ?? "http://localhost:5173";
-    if (req.header("origin") !== expectedOrigin) return res.status(403).json({ error: { code: "FORBIDDEN", message: "Request origin is not allowed." } });
-  }
-  return next();
-});
 
 app.post("/api/auth/login", login);
 app.post("/api/auth/logout", requireAuth, logout);

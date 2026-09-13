@@ -138,7 +138,7 @@ export async function createTicket(
     return res.status(401).json({
       error: {
         code: "UNAUTHORIZED",
-        message: "Valid x-requester-id is required.",
+        message: "An authenticated requester session is required.",
       },
     });
   }
@@ -152,7 +152,7 @@ export async function createTicket(
       return res.status(401).json({
         error: {
           code: "UNAUTHORIZED",
-          message: "Valid x-requester-id is required.",
+          message: "An authenticated requester session is required.",
         },
       });
     }
@@ -530,7 +530,7 @@ export async function getTickets(
     return res.status(401).json({
       error: {
         code: "UNAUTHORIZED",
-        message: "Valid x-requester-id is required.",
+        message: "An authenticated requester session is required.",
       },
     });
   }
@@ -542,7 +542,7 @@ export async function getTickets(
       return res.status(401).json({
         error: {
           code: "UNAUTHORIZED",
-          message: "Valid x-requester-id is required.",
+          message: "An authenticated requester session is required.",
         },
       });
     }
@@ -729,7 +729,7 @@ export async function getTicket(
     return res.status(401).json({
       error: {
         code: "UNAUTHORIZED",
-        message: "Valid x-requester-id is required.",
+        message: "An authenticated requester session is required.",
       },
     });
   }
@@ -750,7 +750,7 @@ export async function getTicket(
       return res.status(401).json({
         error: {
           code: "UNAUTHORIZED",
-          message: "Valid x-requester-id is required.",
+          message: "An authenticated requester session is required.",
         },
       });
     }
