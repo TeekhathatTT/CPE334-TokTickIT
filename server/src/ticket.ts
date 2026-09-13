@@ -5,32 +5,22 @@ import { getPrisma } from "./prisma.js";
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH"] as const;
 
 function getRequesterId(req: Request): number | null {
-  const raw = req.header("x-requester-id");
-
-  if (!raw) {
-    return null;
-  }
-
-  const requesterId = Number(raw);
-
-  if (!Number.isInteger(requesterId) || requesterId <= 0) {
-    return null;
-  }
-
-  return requesterId;
+  return req.authUser?.id ?? null;
 }
 
-async function getActiveRequester(requesterId: number) {
+async function getActiveRequester(userId: number) {
   const prisma = getPrisma();
 
-  return prisma.requester.findFirst({
+  return prisma.user.findFirst({
     where: {
-      id: requesterId,
+      id: userId,
       isActive: true,
+      role: "REQUESTER",
     },
     select: {
       id: true,
       name: true,
+      legacyRequesterId: true,
     },
   });
 }
@@ -283,7 +273,8 @@ export async function createTicket(
         ticket = await prisma.ticket.create({
           data: {
             ticketNumber,
-            requesterId: requester.id,
+            requesterId: requester.legacyRequesterId as number,
+            requesterUserId: requester.id,
             categoryId: category.id,
             relatedSystemId: relatedSystem.id,
             summary,
@@ -486,7 +477,7 @@ export async function createTicket(
         ticketNumber:
           ticket.ticketNumber,
         requesterId:
-          ticket.requesterId,
+          ticket.requesterUserId,
         categoryId:
           ticket.categoryId,
         relatedSystemId:
@@ -618,7 +609,7 @@ export async function getTickets(
         : 10;
 
     const where = {
-      requesterId,
+            requesterUserId: requesterId,
       ...(categoryId ? { categoryId } : {}),
       ...(requestedPriority
         ? { requestedPriority }
@@ -653,7 +644,7 @@ export async function getTickets(
 
     const totalAllTickets = await prisma.ticket.count({
       where: {
-        requesterId,
+        requesterUserId: requesterId,
       },
     });
 
@@ -698,7 +689,7 @@ export async function getTickets(
         id: ticket.id,
         ticketNumber: ticket.ticketNumber,
         summary: ticket.summary,
-        category: ticket.category.name,
+        category: (ticket as typeof ticket & { category: { name: string } }).category.name,
         requestedPriority: ticket.requestedPriority,
         itPriority: ticket.itPriority,
         status: ticket.status,
@@ -769,7 +760,7 @@ export async function getTicket(
     const ticket = await prisma.ticket.findFirst({
       where: {
         id: ticketId,
-        requesterId,
+        requesterUserId: requesterId,
       },
       include: {
         requester: {

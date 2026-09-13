@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { addAttachment, downloadAttachment, getTicket, removeAttachment } from "../api";
+import { addAttachment, addPublicComment, downloadAttachment, getPublicComments, getTicket, markProblemAppearsResolved, removeAttachment, type PublicComment } from "../api";
 import { validateAttachment } from "../utils/attachment";
 
 interface AttachmentItem {
@@ -42,6 +42,10 @@ export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ti
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const cancelDialogRef = useRef<HTMLButtonElement | null>(null);
   const [retryToken, setRetryToken] = useState(0);
+  const [comments, setComments] = useState<PublicComment[]>([]);
+  const [commentText, setCommentText] = useState("");
+  const [commentBusy, setCommentBusy] = useState(false);
+  const [problemResolved, setProblemResolved] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -51,6 +55,12 @@ export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ti
         const payload = await getTicket(ticketId, requesterId);
         if (!active) return;
         setTicket(payload as unknown as TicketDetailData);
+        try {
+          const loadedComments = await getPublicComments(ticketId);
+          if (active) setComments(loadedComments);
+        } catch {
+          if (active) setComments([]);
+        }
       } catch (detailError) {
         if (active) {
           setActionError(detailError instanceof Error ? detailError.message : "Unable to load ticket.");
@@ -91,6 +101,8 @@ export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ti
   };
   const handleAdd = async (file: File) => { const validation = validateAttachment(file); if (!validation.accepted) { setActionError(validation.reason === "oversized" ? "File exceeds the 5MB limit." : "Unsupported file type. Allowed: JPG, PNG, WEBP, PDF."); return; } setActionBusy(true); setActionError(null); try { await addAttachment(ticketId, requesterId, file); await refreshTicket(); } catch (addError) { setActionError(addError instanceof Error ? addError.message : "Unable to add attachment."); } finally { setActionBusy(false); } };
   const handleRemove = async () => { if (!removeTarget || reason.trim().length < 5 || reason.trim().length > 200) return; setActionBusy(true); setActionError(null); try { await removeAttachment(removeTarget.id, requesterId, reason.trim()); setRemoveTarget(null); setReason(""); await refreshTicket(); } catch (removeError) { setActionError(removeError instanceof Error ? removeError.message : "Unable to remove attachment."); } finally { setActionBusy(false); } };
+  const handleComment = async () => { const content = commentText.trim(); if (!content || content.length > 2000) return; setCommentBusy(true); setActionError(null); try { const comment = await addPublicComment(ticketId, content); setComments((current) => [...current, comment]); setCommentText(""); } catch (commentError) { setActionError(commentError instanceof Error ? commentError.message : "Unable to add comment."); } finally { setCommentBusy(false); } };
+  const handleProblemResolved = async () => { setActionBusy(true); setActionError(null); try { await markProblemAppearsResolved(ticketId); setProblemResolved(true); } catch (problemError) { setActionError(problemError instanceof Error ? problemError.message : "Unable to record the update."); } finally { setActionBusy(false); } };
 
   return (
     <div className="page-card">
@@ -119,6 +131,21 @@ export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ti
       <div className="detail-section">
         <h3>Description</h3>
         <p>{ticket.description}</p>
+      </div>
+
+      <div className="detail-section">
+        <h3>Public Comments</h3>
+        {comments.length === 0 ? <p>No public comments yet.</p> : comments.map((comment) => <article key={comment.id} className="comment-card"><strong>{comment.author.name}</strong><span>{new Date(comment.createdAt).toLocaleString()}</span><p>{comment.content}</p></article>)}
+        <label className="field-label" htmlFor="public-comment">Add a public comment</label>
+        <textarea id="public-comment" className="textarea-field" value={commentText} maxLength={2000} onChange={(event) => setCommentText(event.target.value)} aria-describedby="public-comment-help" />
+        <div id="public-comment-help" className="helper-text">{commentText.length}/2000 characters</div>
+        <button type="button" className="primary-button" disabled={commentBusy || !commentText.trim() || commentText.trim().length > 2000} onClick={() => void handleComment()}>{commentBusy ? "Posting…" : "Post Comment"}</button>
+      </div>
+
+      <div className="detail-section">
+        <h3>Problem Appears Resolved</h3>
+        <p>Tell IT that the problem appears resolved without closing the ticket.</p>
+        <button type="button" className="secondary-button" disabled={problemResolved || actionBusy} onClick={() => void handleProblemResolved()}>{problemResolved ? "Reported" : "Problem Appears Resolved"}</button>
       </div>
 
       <div className="detail-section">

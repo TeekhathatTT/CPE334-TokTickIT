@@ -26,15 +26,7 @@ const UPLOAD_DIR = path.resolve(
 );
 
 function getRequesterId(req: Request): number | null {
-  const raw = req.header("x-requester-id");
-
-  if (!raw) {
-    return null;
-  }
-
-  const id = Number(raw);
-
-  return Number.isInteger(id) && id > 0 ? id : null;
+  return req.authUser?.id ?? null;
 }
 
 function getAttachmentId(req: Request): number | null {
@@ -43,13 +35,13 @@ function getAttachmentId(req: Request): number | null {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
-async function hasActiveRequester(requesterId: number): Promise<boolean> {
+async function hasActiveRequester(userId: number): Promise<boolean> {
   const prisma = getPrisma();
-  if (!prisma.requester) {
+  if (!prisma.user) {
     return true;
   }
-  const requester = await prisma.requester.findFirst({
-    where: { id: requesterId, isActive: true },
+  const requester = await prisma.user.findFirst({
+    where: { id: userId, role: "REQUESTER", isActive: true },
     select: { id: true },
   });
   return requester !== null;
@@ -109,7 +101,7 @@ export async function addAttachment(
     const ticket = await prisma.ticket.findFirst({
       where: {
         id: ticketId,
-        requesterId,
+        requesterUserId: requesterId,
       },
       select: {
         id: true,
@@ -278,7 +270,7 @@ export async function getAttachment(
         where: {
           id: attachmentId,
           ticket: {
-            requesterId,
+            requesterUserId: requesterId,
           },
         },
       });
@@ -364,7 +356,7 @@ export async function downloadAttachment(
         where: {
           id: attachmentId,
           ticket: {
-            requesterId,
+            requesterUserId: requesterId,
           },
         },
       });
@@ -494,7 +486,7 @@ export async function removeAttachment(
         where: {
           id: attachmentId,
           ticket: {
-            requesterId,
+            requesterUserId: requesterId,
           },
         },
       });

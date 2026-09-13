@@ -30,8 +30,8 @@ export interface TicketListRow {
 
 async function requestJson<T>(path: string, init?: RequestInit, requesterId?: number, unwrapData = true): Promise<T> {
   const headers = new Headers(init?.headers);
-  if (requesterId !== undefined) headers.set("x-requester-id", String(requesterId));
-  const response = await fetch(`${API_URL}${path}`, { ...init, headers });
+  void requesterId;
+  const response = await fetch(`${API_URL}${path}`, { ...init, headers, credentials: "include" });
 
   if (!response.ok) {
     let message = `Request failed: ${response.status}`;
@@ -47,6 +47,8 @@ async function requestJson<T>(path: string, init?: RequestInit, requesterId?: nu
 
     throw new Error(message);
   }
+
+  if (response.status === 204) return undefined as T;
 
   const payload = (await response.json()) as T | { data?: T };
   if (unwrapData && payload && typeof payload === "object" && "data" in payload) {
@@ -103,7 +105,7 @@ export async function createTicket(input: {
   return requestJson<Ticket>("/api/tickets", {
     method: "POST",
     body: formData,
-  }, input.requesterId);
+  });
 }
 
 export async function getTickets(
@@ -125,22 +127,22 @@ export async function getTickets(
     if (value !== undefined && value !== "" && value !== "All") params.set(key, String(value));
   });
   const query = params.toString();
-  return requestJson<{ data: TicketListRow[]; meta: TicketListMeta }>(`/api/tickets${query ? `?${query}` : ""}`, undefined, requesterId, false);
+  return requestJson<{ data: TicketListRow[]; meta: TicketListMeta }>(`/api/tickets${query ? `?${query}` : ""}`, undefined, undefined, false);
 }
 
 export async function getTicket(ticketId: number, requesterId: number): Promise<Ticket> {
-  return requestJson<Ticket>(`/api/tickets/${ticketId}`, undefined, requesterId);
+  return requestJson<Ticket>(`/api/tickets/${ticketId}`);
 }
 
 export async function addAttachment(ticketId: number, requesterId: number, file: File) {
   const body = new FormData();
   body.append("file", file);
-  return requestJson<{ id: number; originalFilename: string; sizeBytes: number; uploadedAt: string }>(`/api/tickets/${ticketId}/attachments`, { method: "POST", body }, requesterId);
+  return requestJson<{ id: number; originalFilename: string; sizeBytes: number; uploadedAt: string }>(`/api/tickets/${ticketId}/attachments`, { method: "POST", body });
 }
 
 export async function downloadAttachment(attachmentId: number, requesterId: number): Promise<Blob> {
   const response = await fetch(`${API_URL}/api/attachments/${attachmentId}/download`, {
-    headers: { "x-requester-id": String(requesterId) },
+    credentials: "include",
   });
   if (!response.ok) throw new Error(`Download failed: ${response.status}`);
   return response.blob();
@@ -151,5 +153,16 @@ export async function removeAttachment(attachmentId: number, requesterId: number
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ reason }),
-  }, requesterId);
+  });
 }
+
+export interface AuthUser { id: number; name: string; email: string; role: "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR"; isActive: boolean; mustChangePassword: boolean; }
+export async function login(email: string, password: string) { return requestJson<{ user: AuthUser }>("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) }); }
+export async function getCurrentUser() { return requestJson<{ user: AuthUser }>("/api/auth/me"); }
+export async function logout() { await requestJson<never>("/api/auth/logout", { method: "POST" }, undefined, false); }
+export async function changePassword(input: { currentPassword: string; newPassword: string; confirmPassword: string }) { return requestJson<{ user: AuthUser }>("/api/auth/change-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }); }
+
+export interface PublicComment { id: number; ticketId: number; author: { id: number; name: string; role: string }; content: string; createdAt: string; }
+export async function getPublicComments(ticketId: number) { return requestJson<PublicComment[]>(`/api/tickets/${ticketId}/comments`); }
+export async function addPublicComment(ticketId: number, content: string) { return requestJson<PublicComment>(`/api/tickets/${ticketId}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) }); }
+export async function markProblemAppearsResolved(ticketId: number) { return requestJson<{ ticketId: number; problemAppearsResolvedAt: string | null }>(`/api/tickets/${ticketId}/problem-appears-resolved`, { method: "POST" }); }
