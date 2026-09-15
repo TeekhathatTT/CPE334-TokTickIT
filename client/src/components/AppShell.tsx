@@ -3,17 +3,19 @@ import { useState, type ReactNode } from "react";
 interface AppShellProps {
   children: ReactNode;
   activeNav?: "my-tickets" | "create-ticket";
-  selectedRequesterName?: string;
+  userName?: string;
+  userRole?: string;
   onNavigate?: (view: "my-tickets" | "create-ticket") => void;
-  onChangeRequester?: () => void;
+  onLogout?: () => void;
 }
 
 export function AppShell({
   children,
   activeNav = "my-tickets",
-  selectedRequesterName = "Requester",
+  userName = "User",
+  userRole = "Requester",
   onNavigate,
-  onChangeRequester,
+  onLogout,
 }: AppShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const navItems: Array<{ key: "my-tickets" | "create-ticket"; label: string }> = [
@@ -43,10 +45,9 @@ export function AppShell({
             ))}
           </nav>
 
-          <div className={`profile-menu ${menuOpen ? "profile-menu--open" : ""}`} aria-label="Selected requester">
-            <span>{selectedRequesterName}</span>
-            <span aria-hidden="true">⌄</span>
-            <button type="button" className="tertiary-button" onClick={onChangeRequester}>Change Requester</button>
+          <div className={`profile-menu ${menuOpen ? "profile-menu--open" : ""}`} aria-label="Current user">
+            <span>{userName} ({userRole})</span>
+            <button type="button" className="tertiary-button" onClick={onLogout}>Log out</button>
           </div>
         </div>
       </header>

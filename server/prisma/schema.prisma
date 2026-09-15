@@ -18,7 +18,17 @@ enum TicketStatus {
   OPEN
   IN_PROGRESS
   RESOLVED
+  WAITING_FOR_REQUESTER
+  CLOSED
+  REOPENED
+  CANCELLED
   PENDING
+}
+
+enum UserRole {
+  REQUESTER
+  IT_STAFF
+  ADMINISTRATOR
 }
 
 model Category {
@@ -27,7 +37,9 @@ model Category {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  tickets Ticket[]
+  tickets        Ticket[]
+  publicComments PublicComment[]
+  internalNotes  InternalNote[]
 }
 
 model Requester {
@@ -38,8 +50,30 @@ model Requester {
   createdAt DateTime @default(now())
 
   tickets Ticket[]
+  users   User[]
 
   @@index([isActive])
+}
+
+model User {
+  id                 Int             @id @default(autoincrement())
+  name               String
+  email              String          @unique
+  passwordHash       String
+  role               UserRole
+  isActive           Boolean         @default(true)
+  mustChangePassword Boolean         @default(true)
+  legacyRequesterId  Int?            @unique
+  legacyRequester    Requester?      @relation(fields: [legacyRequesterId], references: [id])
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  publicComments     PublicComment[]
+  internalNotes      InternalNote[]
+  submittedTickets   Ticket[]        @relation("TicketRequesterUser")
+  ownedTickets       Ticket[]        @relation("TicketOwner")
+
+  @@index([role, isActive])
+  @@index([mustChangePassword])
 }
 
 model RelatedSystem {
@@ -55,6 +89,7 @@ model Ticket {
   id                Int          @id @default(autoincrement())
   ticketNumber      String       @unique
   requesterId       Int
+  requesterUserId   Int
   categoryId        Int
   relatedSystemId   Int
   summary           String
@@ -66,12 +101,18 @@ model Ticket {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  requester     Requester     @relation(fields: [requesterId], references: [id])
-  category      Category      @relation(fields: [categoryId], references: [id])
-  relatedSystem RelatedSystem @relation(fields: [relatedSystemId], references: [id])
-  attachments   Attachment[]
+  requester                User            @relation("TicketRequesterUser", fields: [requesterUserId], references: [id])
+  legacyRequester          Requester       @relation(fields: [requesterId], references: [id])
+  ticketOwner              User?           @relation("TicketOwner", fields: [ticketOwnerId], references: [id])
+  category                 Category        @relation(fields: [categoryId], references: [id])
+  relatedSystem            RelatedSystem   @relation(fields: [relatedSystemId], references: [id])
+  attachments              Attachment[]
+  publicComments           PublicComment[]
+  internalNotes            InternalNote[]
+  problemAppearsResolvedAt DateTime?
 
   @@index([requesterId])
+  @@index([requesterUserId])
   @@index([status, requestedPriority])
 }
 
@@ -90,4 +131,36 @@ model Attachment {
 
   @@index([ticketId])
   @@index([removedAt])
+}
+
+model PublicComment {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  content   String
+  createdAt DateTime @default(now())
+
+  ticket     Ticket    @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  author     User      @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  category   Category? @relation(fields: [categoryId], references: [id])
+  categoryId Int?
+
+  @@index([ticketId, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model InternalNote {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  content   String
+  createdAt DateTime @default(now())
+
+  ticket     Ticket    @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  author     User      @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  category   Category? @relation(fields: [categoryId], references: [id])
+  categoryId Int?
+
+  @@index([ticketId, createdAt])
+  @@index([authorId, createdAt])
 }

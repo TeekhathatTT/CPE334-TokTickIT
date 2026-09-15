@@ -15,13 +15,25 @@ import {
   downloadAttachment,
   removeAttachment,
 } from "./attachment.js";
+import { changePassword, login, logout, me } from "./auth-routes.js";
+import { loadSession, requireAuth, requirePasswordChanged, requireRole } from "./auth.js";
+import { addPublicComment, getPublicComments, markProblemResolved } from "./requester-collaboration.js";
 
 void getPrisma;
 
 export const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: process.env.APP_ORIGIN,
+  credentials: true,
+}));
 app.use(express.json());
+app.use(loadSession);
+
+app.post("/api/auth/login", login);
+app.post("/api/auth/logout", requireAuth, logout);
+app.get("/api/auth/me", requireAuth, me);
+app.post("/api/auth/change-password", requireAuth, changePassword);
 
 /*
  * Do not use multer fileSize/files limits here.
@@ -42,7 +54,7 @@ app.get("/api/health", (_req: Request, res: Response) => {
   });
 });
 
-app.get("/api/categories", async (_req: Request, res: Response) => {
+app.get("/api/categories", requireAuth, requirePasswordChanged, requireRole("REQUESTER"), async (_req: Request, res: Response) => {
   try {
     const prisma = getPrisma();
 
@@ -74,47 +86,95 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
   }
 });
 
-app.get("/api/requesters", getRequesters);
+app.get("/api/requesters", requireAuth, requirePasswordChanged, requireRole("REQUESTER"), getRequesters);
 
 app.get(
   "/api/related-systems",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("REQUESTER"),
   getRelatedSystems,
 );
 
 app.post(
   "/api/tickets",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("REQUESTER"),
   upload.array("attachments", 5),
   createTicket,
 );
 
 app.get(
   "/api/tickets",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("REQUESTER"),
   getTickets,
 );
 
 app.get(
   "/api/tickets/:id",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("REQUESTER"),
   getTicket,
+);
+
+app.get(
+  "/api/tickets/:id/comments",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("REQUESTER"),
+  getPublicComments,
+);
+
+app.post(
+  "/api/tickets/:id/comments",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("REQUESTER"),
+  addPublicComment,
+);
+
+app.post(
+  "/api/tickets/:id/problem-appears-resolved",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("REQUESTER"),
+  markProblemResolved,
 );
 
 app.post(
   "/api/tickets/:id/attachments",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("REQUESTER"),
   upload.single("file"),
   addAttachment,
 );
 
 app.get(
   "/api/attachments/:id",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("REQUESTER"),
   getAttachment,
 );
 
 app.get(
   "/api/attachments/:id/download",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("REQUESTER"),
   downloadAttachment,
 );
 
 app.patch(
   "/api/attachments/:id/remove",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("REQUESTER"),
   removeAttachment,
 );
 

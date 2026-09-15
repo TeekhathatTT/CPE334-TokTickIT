@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import crypto from "node:crypto";
 
 const prisma = new PrismaClient();
 
@@ -23,7 +24,26 @@ const requesters = [
     email: "david.brown@example.com",
     isActive: false,
   },
+  {
+    name: "Priya Patel",
+    email: "priya.patel@example.com",
+    isActive: true,
+  },
 ];
+
+const users = [
+  ...requesters.map((requester) => ({ ...requester, role: "REQUESTER" })),
+  { name: "Alex Morgan", email: "alex.morgan@example.com", isActive: true, role: "IT_STAFF" },
+  { name: "Jordan Lee", email: "jordan.lee@example.com", isActive: true, role: "IT_STAFF" },
+  { name: "Taylor Smith", email: "taylor.smith@example.com", isActive: true, role: "IT_STAFF" },
+  { name: "Casey Wilson", email: "casey.wilson@example.com", isActive: false, role: "IT_STAFF" },
+  { name: "Morgan Davis", email: "morgan.davis@example.com", isActive: true, role: "ADMINISTRATOR" },
+];
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  return `scrypt:${salt}:${crypto.scryptSync(password, salt, 64).toString("hex")}`;
+}
 
 const categories = [
   {
@@ -80,8 +100,9 @@ async function main() {
     });
   }
 
+  const requesterRows = new Map();
   for (const requester of requesters) {
-    await prisma.requester.upsert({
+    const row = await prisma.requester.upsert({
       where: {
         email: requester.email,
       },
@@ -90,6 +111,16 @@ async function main() {
         isActive: requester.isActive,
       },
       create: requester,
+    });
+    requesterRows.set(requester.email, row);
+  }
+
+  for (const user of users) {
+    const requester = requesterRows.get(user.email);
+    await prisma.user.upsert({
+      where: { email: user.email },
+      update: { name: user.name, role: user.role, isActive: user.isActive, legacyRequesterId: requester?.id ?? null },
+      create: { name: user.name, email: user.email, role: user.role, isActive: user.isActive, passwordHash: hashPassword("TokTickit1!"), mustChangePassword: true, legacyRequesterId: requester?.id ?? null },
     });
   }
 
@@ -106,7 +137,7 @@ async function main() {
   }
 
   console.log(`Seeded ${categories.length} categories.`);
-  console.log(`Seeded ${requesters.length} requesters.`);
+  console.log(`Seeded ${requesters.length} requesters and ${users.length} users.`);
   console.log(`Seeded ${relatedSystems.length} related systems.`);
 }
 

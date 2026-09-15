@@ -1,32 +1,31 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppShell } from "./components/AppShell";
-import { RequesterSelectionPage } from "./pages/RequesterSelectionPage";
+import { getCurrentUser, logout, type AuthUser } from "./api";
+import { LoginPage } from "./pages/LoginPage";
+import { ChangePasswordPage } from "./pages/ChangePasswordPage";
 import MyTicketsPage from "./pages/MyTicketsPage";
 import CreateTicketPage from "./pages/CreateTicketPage";
 import TicketDetailPage from "./pages/TicketDetailPage";
 
 export default function App() {
-  const [selectedRequesterId, setSelectedRequesterId] = useState<number | null>(null);
-  const [selectedRequesterName, setSelectedRequesterName] = useState("Requester");
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [currentView, setCurrentView] = useState<"my-tickets" | "create-ticket">("my-tickets");
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
 
-  const page = selectedRequesterId ? (
-    selectedTicketId ? <TicketDetailPage ticketId={selectedTicketId} requesterId={selectedRequesterId} onBack={() => setSelectedTicketId(null)} /> : currentView === "create-ticket" ? <CreateTicketPage requesterId={selectedRequesterId} onCancel={() => setCurrentView("my-tickets")} onViewTicket={(ticketId) => { setSelectedTicketId(ticketId); setCurrentView("my-tickets"); }} /> : <MyTicketsPage requesterId={selectedRequesterId} onCreateTicket={() => setCurrentView("create-ticket")} onSelectTicket={setSelectedTicketId} />
-  ) : (
-    <RequesterSelectionPage
-      selectedRequesterId={selectedRequesterId}
-      onRequesterChange={() => undefined}
-      onContinue={(requesterId, requesterName) => { setSelectedRequesterId(requesterId); setSelectedRequesterName(requesterName); }}
-    />
-  );
+  useEffect(() => { void getCurrentUser().then((result) => setUser(result.user)).catch(() => undefined).finally(() => setCheckingSession(false)); }, []);
+  if (checkingSession) return <div className="page-shell"><div className="loading-state" role="status">Loading…</div></div>;
+  if (!user) return <LoginPage onSuccess={setUser} />;
+  if (user.mustChangePassword) return <ChangePasswordPage onSuccess={setUser} />;
+  const page = selectedTicketId ? <TicketDetailPage ticketId={selectedTicketId} requesterId={user.id} onBack={() => setSelectedTicketId(null)} /> : currentView === "create-ticket" ? <CreateTicketPage requesterId={user.id} requesterName={user.name} onCancel={() => setCurrentView("my-tickets")} onViewTicket={(ticketId) => { setSelectedTicketId(ticketId); setCurrentView("my-tickets"); }} /> : <MyTicketsPage requesterId={user.id} onCreateTicket={() => setCurrentView("create-ticket")} onSelectTicket={setSelectedTicketId} />;
 
   return (
     <AppShell
       activeNav={currentView}
-      selectedRequesterName={selectedRequesterName}
+      userName={user.name}
+      userRole={user.role}
       onNavigate={(view) => { setSelectedTicketId(null); setCurrentView(view); }}
-      onChangeRequester={() => { setSelectedTicketId(null); setSelectedRequesterId(null); setSelectedRequesterName("Requester"); }}
+      onLogout={() => { void logout().finally(() => setUser(null)); }}
     >
       {page}
     </AppShell>

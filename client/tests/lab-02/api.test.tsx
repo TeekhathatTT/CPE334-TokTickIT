@@ -4,7 +4,7 @@ import { createTicket, getTickets } from "../../src/api";
 afterEach(() => vi.restoreAllMocks());
 
 describe("API requester contract", () => {
-  it("sends requester identity as a header, never as a query parameter", async () => {
+  it("uses the authenticated session and never sends requester identity", async () => {
     const response = { ok: true, json: async () => ({ data: [] }) } as Response;
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(response);
 
@@ -12,15 +12,17 @@ describe("API requester contract", () => {
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(String(url)).not.toContain("x-requester-id");
-    expect(new Headers((init as RequestInit).headers).get("x-requester-id")).toBe("42");
+    expect(new Headers((init as RequestInit).headers).get("x-requester-id")).toBeNull();
+    expect((init as RequestInit).credentials).toBe("include");
   });
 
-  it("adds the requester header to multipart ticket creation", async () => {
+  it("uses the authenticated session for multipart ticket creation", async () => {
     const response = { ok: true, json: async () => ({ data: { id: 1 } }) } as Response;
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(response);
 
     await createTicket({ categoryId: 1, relatedSystemId: 1, summary: "A valid summary", description: "A valid description", requestedPriority: "LOW", requesterId: 7 });
 
-    expect(new Headers((fetchMock.mock.calls[0][1] as RequestInit).headers).get("x-requester-id")).toBe("7");
+    expect(new Headers((fetchMock.mock.calls[0][1] as RequestInit).headers).get("x-requester-id")).toBeNull();
+    expect((fetchMock.mock.calls[0][1] as RequestInit).credentials).toBe("include");
   });
 });
