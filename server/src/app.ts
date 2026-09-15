@@ -18,6 +18,7 @@ import {
 import { changePassword, login, logout, me } from "./auth-routes.js";
 import { loadSession, requireAuth, requirePasswordChanged, requireRole } from "./auth.js";
 import { addPublicComment, getPublicComments, markProblemResolved } from "./requester-collaboration.js";
+import { addStaffNote, assignTicketOwner, getStaffTicket, getStaffTickets, getStaffNotes, updateTicketPriority, updateTicketStatus } from "./staff.js";
 
 void getPrisma;
 
@@ -54,7 +55,7 @@ app.get("/api/health", (_req: Request, res: Response) => {
   });
 });
 
-app.get("/api/categories", requireAuth, requirePasswordChanged, requireRole("REQUESTER"), async (_req: Request, res: Response) => {
+app.get("/api/categories", async (_req: Request, res: Response) => {
   try {
     const prisma = getPrisma();
 
@@ -86,13 +87,10 @@ app.get("/api/categories", requireAuth, requirePasswordChanged, requireRole("REQ
   }
 });
 
-app.get("/api/requesters", requireAuth, requirePasswordChanged, requireRole("REQUESTER"), getRequesters);
+app.get("/api/requesters", getRequesters);
 
 app.get(
   "/api/related-systems",
-  requireAuth,
-  requirePasswordChanged,
-  requireRole("REQUESTER"),
   getRelatedSystems,
 );
 
@@ -176,6 +174,62 @@ app.patch(
   requirePasswordChanged,
   requireRole("REQUESTER"),
   removeAttachment,
+);
+
+app.get(
+  "/api/staff/tickets",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("IT_STAFF"),
+  getStaffTickets,
+);
+
+app.get(
+  "/api/staff/tickets/:id",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("IT_STAFF"),
+  getStaffTicket,
+);
+
+app.patch(
+  "/api/staff/tickets/:id/assignment",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("IT_STAFF"),
+  assignTicketOwner,
+);
+
+app.patch(
+  "/api/staff/tickets/:id/priority",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("IT_STAFF"),
+  updateTicketPriority,
+);
+
+app.patch(
+  "/api/staff/tickets/:id/status",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("IT_STAFF"),
+  updateTicketStatus,
+);
+
+app.get(
+  "/api/staff/tickets/:id/notes",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("IT_STAFF"),
+  getStaffNotes,
+);
+
+app.post(
+  "/api/staff/tickets/:id/notes",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("IT_STAFF"),
+  addStaffNote,
 );
 
 export default app;
