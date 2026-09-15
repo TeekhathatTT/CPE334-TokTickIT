@@ -2,11 +2,12 @@ import { useState, type ReactNode } from "react";
 
 interface AppShellProps {
   children: ReactNode;
-  activeNav?: "my-tickets" | "create-ticket";
+  activeNav?: "my-tickets" | "create-ticket" | "staff-queue";
   userName?: string;
   userRole?: string;
-  onNavigate?: (view: "my-tickets" | "create-ticket") => void;
+  onNavigate?: (view: "my-tickets" | "create-ticket" | "staff-queue") => void;
   onLogout?: () => void;
+  navItems?: Array<{ key: "my-tickets" | "create-ticket" | "staff-queue"; label: string }>;
 }
 
 export function AppShell({
@@ -16,9 +17,10 @@ export function AppShell({
   userRole = "Requester",
   onNavigate,
   onLogout,
+  navItems,
 }: AppShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const navItems: Array<{ key: "my-tickets" | "create-ticket"; label: string }> = [
+  const resolvedNavItems = navItems ?? [
     { key: "my-tickets", label: "My Tickets" },
     { key: "create-ticket", label: "Create Ticket" },
   ];
@@ -33,7 +35,7 @@ export function AppShell({
 
           <button type="button" className="menu-toggle" aria-label="Open navigation menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((current) => !current)}>☰</button>
           <nav className={`main-nav ${menuOpen ? "main-nav--open" : ""}`} aria-label="Main navigation">
-            {navItems.map((item) => (
+            {resolvedNavItems.map((item) => (
               <button
                 key={item.key}
                 type="button"

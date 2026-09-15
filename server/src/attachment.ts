@@ -36,15 +36,28 @@ function getAttachmentId(req: Request): number | null {
 }
 
 async function hasActiveRequester(userId: number): Promise<boolean> {
-  const prisma = getPrisma();
-  if (!prisma.user) {
-    return true;
+  const prisma = getPrisma() as {
+    user?: { findFirst?: (args: unknown) => Promise<unknown> };
+    requester?: { findFirst?: (args: unknown) => Promise<unknown> };
+  };
+
+  if (prisma.user && typeof prisma.user.findFirst === "function") {
+    const requester = await prisma.user.findFirst({
+      where: { id: userId, role: "REQUESTER", isActive: true },
+      select: { id: true },
+    });
+    return requester !== null;
   }
-  const requester = await prisma.user.findFirst({
-    where: { id: userId, role: "REQUESTER", isActive: true },
-    select: { id: true },
-  });
-  return requester !== null;
+
+  if (prisma.requester && typeof prisma.requester.findFirst === "function") {
+    const requester = await prisma.requester.findFirst({
+      where: { id: userId, isActive: true },
+      select: { id: true },
+    });
+    return requester !== null;
+  }
+
+  return true;
 }
 
 function isAllowedFile(

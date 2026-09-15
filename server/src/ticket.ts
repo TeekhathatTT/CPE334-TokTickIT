@@ -9,20 +9,40 @@ function getRequesterId(req: Request): number | null {
 }
 
 async function getActiveRequester(userId: number) {
-  const prisma = getPrisma();
+  const prisma = getPrisma() as {
+    user?: { findFirst?: (args: unknown) => Promise<unknown> };
+    requester?: { findFirst?: (args: unknown) => Promise<unknown> };
+  };
 
-  return prisma.user.findFirst({
-    where: {
-      id: userId,
-      isActive: true,
-      role: "REQUESTER",
-    },
-    select: {
-      id: true,
-      name: true,
-      legacyRequesterId: true,
-    },
-  });
+  if (prisma.user && typeof prisma.user.findFirst === "function") {
+    return prisma.user.findFirst({
+      where: {
+        id: userId,
+        isActive: true,
+        role: "REQUESTER",
+      },
+      select: {
+        id: true,
+        name: true,
+        legacyRequesterId: true,
+      },
+    });
+  }
+
+  if (prisma.requester && typeof prisma.requester.findFirst === "function") {
+    return prisma.requester.findFirst({
+      where: {
+        id: userId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+  }
+
+  return null;
 }
 
 function validationError(
