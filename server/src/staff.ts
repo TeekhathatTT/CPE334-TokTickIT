@@ -87,7 +87,7 @@ function toIso(value: Date | null | undefined) {
   return value ? value.toISOString() : null;
 }
 
-function safeUserSummary(user: { id: number; name: string; email?: string; role: string } | null) {
+function safeUserSummary(user: { id: number; name: string; email?: string | null; role?: string | null } | null) {
   if (!user) return null;
   return {
     id: user.id,
@@ -275,8 +275,8 @@ export async function getStaffTicket(req: Request, res: Response) {
       ticketNumber: ticket.ticketNumber,
       summary: ticket.summary,
       description: ticket.description,
-      category: ticket.category.name,
-      relatedSystem: ticket.relatedSystem.name,
+      category: ticket.category?.name ?? null,
+      relatedSystem: ticket.relatedSystem?.name ?? null,
       requester: safeUserSummary(ticket.requester),
       owner: safeUserSummary(ticket.ticketOwner),
       requestedPriority: ticket.requestedPriority,
@@ -355,11 +355,26 @@ export async function assignTicketOwner(req: Request, res: Response) {
     }
   }
 
-  const updated = await prisma.ticket.update({
-    where: { id: ticketId },
+  const ownerFilter = ticket.ticketOwnerId === null
+    ? { ticketOwnerId: null }
+    : { ticketOwnerId: ticket.ticketOwnerId };
+  const claimed = await prisma.ticket.updateMany({
+    where: { id: ticketId, ...ownerFilter },
     data: { ticketOwnerId: targetOwnerId },
+  });
+
+  if (claimed.count !== 1) {
+    return res.status(409).json({ error: { code: "ASSIGNMENT_CONFLICT", message: "The ticket owner changed before this assignment was saved." } });
+  }
+
+  const updated = await prisma.ticket.findUnique({
+    where: { id: ticketId },
     include: { requester: { select: { id: true, name: true, email: true, role: true } }, ticketOwner: { select: { id: true, name: true, email: true, role: true } }, category: { select: { name: true } }, relatedSystem: { select: { name: true } } },
   });
+
+  if (!updated) {
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+  }
 
   return res.status(200).json({
     data: {
@@ -367,8 +382,8 @@ export async function assignTicketOwner(req: Request, res: Response) {
       ticketNumber: updated.ticketNumber,
       summary: updated.summary,
       description: updated.description,
-      category: updated.category.name,
-      relatedSystem: updated.relatedSystem.name,
+      category: updated.category?.name ?? null,
+      relatedSystem: updated.relatedSystem?.name ?? null,
       requester: safeUserSummary(updated.requester),
       owner: safeUserSummary(updated.ticketOwner),
       requestedPriority: updated.requestedPriority,
@@ -412,8 +427,8 @@ export async function updateTicketPriority(req: Request, res: Response) {
       ticketNumber: updated.ticketNumber,
       summary: updated.summary,
       description: updated.description,
-      category: updated.category.name,
-      relatedSystem: updated.relatedSystem.name,
+      category: updated.category?.name ?? null,
+      relatedSystem: updated.relatedSystem?.name ?? null,
       requester: safeUserSummary(updated.requester),
       owner: safeUserSummary(updated.ticketOwner),
       requestedPriority: updated.requestedPriority,
@@ -463,8 +478,8 @@ export async function updateTicketStatus(req: Request, res: Response) {
       ticketNumber: updated.ticketNumber,
       summary: updated.summary,
       description: updated.description,
-      category: updated.category.name,
-      relatedSystem: updated.relatedSystem.name,
+      category: updated.category?.name ?? null,
+      relatedSystem: updated.relatedSystem?.name ?? null,
       requester: safeUserSummary(updated.requester),
       owner: safeUserSummary(updated.ticketOwner),
       requestedPriority: updated.requestedPriority,

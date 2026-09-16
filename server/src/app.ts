@@ -55,7 +55,7 @@ app.get("/api/health", (_req: Request, res: Response) => {
   });
 });
 
-app.get("/api/categories", async (_req: Request, res: Response) => {
+app.get("/api/categories", requireAuth, requirePasswordChanged, requireRole("REQUESTER"), async (_req: Request, res: Response) => {
   try {
     const prisma = getPrisma();
 
@@ -87,10 +87,13 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
   }
 });
 
-app.get("/api/requesters", getRequesters);
+app.get("/api/requesters", requireAuth, requirePasswordChanged, requireRole("REQUESTER"), getRequesters);
 
 app.get(
   "/api/related-systems",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("REQUESTER"),
   getRelatedSystems,
 );
 

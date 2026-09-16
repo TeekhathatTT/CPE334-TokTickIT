@@ -8,10 +8,12 @@ function getRequesterId(req: Request): number | null {
   return req.authUser?.id ?? null;
 }
 
-async function getActiveRequester(userId: number) {
+type ActiveRequester = { id: number; name: string; legacyRequesterId: number | null };
+
+async function getActiveRequester(userId: number): Promise<ActiveRequester | null> {
   const prisma = getPrisma() as {
-    user?: { findFirst?: (args: unknown) => Promise<unknown> };
-    requester?: { findFirst?: (args: unknown) => Promise<unknown> };
+    user?: { findFirst?: (args: unknown) => Promise<ActiveRequester | null> };
+    requester?: { findFirst?: (args: unknown) => Promise<{ id: number; name: string } | null> };
   };
 
   if (prisma.user && typeof prisma.user.findFirst === "function") {
@@ -30,7 +32,7 @@ async function getActiveRequester(userId: number) {
   }
 
   if (prisma.requester && typeof prisma.requester.findFirst === "function") {
-    return prisma.requester.findFirst({
+    const requester = await prisma.requester.findFirst({
       where: {
         id: userId,
         isActive: true,
@@ -40,6 +42,7 @@ async function getActiveRequester(userId: number) {
         name: true,
       },
     });
+    return requester ? { ...requester, legacyRequesterId: requester.id } : null;
   }
 
   return null;
