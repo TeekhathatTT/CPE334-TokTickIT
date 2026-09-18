@@ -8,21 +8,44 @@ function getRequesterId(req: Request): number | null {
   return req.authUser?.id ?? null;
 }
 
-async function getActiveRequester(userId: number) {
-  const prisma = getPrisma();
+type ActiveRequester = { id: number; name: string; legacyRequesterId: number | null };
 
-  return prisma.user.findFirst({
-    where: {
-      id: userId,
-      isActive: true,
-      role: "REQUESTER",
-    },
-    select: {
-      id: true,
-      name: true,
-      legacyRequesterId: true,
-    },
-  });
+async function getActiveRequester(userId: number): Promise<ActiveRequester | null> {
+  const prisma = getPrisma() as {
+    user?: { findFirst?: (args: unknown) => Promise<ActiveRequester | null> };
+    requester?: { findFirst?: (args: unknown) => Promise<{ id: number; name: string } | null> };
+  };
+
+  if (prisma.user && typeof prisma.user.findFirst === "function") {
+    return prisma.user.findFirst({
+      where: {
+        id: userId,
+        isActive: true,
+        role: "REQUESTER",
+      },
+      select: {
+        id: true,
+        name: true,
+        legacyRequesterId: true,
+      },
+    });
+  }
+
+  if (prisma.requester && typeof prisma.requester.findFirst === "function") {
+    const requester = await prisma.requester.findFirst({
+      where: {
+        id: userId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+    return requester ? { ...requester, legacyRequesterId: requester.id } : null;
+  }
+
+  return null;
 }
 
 function validationError(

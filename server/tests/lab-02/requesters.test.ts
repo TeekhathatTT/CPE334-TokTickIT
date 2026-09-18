@@ -27,7 +27,7 @@ describe("GET /api/requesters", () => {
       },
     } as never);
 
-    const response = await request(app).get("/api/requesters");
+    const response = await request(app).get("/api/requesters").set("x-requester-id", "1");
 
     expect(response.status).toBe(200);
 
@@ -69,7 +69,7 @@ describe("GET /api/requesters", () => {
       },
     } as never);
 
-    const response = await request(app).get("/api/requesters");
+    const response = await request(app).get("/api/requesters").set("x-requester-id", "1");
 
     expect(response.status).toBe(500);
 

@@ -21,7 +21,7 @@ describe("GET /api/categories", () => {
       },
     } as never);
 
-    const res = await request(app).get("/api/categories");
+    const res = await request(app).get("/api/categories").set("x-requester-id", "1");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
@@ -41,7 +41,7 @@ describe("GET /api/categories", () => {
       },
     } as never);
 
-    const res = await request(app).get("/api/categories");
+    const res = await request(app).get("/api/categories").set("x-requester-id", "1");
 
     expect(res.status).toBe(500);
     expect(res.body).toEqual({
@@ -50,5 +50,12 @@ describe("GET /api/categories", () => {
         message: "Unable to fetch categories",
       },
     });
+  });
+
+  it("rejects unauthenticated requests", async () => {
+    const res = await request(app).get("/api/categories");
+
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe("UNAUTHENTICATED");
   });
 });

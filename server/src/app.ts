@@ -18,6 +18,7 @@ import {
 import { changePassword, login, logout, me } from "./auth-routes.js";
 import { loadSession, requireAuth, requirePasswordChanged, requireRole } from "./auth.js";
 import { addPublicComment, getPublicComments, markProblemResolved } from "./requester-collaboration.js";
+import { addStaffNote, assignTicketOwner, getStaffTicket, getStaffTickets, getStaffNotes, updateTicketPriority, updateTicketStatus } from "./staff.js";
 
 void getPrisma;
 
@@ -176,6 +177,62 @@ app.patch(
   requirePasswordChanged,
   requireRole("REQUESTER"),
   removeAttachment,
+);
+
+app.get(
+  "/api/staff/tickets",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("IT_STAFF"),
+  getStaffTickets,
+);
+
+app.get(
+  "/api/staff/tickets/:id",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("IT_STAFF"),
+  getStaffTicket,
+);
+
+app.patch(
+  "/api/staff/tickets/:id/assignment",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("IT_STAFF"),
+  assignTicketOwner,
+);
+
+app.patch(
+  "/api/staff/tickets/:id/priority",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("IT_STAFF"),
+  updateTicketPriority,
+);
+
+app.patch(
+  "/api/staff/tickets/:id/status",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("IT_STAFF"),
+  updateTicketStatus,
+);
+
+app.get(
+  "/api/staff/tickets/:id/notes",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("IT_STAFF"),
+  getStaffNotes,
+);
+
+app.post(
+  "/api/staff/tickets/:id/notes",
+  requireAuth,
+  requirePasswordChanged,
+  requireRole("IT_STAFF"),
+  addStaffNote,
 );
 
 export default app;
