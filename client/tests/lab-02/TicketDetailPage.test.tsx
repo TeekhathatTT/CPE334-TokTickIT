@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import TicketDetailPage from "../src/pages/TicketDetailPage";
-import * as api from "../src/api";
+import TicketDetailPage from "../../src/pages/TicketDetailPage";
+import * as api from "../../src/api";
 
 const ticket = {
   id: 101, ticketNumber: "TKT-2026-000101", createdAt: "2026-08-19T09:14:00Z", category: "Hardware", relatedSystem: "Corporate Laptop", requester: "A User", requestedPriority: "MEDIUM", itPriority: null, status: "NEW", ticketOwner: null, summary: "Laptop problem", description: "The laptop has a problem.",

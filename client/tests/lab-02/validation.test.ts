@@ -3,7 +3,7 @@ import {
   validateDescription,
   validatePriority,
   validateSummary,
-} from "../src/utils/validation";
+} from "../../src/utils/validation";
 
 describe("ticket validation", () => {
   it.each([

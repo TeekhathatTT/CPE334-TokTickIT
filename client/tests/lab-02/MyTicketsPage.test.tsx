@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import MyTicketsPage from "../src/pages/MyTicketsPage";
-import * as api from "../src/api";
+import MyTicketsPage from "../../src/pages/MyTicketsPage";
+import * as api from "../../src/api";
 
 const meta = { page: 1, pageSize: 10, totalItems: 1, totalPages: 1, isEmpty: false, isNoResults: false };
 const row = { id: 101, ticketNumber: "TKT-2026-000101", summary: "Laptop problem", category: "Hardware", requestedPriority: "MEDIUM" as const, itPriority: null, status: "NEW" as const, createdAt: "2026-08-19T09:14:00Z", updatedAt: "2026-08-19T09:14:00Z" };

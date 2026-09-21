@@ -75,6 +75,39 @@ describe("administrator user management API", () => {
     expect((await agent.patch("/api/admin/users/9").send({ isActive: false })).body.error.code).toBe("LAST_ACTIVE_ADMIN");
   });
 
+  it("allows a plain activate/deactivate that does not touch the last active Administrator", async () => {
+    const agent = await agentFor(admin);
+    // Deactivating a non-Administrator, non-self user succeeds normally.
+    prisma.user.findUnique.mockResolvedValue({ id: 5, role: "REQUESTER", isActive: true });
+    prisma.user.update.mockResolvedValueOnce({ ...managed, id: 5, role: "REQUESTER", isActive: false });
+    const deactivateResponse = await agent.patch("/api/admin/users/5").send({ isActive: false });
+    expect(deactivateResponse.status).toBe(200);
+    expect(deactivateResponse.body.data.isActive).toBe(false);
+
+    // Activating an inactive user succeeds and is not subject to the last-admin check.
+    prisma.user.findUnique.mockResolvedValue({ id: 6, role: "REQUESTER", isActive: false });
+    prisma.user.update.mockResolvedValueOnce({ ...managed, id: 6, role: "REQUESTER", isActive: true });
+    const activateResponse = await agent.patch("/api/admin/users/6").send({ isActive: true });
+    expect(activateResponse.status).toBe(200);
+    expect(activateResponse.body.data.isActive).toBe(true);
+  });
+
+  it("rejects duplicate email on update and persists a role change", async () => {
+    const agent = await agentFor(admin);
+    prisma.user.findUnique.mockResolvedValue({ id: 7, role: "IT_STAFF", isActive: true });
+    prisma.user.update.mockRejectedValueOnce({ code: "P2002" });
+    const conflict = await agent.patch("/api/admin/users/7").send({ email: "taken@example.com" });
+    expect(conflict.status).toBe(409);
+    expect(conflict.body.error.code).toBe("EMAIL_CONFLICT");
+
+    prisma.user.findUnique.mockResolvedValue({ id: 7, role: "IT_STAFF", isActive: true });
+    prisma.user.update.mockResolvedValueOnce({ ...managed, id: 7, role: "ADMINISTRATOR" });
+    const roleChange = await agent.patch("/api/admin/users/7").send({ role: "ADMINISTRATOR" });
+    expect(roleChange.status).toBe(200);
+    expect(roleChange.body.data.role).toBe("ADMINISTRATOR");
+    expect(prisma.user.update).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ role: "ADMINISTRATOR" }) }));
+  });
+
   it("sets a hashed initial password without returning it", async () => {
     const response = await (await agentFor(admin)).post("/api/admin/users/2/initial-password").send({ initialPassword: "ResetPass1!" });
     expect(response.status).toBe(200);

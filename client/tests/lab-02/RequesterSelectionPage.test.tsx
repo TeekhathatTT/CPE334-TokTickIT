@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { RequesterSelectionPage } from "../src/pages/RequesterSelectionPage";
-import * as api from "../src/api";
+import { RequesterSelectionPage } from "../../src/pages/RequesterSelectionPage";
+import * as api from "../../src/api";
 
 describe("RequesterSelectionPage", () => {
   it("shows loading, then enables continue after selection", async () => {

@@ -3,7 +3,7 @@ import {
   MAX_ATTACHMENT_SIZE_BYTES,
   canAddAttachment,
   validateAttachment,
-} from "../src/utils/attachment";
+} from "../../src/utils/attachment";
 
 function file(name: string, size = 100) {
   const type = name.endsWith(".pdf") ? "application/pdf" : name.endsWith(".webp") ? "image/webp" : name.endsWith(".jpg") ? "image/jpeg" : "image/png";
