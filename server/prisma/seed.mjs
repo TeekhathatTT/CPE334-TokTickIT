@@ -119,7 +119,7 @@ async function main() {
     const requester = requesterRows.get(user.email);
     await prisma.user.upsert({
       where: { email: user.email },
-      update: { name: user.name, role: user.role, isActive: user.isActive, legacyRequesterId: requester?.id ?? null },
+      update: { name: user.name, role: user.role, isActive: user.isActive, passwordHash: hashPassword("TokTickit1!"), mustChangePassword: true, legacyRequesterId: requester?.id ?? null },
       create: { name: user.name, email: user.email, role: user.role, isActive: user.isActive, passwordHash: hashPassword("TokTickit1!"), mustChangePassword: true, legacyRequesterId: requester?.id ?? null },
     });
   }

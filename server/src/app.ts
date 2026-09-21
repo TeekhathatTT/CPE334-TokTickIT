@@ -19,13 +19,14 @@ import { changePassword, login, logout, me } from "./auth-routes.js";
 import { loadSession, requireAuth, requirePasswordChanged, requireRole } from "./auth.js";
 import { addPublicComment, getPublicComments, markProblemResolved } from "./requester-collaboration.js";
 import { addStaffNote, assignTicketOwner, getStaffTicket, getStaffTickets, getStaffNotes, updateTicketPriority, updateTicketStatus } from "./staff.js";
+import { createUser, listUsers, resetInitialPassword, updateUser } from "./admin-users.js";
 
 void getPrisma;
 
 export const app = express();
 
 app.use(cors({
-  origin: process.env.APP_ORIGIN,
+  origin: process.env.APP_ORIGIN ?? "http://localhost:5173",
   credentials: true,
 }));
 app.use(express.json());
@@ -35,6 +36,11 @@ app.post("/api/auth/login", login);
 app.post("/api/auth/logout", requireAuth, logout);
 app.get("/api/auth/me", requireAuth, me);
 app.post("/api/auth/change-password", requireAuth, changePassword);
+
+app.get("/api/admin/users", requireAuth, requirePasswordChanged, requireRole("ADMINISTRATOR"), listUsers);
+app.post("/api/admin/users", requireAuth, requirePasswordChanged, requireRole("ADMINISTRATOR"), createUser);
+app.patch("/api/admin/users/:id", requireAuth, requirePasswordChanged, requireRole("ADMINISTRATOR"), updateUser);
+app.post("/api/admin/users/:id/initial-password", requireAuth, requirePasswordChanged, requireRole("ADMINISTRATOR"), resetInitialPassword);
 
 /*
  * Do not use multer fileSize/files limits here.

@@ -2,12 +2,12 @@ import { useState, type ReactNode } from "react";
 
 interface AppShellProps {
   children: ReactNode;
-  activeNav?: "my-tickets" | "create-ticket" | "staff-queue";
+  activeNav?: string;
   userName?: string;
   userRole?: string;
-  onNavigate?: (view: "my-tickets" | "create-ticket" | "staff-queue") => void;
+  onNavigate?: (view: string) => void;
   onLogout?: () => void;
-  navItems?: Array<{ key: "my-tickets" | "create-ticket" | "staff-queue"; label: string }>;
+  navItems?: Array<{ key: string; label: string }>;
 }
 
 export function AppShell({

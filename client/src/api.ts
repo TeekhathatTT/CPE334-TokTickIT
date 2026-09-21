@@ -162,6 +162,13 @@ export async function getCurrentUser() { return requestJson<{ user: AuthUser }>(
 export async function logout() { await requestJson<never>("/api/auth/logout", { method: "POST" }, undefined, false); }
 export async function changePassword(input: { currentPassword: string; newPassword: string; confirmPassword: string }) { return requestJson<{ user: AuthUser }>("/api/auth/change-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }); }
 
+export type UserRole = AuthUser["role"];
+export interface ManagedUser extends AuthUser { createdAt: string; updatedAt: string; }
+export async function getUsers(filters: { search?: string; role?: UserRole } = {}) { const params = new URLSearchParams(); if (filters.search) params.set("search", filters.search); if (filters.role) params.set("role", filters.role); return requestJson<ManagedUser[]>(`/api/admin/users${params.size ? `?${params}` : ""}`); }
+export async function createUser(input: { name: string; email: string; role: UserRole; isActive: boolean; initialPassword: string }) { return requestJson<ManagedUser>("/api/admin/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }); }
+export async function updateUser(id: number, input: Partial<Pick<ManagedUser, "name" | "email" | "role" | "isActive">>) { return requestJson<ManagedUser>(`/api/admin/users/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }); }
+export async function setInitialPassword(id: number, initialPassword: string) { return requestJson<ManagedUser>(`/api/admin/users/${id}/initial-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ initialPassword }) }); }
+
 export interface PublicComment { id: number; ticketId: number; author: { id: number; name: string; role: string }; content: string; createdAt: string; }
 export async function getPublicComments(ticketId: number) { return requestJson<PublicComment[]>(`/api/tickets/${ticketId}/comments`); }
 export async function addPublicComment(ticketId: number, content: string) { return requestJson<PublicComment>(`/api/tickets/${ticketId}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) }); }

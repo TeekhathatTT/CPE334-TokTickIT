@@ -390,6 +390,9 @@ button:disabled {
   padding: 12px 10px;
   text-align: left;
 }
+.user-form { margin-top: 24px; }
+.user-management .success-panel { padding: 12px; margin-bottom: 16px; text-align: left; }
+.user-management .error-panel { margin-bottom: 16px; }
 
 .pagination-row {
   display: flex;

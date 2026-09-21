@@ -6,6 +6,7 @@ import { ChangePasswordPage } from "./pages/ChangePasswordPage";
 import MyTicketsPage from "./pages/MyTicketsPage";
 import CreateTicketPage from "./pages/CreateTicketPage";
 import TicketDetailPage from "./pages/TicketDetailPage";
+import UserManagementPage from "./pages/UserManagementPage";
 
 export default function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -36,6 +37,8 @@ export default function App() {
     );
   }
 
+  if (user.role === "ADMINISTRATOR") return <AppShell activeNav="user-management" userName={user.name} userRole={user.role} navItems={[{ key: "user-management", label: "User Management" }]} onLogout={() => { void logout().finally(() => setUser(null)); }}><UserManagementPage currentUserId={user.id} /></AppShell>;
+
   const page = selectedTicketId ? <TicketDetailPage ticketId={selectedTicketId} requesterId={user.id} onBack={() => setSelectedTicketId(null)} /> : currentView === "create-ticket" ? <CreateTicketPage requesterId={user.id} requesterName={user.name} onCancel={() => setCurrentView("my-tickets")} onViewTicket={(ticketId) => { setSelectedTicketId(ticketId); setCurrentView("my-tickets"); }} /> : <MyTicketsPage requesterId={user.id} onCreateTicket={() => setCurrentView("create-ticket")} onSelectTicket={setSelectedTicketId} />;
 
   return (
@@ -43,7 +46,7 @@ export default function App() {
       activeNav={currentView}
       userName={user.name}
       userRole={user.role}
-      onNavigate={(view) => { setSelectedTicketId(null); setCurrentView(view); }}
+      onNavigate={(view) => { setSelectedTicketId(null); setCurrentView(view as "my-tickets" | "create-ticket"); }}
       onLogout={() => { void logout().finally(() => setUser(null)); }}
     >
       {page}
