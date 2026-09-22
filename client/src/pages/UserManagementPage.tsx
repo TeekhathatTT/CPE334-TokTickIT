@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
-import { createUser, getUsers, setInitialPassword, updateUser, type ManagedUser, type UserRole } from "../api";
+import { useEffect, useRef, useState } from "react";
+import { ApiError, createUser, getUsers, setInitialPassword, updateUser, type ManagedUser, type UserRole } from "../api";
 
 const roles: UserRole[] = ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"];
 const blank = { name: "", email: "", role: "REQUESTER" as UserRole, isActive: true, initialPassword: "" };
 const passwordHelp = "Use 8+ characters with upper/lower case, a number, and a special character.";
+const PASSWORD_PATTERN = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
 export default function UserManagementPage({ currentUserId }: { currentUserId: number }) {
   const [users, setUsers] = useState<ManagedUser[]>([]);
@@ -11,15 +12,22 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
   const [role, setRole] = useState<UserRole | "">("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [notice, setNotice] = useState("");
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [form, setForm] = useState(blank);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [resetFor, setResetFor] = useState<ManagedUser | null>(null);
   const [newPassword, setNewPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [statusTarget, setStatusTarget] = useState<ManagedUser | null>(null);
   const [statusError, setStatusError] = useState("");
   const [statusSaving, setStatusSaving] = useState(false);
+
+  // Focus refs for modal accessibility
+  const resetModalFirstRef = useRef<HTMLInputElement>(null);
+  const statusModalFirstRef = useRef<HTMLButtonElement>(null);
 
   const load = async () => {
     setLoading(true);
@@ -27,7 +35,11 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
     try {
       setUsers(await getUsers({ search: search || undefined, role: role || undefined }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to load users.");
+      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+        setSessionExpired(true);
+      } else {
+        setError(e instanceof Error ? e.message : "Unable to load users.");
+      }
     } finally {
       setLoading(false);
     }
@@ -38,11 +50,30 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
     return () => window.clearTimeout(timer);
   }, [search, role]);
 
-  const openCreate = () => { setEditing(null); setForm(blank); setError(""); };
-  const openEdit = (user: ManagedUser) => { setEditing(user); setForm({ name: user.name, email: user.email, role: user.role, isActive: user.isActive, initialPassword: "" }); setError(""); };
+  // Auto-focus first field when modal opens
+  useEffect(() => {
+    if (resetFor) resetModalFirstRef.current?.focus();
+  }, [resetFor]);
+  useEffect(() => {
+    if (statusTarget) statusModalFirstRef.current?.focus();
+  }, [statusTarget]);
+
+  const openCreate = () => { setEditing(null); setForm(blank); setFormErrors({}); setError(""); };
+  const openEdit = (user: ManagedUser) => { setEditing(user); setForm({ name: user.name, email: user.email, role: user.role, isActive: user.isActive, initialPassword: "" }); setFormErrors({}); setError(""); };
+
+  // Client-side validation before hitting the API
+  function validateForm(): boolean {
+    const errs: Record<string, string> = {};
+    if (!form.name.trim()) errs.name = "Name is required.";
+    if (!form.email.trim()) errs.email = "A valid email is required.";
+    if (!editing && !PASSWORD_PATTERN.test(form.initialPassword)) errs.initialPassword = passwordHelp;
+    setFormErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!validateForm()) return;
     setSaving(true);
     setError("");
     try {
@@ -52,16 +83,20 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
       setEditing(null);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to save user.");
+      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+        setSessionExpired(true);
+      } else {
+        setError(e instanceof Error ? e.message : "Unable to save user.");
+      }
     } finally {
       setSaving(false);
     }
   };
 
-  // Section 25 (deactivation confirmation) — a themed Zen Green dialog that
-  // clearly identifies the target user and, if the backend rejects the
-  // operation (self-deactivation or last-active-Administrator), surfaces the
-  // exact reason instead of a generic failure message.
+  // Section 25 (deactivation confirmation) — a themed dialog that clearly
+  // identifies the target user and, if the backend rejects the operation
+  // (self-deactivation or last-active-Administrator), surfaces the exact
+  // reason instead of a generic failure message.
   const openStatusConfirm = (user: ManagedUser) => { setStatusTarget(user); setStatusError(""); };
   const closeStatusConfirm = () => { setStatusTarget(null); setStatusError(""); };
   const confirmStatusChange = async () => {
@@ -78,7 +113,11 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
       // (e.g. "Administrators cannot deactivate their own account." or
       // "At least one active Administrator must remain.") rather than
       // bouncing the admin back to a generic page-level error banner.
-      setStatusError(e instanceof Error ? e.message : "Unable to update status.");
+      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+        setSessionExpired(true);
+      } else {
+        setStatusError(e instanceof Error ? e.message : "Unable to update status.");
+      }
     } finally {
       setStatusSaving(false);
     }
@@ -87,6 +126,11 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
   const submitPassword = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!resetFor) return;
+    if (!PASSWORD_PATTERN.test(newPassword)) {
+      setPasswordError(passwordHelp);
+      return;
+    }
+    setPasswordError("");
     setSaving(true);
     setError("");
     try {
@@ -96,11 +140,26 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
       setNewPassword("");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to reset password.");
+      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+        setSessionExpired(true);
+      } else {
+        setError(e instanceof Error ? e.message : "Unable to reset password.");
+      }
     } finally {
       setSaving(false);
     }
   };
+
+  if (sessionExpired) {
+    return (
+      <section className="page-card user-management">
+        <div className="error-panel" role="alert">
+          <strong>Session expired</strong>
+          <p>Your session has expired or you no longer have permission to access this page. Please <a href="/">sign in again</a>.</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="page-card user-management">
@@ -118,7 +177,7 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
       <div className="filters-row">
         <div>
           <label className="field-label" htmlFor="user-search">Search users</label>
-          <input id="user-search" className="input-field" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name or email" />
+          <input id="user-search" className="input-field" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name or email" aria-label="Search users" />
         </div>
         <div>
           <label className="field-label" htmlFor="user-role">Role</label>
@@ -135,7 +194,9 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
         <div className="empty-state">{search || role ? "No users match the current search or role filter." : "There are no users in the system."}</div>
       ) : (
         <>
-          <div className="ticket-table-wrap">
+          {/* Table view — visible on wider viewports. data-testid scopes E2E locators
+              so Playwright doesn't conflict with the identical card-view buttons below. */}
+          <div className="ticket-table-wrap" data-testid="user-table">
             <table className="ticket-table">
               <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
@@ -147,7 +208,7 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
                     <td><span className={`badge ${user.isActive ? "badge--resolved" : "badge--pending"}`}>{user.isActive ? "Active" : "Inactive"}</span></td>
                     <td className="header-actions">
                       <button className="link-button" onClick={() => openEdit(user)}>Edit</button>
-                      <button className="link-button" onClick={() => { setResetFor(user); setNewPassword(""); }}>Set initial password</button>
+                      <button className="link-button" onClick={() => { setResetFor(user); setNewPassword(""); setPasswordError(""); }}>Set initial password</button>
                       <button
                         className={user.isActive ? "destructive-button" : "secondary-button"}
                         disabled={user.id === currentUserId && user.isActive}
@@ -162,6 +223,7 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
               </tbody>
             </table>
           </div>
+          {/* Card view — visible on narrow viewports */}
           <div className="ticket-cards">
             {users.map((user) => (
               <article className="ticket-card" key={user.id}>
@@ -173,7 +235,7 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
                 <p><span className="badge badge--open">{user.role}</span></p>
                 <div className="header-actions">
                   <button className="link-button" onClick={() => openEdit(user)}>Edit</button>
-                  <button className="link-button" onClick={() => { setResetFor(user); setNewPassword(""); }}>Set initial password</button>
+                  <button className="link-button" onClick={() => { setResetFor(user); setNewPassword(""); setPasswordError(""); }}>Set initial password</button>
                   <button
                     className={user.isActive ? "destructive-button" : "secondary-button"}
                     disabled={user.id === currentUserId && user.isActive}
@@ -193,16 +255,27 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
       <form className="page-card user-form" onSubmit={submit} aria-label={editing ? "Edit user" : "Create user"}>
         <h2>{editing ? `Edit ${editing.name}` : "Create user"}</h2>
         <div className="ticket-grid ticket-grid--three">
-          <label className="form-row" htmlFor="managed-name"><span className="field-label">Name</span><input id="managed-name" className="input-field" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-          <label className="form-row" htmlFor="managed-email"><span className="field-label">Email</span><input id="managed-email" className="input-field" required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
-          <label className="form-row" htmlFor="managed-role"><span className="field-label">Role</span><select id="managed-role" className="select-field" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}>{roles.map((value) => <option key={value}>{value}</option>)}</select></label>
+          <label className="form-row" htmlFor="managed-name">
+            <span className="field-label">Name</span>
+            <input id="managed-name" className="input-field" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-describedby={formErrors.name ? "managed-name-error" : undefined} />
+            {formErrors.name && <span id="managed-name-error" className="helper-text" style={{ color: "var(--color-error, #c0392b)" }}>{formErrors.name}</span>}
+          </label>
+          <label className="form-row" htmlFor="managed-email">
+            <span className="field-label">Email</span>
+            <input id="managed-email" className="input-field" required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} aria-describedby={formErrors.email ? "managed-email-error" : undefined} />
+            {formErrors.email && <span id="managed-email-error" className="helper-text" style={{ color: "var(--color-error, #c0392b)" }}>{formErrors.email}</span>}
+          </label>
+          <label className="form-row" htmlFor="managed-role">
+            <span className="field-label">Role</span>
+            <select id="managed-role" className="select-field" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}>{roles.map((value) => <option key={value}>{value}</option>)}</select>
+          </label>
         </div>
         <label><input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Active account</label>
         {!editing && (
           <label className="form-row" htmlFor="managed-initial-password">
             <span className="field-label">Initial password</span>
-            <input id="managed-initial-password" className="input-field" required type="password" value={form.initialPassword} onChange={(e) => setForm({ ...form, initialPassword: e.target.value })} />
-            <span className="helper-text">{passwordHelp}</span>
+            <input id="managed-initial-password" className="input-field" required type="password" value={form.initialPassword} onChange={(e) => setForm({ ...form, initialPassword: e.target.value })} aria-describedby="managed-pw-help" />
+            <span id="managed-pw-help" className="helper-text">{formErrors.initialPassword ?? passwordHelp}</span>
           </label>
         )}
         <div className="ticket-actions">
@@ -211,25 +284,58 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
         </div>
       </form>
 
+      {/* Password reset modal */}
       {resetFor && (
-        <div className="modal-backdrop">
-          <form className="confirmation-dialog" onSubmit={submitPassword}>
-            <h2>Set new initial password</h2>
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onKeyDown={(e) => { if (e.key === "Escape") { setResetFor(null); setPasswordError(""); } }}
+        >
+          <form
+            className="confirmation-dialog"
+            onSubmit={submitPassword}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reset-dialog-title"
+          >
+            <h2 id="reset-dialog-title">Set new initial password</h2>
             <p>{resetFor.name} will be required to change this password at next login.</p>
             <label className="field-label" htmlFor="reset-password">New initial password</label>
-            <input id="reset-password" className="input-field" type="password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-            <p className="helper-text">{passwordHelp}</p>
+            <input
+              id="reset-password"
+              ref={resetModalFirstRef}
+              className="input-field"
+              type="password"
+              required
+              value={newPassword}
+              onChange={(e) => { setNewPassword(e.target.value); if (passwordError) setPasswordError(""); }}
+              aria-describedby="reset-pw-help"
+            />
+            {passwordError
+              ? <p id="reset-pw-help" className="helper-text" style={{ color: "var(--color-error, #c0392b)" }}>{passwordError}</p>
+              : <p id="reset-pw-help" className="helper-text">{passwordHelp}</p>
+            }
             <div className="dialog-actions">
-              <button type="button" className="secondary-button" onClick={() => setResetFor(null)}>Cancel</button>
+              <button type="button" className="secondary-button" onClick={() => { setResetFor(null); setPasswordError(""); }}>Cancel</button>
               <button className="primary-button" disabled={saving}>Set password</button>
             </div>
           </form>
         </div>
       )}
 
+      {/* Deactivate / Activate confirmation modal */}
       {statusTarget && (
-        <div className="modal-backdrop">
-          <div className="confirmation-dialog" role="alertdialog" aria-labelledby="status-dialog-title">
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onKeyDown={(e) => { if (e.key === "Escape") closeStatusConfirm(); }}
+        >
+          <div
+            className="confirmation-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="status-dialog-title"
+          >
             <h2 id="status-dialog-title">{statusTarget.isActive ? "Deactivate User?" : "Activate User?"}</h2>
             <p><strong>Name:</strong> {statusTarget.name}<br /><strong>Email:</strong> {statusTarget.email}</p>
             {statusTarget.isActive && (
@@ -237,7 +343,7 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
             )}
             {statusError && <div className="error-panel" role="alert"><strong>Unable to complete that action</strong><p>{statusError}</p></div>}
             <div className="dialog-actions">
-              <button type="button" className="secondary-button" onClick={closeStatusConfirm}>Cancel</button>
+              <button ref={statusModalFirstRef} type="button" className="secondary-button" onClick={closeStatusConfirm}>Cancel</button>
               <button
                 type="button"
                 className={statusTarget.isActive ? "destructive-button" : "primary-button"}

@@ -28,6 +28,20 @@ export interface TicketListRow {
   updatedAt: string;
 }
 
+/** Typed API error that carries the HTTP status code alongside the message.
+ *  Callers can check `error instanceof ApiError && error.status === 401`
+ *  to differentiate session-expiry from generic server errors. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function requestJson<T>(path: string, init?: RequestInit, requesterId?: number, unwrapData = true): Promise<T> {
   const headers = new Headers(init?.headers);
   void requesterId;
@@ -35,17 +49,17 @@ async function requestJson<T>(path: string, init?: RequestInit, requesterId?: nu
 
   if (!response.ok) {
     let message = `Request failed: ${response.status}`;
+    let code: string | undefined;
 
     try {
-      const payload = (await response.json()) as { error?: { message?: string } };
-      if (payload?.error?.message) {
-        message = payload.error.message;
-      }
+      const payload = (await response.json()) as { error?: { message?: string; code?: string } };
+      if (payload?.error?.message) message = payload.error.message;
+      if (payload?.error?.code) code = payload.error.code;
     } catch {
       // Ignore JSON parse failures and fall back to the status-based message.
     }
 
-    throw new Error(message);
+    throw new ApiError(message, response.status, code);
   }
 
   if (response.status === 204) return undefined as T;

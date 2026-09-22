@@ -5,6 +5,17 @@ import { getPrisma } from "./prisma.js";
 const ROLES = ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"] as const;
 type Role = (typeof ROLES)[number];
 
+// Typed application error — avoids brittle string-matching in catch blocks.
+class AppError extends Error {
+  constructor(
+    public readonly code: "SELF_DEACTIVATION" | "LAST_ADMIN",
+    message: string,
+  ) {
+    super(message);
+    this.name = "AppError";
+  }
+}
+
 function idFrom(value: unknown) {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
@@ -82,19 +93,21 @@ export async function updateUser(req: Request, res: Response) {
 
   const prisma = getPrisma();
   try {
+    // Use Serializable isolation to prevent concurrent requests from bypassing
+    // the last-active-Administrator guard via a TOCTOU race condition.
     const user = await prisma.$transaction(async (tx) => {
       const existing = await tx.user.findUnique({ where: { id }, select: { id: true, role: true, isActive: true } });
       if (!existing) return null;
       const removesActiveAdmin = existing.role === "ADMINISTRATOR" && existing.isActive && (data.isActive === false || (data.role !== undefined && data.role !== "ADMINISTRATOR"));
-      if (req.authUser!.id === id && data.isActive === false) throw new Error("SELF_DEACTIVATION");
-      if (removesActiveAdmin && await tx.user.count({ where: { role: "ADMINISTRATOR", isActive: true } }) <= 1) throw new Error("LAST_ADMIN");
+      if (req.authUser!.id === id && data.isActive === false) throw new AppError("SELF_DEACTIVATION", "Administrators cannot deactivate their own account.");
+      if (removesActiveAdmin && await tx.user.count({ where: { role: "ADMINISTRATOR", isActive: true } }) <= 1) throw new AppError("LAST_ADMIN", "At least one active Administrator must remain.");
       return tx.user.update({ where: { id }, data, select: userSelect });
-    });
+    }, { isolationLevel: "Serializable" });
     if (!user) return res.status(404).json({ error: { code: "NOT_FOUND", message: "User not found." } });
     return res.status(200).json({ data: mapUser(user) });
   } catch (error: unknown) {
-    if (error instanceof Error && error.message === "SELF_DEACTIVATION") return res.status(409).json({ error: { code: "SELF_DEACTIVATION", message: "Administrators cannot deactivate their own account." } });
-    if (error instanceof Error && error.message === "LAST_ADMIN") return res.status(409).json({ error: { code: "LAST_ACTIVE_ADMIN", message: "At least one active Administrator must remain." } });
+    if (error instanceof AppError && error.code === "SELF_DEACTIVATION") return res.status(409).json({ error: { code: "SELF_DEACTIVATION", message: error.message } });
+    if (error instanceof AppError && error.code === "LAST_ADMIN") return res.status(409).json({ error: { code: "LAST_ACTIVE_ADMIN", message: error.message } });
     if (typeof error === "object" && error && "code" in error && error.code === "P2002") return res.status(409).json({ error: { code: "EMAIL_CONFLICT", message: "An account with this email already exists." } });
     throw error;
   }

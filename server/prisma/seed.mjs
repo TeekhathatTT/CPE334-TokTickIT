@@ -119,7 +119,10 @@ async function main() {
     const requester = requesterRows.get(user.email);
     await prisma.user.upsert({
       where: { email: user.email },
-      update: { name: user.name, role: user.role, isActive: user.isActive, passwordHash: hashPassword("TokTickit1!"), mustChangePassword: true, legacyRequesterId: requester?.id ?? null },
+      // Only update profile fields — never reset a password that an admin
+      // may have already changed. Passwords and mustChangePassword are set
+      // only when the row is first created.
+      update: { name: user.name, role: user.role, isActive: user.isActive, legacyRequesterId: requester?.id ?? null },
       create: { name: user.name, email: user.email, role: user.role, isActive: user.isActive, passwordHash: hashPassword("TokTickit1!"), mustChangePassword: true, legacyRequesterId: requester?.id ?? null },
     });
   }
