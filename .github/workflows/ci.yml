@@ -118,7 +118,7 @@ jobs:
           npx prisma generate
           npx prisma db seed
       - name: Install Playwright browsers
-        run: sudo npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
       - name: Run E2E tests
         run: npx playwright test
       - name: Upload E2E report on failure
