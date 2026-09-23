@@ -4,9 +4,10 @@ export default defineConfig({
   testDir: "./e2e",
   globalSetup: "./e2e/global-setup.ts",
   fullyParallel: false,
-  // Keep baseline image names platform-independent (win32/linux) so the same
-  // committed screenshots are compared on both local machines and CI.
-  snapshotPathTemplate: "{testDir}/{testFilePath}-snapshots/{arg}.png",
+  // Baselines are per-platform ({platform} = win32/linux) because font
+  // metrics differ between OSes: one shared image set cannot be compared on
+  // both Windows and Linux without false failures. Commit both platforms.
+  snapshotPathTemplate: "{testDir}/{testFilePath}-snapshots/{arg}-{platform}.png",
   reporter: "html",
   use: {
     baseURL: "http://localhost:5173",
