@@ -54,6 +54,7 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - run: npm ci
       - run: npx prisma migrate deploy
+      - run: npx prisma generate
       - run: npx prisma db seed
       - run: npm run test:int
 
@@ -114,6 +115,7 @@ jobs:
         run: |
           cd ../server
           npx prisma migrate deploy
+          npx prisma generate
           npx prisma db seed
       - name: Install Playwright browsers
         run: sudo npx playwright install --with-deps chromium

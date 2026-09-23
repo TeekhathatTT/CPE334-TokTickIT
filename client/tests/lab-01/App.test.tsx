@@ -1,40 +1,48 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getCategories, getCurrentUser, getTickets } from "../../src/api";
 import App from "../../src/App";
-import * as api from "../../src/api";
 
-afterEach(() => {
-  vi.restoreAllMocks();
+vi.mock("../../src/api", () => ({
+  getCurrentUser: vi.fn(),
+  login: vi.fn(),
+  logout: vi.fn(),
+  getTickets: vi.fn(),
+  getCategories: vi.fn(),
+}));
+
+const mockRequester = {
+  id: 1,
+  name: "Jennifer Anderson",
+  email: "jennifer.anderson@example.com",
+  role: "REQUESTER" as const,
+  isActive: true,
+  mustChangePassword: false,
+  createdAt: "2026-01-01T00:00:00Z",
+  updatedAt: "2026-01-01T00:00:00Z",
+};
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(getTickets).mockResolvedValue({ data: [], meta: { page: 1, pageSize: 10, totalItems: 0, totalPages: 1, isEmpty: true, isNoResults: false } });
+  vi.mocked(getCategories).mockResolvedValue([]);
 });
+afterEach(cleanup);
 
-describe("Requester selection", () => {
-  it("renders the requester selection screen and loads active requesters", async () => {
-    vi.spyOn(api, "getRequesters").mockResolvedValue([
-      { id: 1, name: "Jennifer Anderson", email: "jennifer.anderson@example.com" },
-    ]);
+describe("App entry", () => {
+  it("renders the sign-in screen when there is no active session", async () => {
+    vi.mocked(getCurrentUser).mockRejectedValue(new Error("no session"));
 
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: /select development requester/i })).toBeInTheDocument();
-    expect(await screen.findByRole("option", { name: "Jennifer Anderson" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /sign in to toktickit/i })).toBeInTheDocument();
   });
 
-  it("enables continue only after a requester is selected", async () => {
-    vi.spyOn(api, "getRequesters").mockResolvedValue([
-      { id: 1, name: "Jennifer Anderson", email: "jennifer.anderson@example.com" },
-    ]);
+  it("renders the requester's ticket list after a session loads", async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue({ user: mockRequester });
 
     render(<App />);
 
-    const select = await screen.findByRole("combobox");
-    const continueButton = screen.getByRole("button", { name: /continue/i });
-    expect(continueButton).toBeDisabled();
-
-    fireEvent.change(select, {
-      target: { value: "1" },
-    });
-
-    await waitFor(() => expect(continueButton).toBeEnabled());
+    expect(await screen.findByRole("heading", { name: "My Tickets" })).toBeInTheDocument();
   });
 });
-
