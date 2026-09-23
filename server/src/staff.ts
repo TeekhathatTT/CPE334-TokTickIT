@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import type { Prisma } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
 
 const VALID_PRIORITIES = ["LOW", "MEDIUM", "HIGH"] as const;
@@ -83,10 +84,6 @@ function requireStaffOrAdmin(req: Request, res: Response): boolean {
   return true;
 }
 
-function toIso(value: Date | null | undefined) {
-  return value ? value.toISOString() : null;
-}
-
 function safeUserSummary(user: { id: number; name: string; email?: string | null; role?: string | null } | null) {
   if (!user) return null;
   return {
@@ -97,7 +94,23 @@ function safeUserSummary(user: { id: number; name: string; email?: string | null
   };
 }
 
-function mapTicketSummary(ticket: any) {
+const staffTicketSummarySelect = {
+  id: true,
+  ticketNumber: true,
+  summary: true,
+  status: true,
+  requestedPriority: true,
+  itPriority: true,
+  createdAt: true,
+  updatedAt: true,
+  category: { select: { name: true } },
+  requester: { select: { id: true, name: true, email: true, role: true } },
+  ticketOwner: { select: { id: true, name: true, email: true, role: true } },
+} as const satisfies Prisma.TicketSelect;
+
+type StaffTicketSummary = Prisma.TicketGetPayload<{ select: typeof staffTicketSummarySelect }>;
+
+function mapTicketSummary(ticket: StaffTicketSummary) {
   return {
     id: ticket.id,
     ticketNumber: ticket.ticketNumber,
@@ -158,7 +171,7 @@ export async function getStaffTickets(req: Request, res: Response) {
 
   const prisma = getPrisma();
 
-  const where: any = {};
+  const where: Prisma.TicketWhereInput = {};
   if (search) {
     where.OR = [
       { ticketNumber: { contains: search, mode: "insensitive" } },
@@ -180,19 +193,7 @@ export async function getStaffTickets(req: Request, res: Response) {
     prisma.ticket.count({ where }),
     prisma.ticket.findMany({
       where,
-      select: {
-        id: true,
-        ticketNumber: true,
-        summary: true,
-        status: true,
-        requestedPriority: true,
-        itPriority: true,
-        createdAt: true,
-        updatedAt: true,
-        category: { select: { name: true } },
-        requester: { select: { id: true, name: true, email: true, role: true } },
-        ticketOwner: { select: { id: true, name: true, email: true, role: true } },
-      },
+      select: staffTicketSummarySelect,
       orderBy: getOrderBy(sortKey, order),
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -215,9 +216,9 @@ export async function getStaffTickets(req: Request, res: Response) {
   });
 }
 
-function getOrderBy(sortKey: string, order: "asc" | "desc") {
-  const direction = order === "asc" ? "asc" : "desc";
-  const fallback: any[] = [{ updatedAt: direction }, { id: direction }];
+function getOrderBy(sortKey: string, order: "asc" | "desc"): Prisma.TicketOrderByWithRelationInput[] {
+  const direction: "asc" | "desc" = order === "asc" ? "asc" : "desc";
+  const fallback: Prisma.TicketOrderByWithRelationInput[] = [{ updatedAt: direction }, { id: direction }];
   switch (sortKey) {
     case "ticketNumber":
       return [{ ticketNumber: direction }, ...fallback];
@@ -286,29 +287,29 @@ export async function getStaffTicket(req: Request, res: Response) {
       createdAt: ticket.createdAt.toISOString(),
       updatedAt: ticket.updatedAt.toISOString(),
       attachments: {
-        active: ticket.attachments.filter((attachment: any) => !attachment.removedAt).map((attachment: any) => ({
+        active: ticket.attachments.filter((attachment) => !attachment.removedAt).map((attachment) => ({
           id: attachment.id,
           originalFilename: attachment.originalFilename,
           sizeBytes: attachment.sizeBytes,
           mimeType: attachment.mimeType,
           uploadedAt: attachment.uploadedAt.toISOString(),
         })),
-        removed: ticket.attachments.filter((attachment: any) => attachment.removedAt).map((attachment: any) => ({
+        removed: ticket.attachments.filter((attachment) => attachment.removedAt).map((attachment) => ({
           id: attachment.id,
           originalFilename: attachment.originalFilename,
           sizeBytes: attachment.sizeBytes,
-          removedAt: attachment.removedAt.toISOString(),
+          removedAt: attachment.removedAt?.toISOString() ?? null,
           removalReason: attachment.removalReason,
         })),
       },
-      publicComments: ticket.publicComments.map((comment: any) => ({
+      publicComments: ticket.publicComments.map((comment) => ({
         id: comment.id,
         ticketId: comment.ticketId,
         content: comment.content,
         createdAt: comment.createdAt.toISOString(),
         author: safeUserSummary(comment.author),
       })),
-      internalNotes: ticket.internalNotes.map((note: any) => ({
+      internalNotes: ticket.internalNotes.map((note) => ({
         id: note.id,
         ticketId: note.ticketId,
         content: note.content,
@@ -513,7 +514,7 @@ export async function getStaffNotes(req: Request, res: Response) {
   });
 
   return res.status(200).json({
-    data: notes.map((note: any) => ({
+    data: notes.map((note) => ({
       id: note.id,
       ticketId: note.ticketId,
       content: note.content,

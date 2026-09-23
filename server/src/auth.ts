@@ -6,6 +6,7 @@ const COOKIE = "toktickit_session";
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const ABSOLUTE_TIMEOUT_MS = 8 * 60 * 60 * 1000;
 export type AuthenticatedUser = { id: number; name: string; email: string; role: "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR"; isActive: boolean; mustChangePassword: boolean; legacyRequesterId: number | null };
+// eslint-disable-next-line @typescript-eslint/no-namespace
 declare global { namespace Express { interface Request { authUser?: AuthenticatedUser } } }
 function cookieValue(req: Request) { const raw = req.header("cookie") ?? ""; const item = raw.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${COOKIE}=`)); return item?.slice(COOKIE.length + 1) ?? null; }
 function legacyRequesterAuthEnabled() { return process.env.NODE_ENV !== "production" && (process.env.ENABLE_LEGACY_REQUESTER_AUTH === "true" || (process.env.NODE_ENV === "test" && process.env.ENABLE_LEGACY_REQUESTER_AUTH !== "false")); }

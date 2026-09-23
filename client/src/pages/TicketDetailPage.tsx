@@ -52,7 +52,7 @@ export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ti
 
     async function loadTicket() {
       try {
-        const payload = await getTicket(ticketId, requesterId);
+        const payload = await getTicket(ticketId);
         if (!active) return;
         setTicket(payload as unknown as TicketDetailData);
         try {
@@ -95,12 +95,12 @@ export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ti
 
   const activeAttachments = ticket.attachments?.active ?? [];
   const removedAttachments = ticket.attachments?.removed ?? [];
-  const refreshTicket = async () => setTicket(await getTicket(ticketId, requesterId) as unknown as TicketDetailData);
+  const refreshTicket = async () => setTicket(await getTicket(ticketId) as unknown as TicketDetailData);
   const handleDownload = async (attachment: AttachmentItem) => {
-    try { const blob = await downloadAttachment(attachment.id, requesterId); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = attachment.originalFilename; link.click(); URL.revokeObjectURL(url); } catch (downloadError) { setActionError(downloadError instanceof Error ? downloadError.message : "Download failed."); }
+    try { const blob = await downloadAttachment(attachment.id); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = attachment.originalFilename; link.click(); URL.revokeObjectURL(url); } catch (downloadError) { setActionError(downloadError instanceof Error ? downloadError.message : "Download failed."); }
   };
-  const handleAdd = async (file: File) => { const validation = validateAttachment(file); if (!validation.accepted) { setActionError(validation.reason === "oversized" ? "File exceeds the 5MB limit." : "Unsupported file type. Allowed: JPG, PNG, WEBP, PDF."); return; } setActionBusy(true); setActionError(null); try { await addAttachment(ticketId, requesterId, file); await refreshTicket(); } catch (addError) { setActionError(addError instanceof Error ? addError.message : "Unable to add attachment."); } finally { setActionBusy(false); } };
-  const handleRemove = async () => { if (!removeTarget || reason.trim().length < 5 || reason.trim().length > 200) return; setActionBusy(true); setActionError(null); try { await removeAttachment(removeTarget.id, requesterId, reason.trim()); setRemoveTarget(null); setReason(""); await refreshTicket(); } catch (removeError) { setActionError(removeError instanceof Error ? removeError.message : "Unable to remove attachment."); } finally { setActionBusy(false); } };
+  const handleAdd = async (file: File) => { const validation = validateAttachment(file); if (!validation.accepted) { setActionError(validation.reason === "oversized" ? "File exceeds the 5MB limit." : "Unsupported file type. Allowed: JPG, PNG, WEBP, PDF."); return; } setActionBusy(true); setActionError(null); try { await addAttachment(ticketId, file); await refreshTicket(); } catch (addError) { setActionError(addError instanceof Error ? addError.message : "Unable to add attachment."); } finally { setActionBusy(false); } };
+  const handleRemove = async () => { if (!removeTarget || reason.trim().length < 5 || reason.trim().length > 200) return; setActionBusy(true); setActionError(null); try { await removeAttachment(removeTarget.id, reason.trim()); setRemoveTarget(null); setReason(""); await refreshTicket(); } catch (removeError) { setActionError(removeError instanceof Error ? removeError.message : "Unable to remove attachment."); } finally { setActionBusy(false); } };
   const handleComment = async () => { const content = commentText.trim(); if (!content || content.length > 2000) return; setCommentBusy(true); setActionError(null); try { const comment = await addPublicComment(ticketId, content); setComments((current) => [...current, comment]); setCommentText(""); } catch (commentError) { setActionError(commentError instanceof Error ? commentError.message : "Unable to add comment."); } finally { setCommentBusy(false); } };
   const handleProblemResolved = async () => { setActionBusy(true); setActionError(null); try { await markProblemAppearsResolved(ticketId); setProblemResolved(true); } catch (problemError) { setActionError(problemError instanceof Error ? problemError.message : "Unable to record the update."); } finally { setActionBusy(false); } };
 

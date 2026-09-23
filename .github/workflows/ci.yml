@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  # ── Server: lint + TypeScript build + unit tests (mocked DB) ─────────────
+  server:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test
+
+  # ── Server integration tests: hit a real PostgreSQL database ─────────────
+  server-integration:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: toktickit
+          POSTGRES_PASSWORD: toktickit
+          POSTGRES_DB: toktickit
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U toktickit -d toktickit"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://toktickit:toktickit@localhost:5432/toktickit?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - run: npx prisma db seed
+      - run: npm run test:int
+
+  # ── Client: lint + TypeScript/Vite build + unit tests (jsdom, mocked API) ─
+  client:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test
+
+  # ── End-to-end: real browsers against the real app + real database ───────
+  e2e:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: toktickit
+          POSTGRES_PASSWORD: toktickit
+          POSTGRES_DB: toktickit
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U toktickit -d toktickit"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://toktickit:toktickit@localhost:5432/toktickit?schema=public
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            server/package-lock.json
+      - name: Install server + client dependencies
+        run: |
+          npm ci --prefix ../server
+          npm ci
+      - name: Apply database schema + seed data
+        run: |
+          cd ../server
+          npx prisma migrate deploy
+          npx prisma db seed
+      - name: Install Playwright browsers
+        run: sudo npx playwright install --with-deps chromium
+      - name: Run E2E tests
+        run: npx playwright test
+      - name: Upload E2E report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            client/playwright-report
+            client/test-results
+          if-no-files-found: ignore

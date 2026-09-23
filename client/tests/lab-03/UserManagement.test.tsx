@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import UserManagementPage from "../../src/pages/UserManagementPage";
 import { createUser, getUsers, setInitialPassword, updateUser } from "../../src/api";
 
-vi.mock("../../src/api", () => ({ getUsers: vi.fn(), createUser: vi.fn(), updateUser: vi.fn(), setInitialPassword: vi.fn() }));
+vi.mock("../../src/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/api")>();
+  return { ...actual, getUsers: vi.fn(), createUser: vi.fn(), updateUser: vi.fn(), setInitialPassword: vi.fn() };
+});
 
 const staffUser = { id: 2, name: "Taylor Smith", email: "taylor@example.com", role: "IT_STAFF" as const, isActive: true, mustChangePassword: false, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" };
 const inactiveUser = { id: 5, name: "Jamie Rivera", email: "jamie@example.com", role: "REQUESTER" as const, isActive: false, mustChangePassword: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" };

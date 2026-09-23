@@ -2,7 +2,11 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/global-setup.ts",
   fullyParallel: false,
+  // Keep baseline image names platform-independent (win32/linux) so the same
+  // committed screenshots are compared on both local machines and CI.
+  snapshotPathTemplate: "{testDir}/{testFilePath}-snapshots/{arg}.png",
   reporter: "html",
   use: {
     baseURL: "http://localhost:5173",

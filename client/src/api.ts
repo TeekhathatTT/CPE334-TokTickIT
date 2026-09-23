@@ -144,17 +144,17 @@ export async function getTickets(
   return requestJson<{ data: TicketListRow[]; meta: TicketListMeta }>(`/api/tickets${query ? `?${query}` : ""}`, undefined, undefined, false);
 }
 
-export async function getTicket(ticketId: number, requesterId: number): Promise<Ticket> {
+export async function getTicket(ticketId: number): Promise<Ticket> {
   return requestJson<Ticket>(`/api/tickets/${ticketId}`);
 }
 
-export async function addAttachment(ticketId: number, requesterId: number, file: File) {
+export async function addAttachment(ticketId: number, file: File) {
   const body = new FormData();
   body.append("file", file);
   return requestJson<{ id: number; originalFilename: string; sizeBytes: number; uploadedAt: string }>(`/api/tickets/${ticketId}/attachments`, { method: "POST", body });
 }
 
-export async function downloadAttachment(attachmentId: number, requesterId: number): Promise<Blob> {
+export async function downloadAttachment(attachmentId: number): Promise<Blob> {
   const response = await fetch(`${API_URL}/api/attachments/${attachmentId}/download`, {
     credentials: "include",
   });
@@ -162,7 +162,7 @@ export async function downloadAttachment(attachmentId: number, requesterId: numb
   return response.blob();
 }
 
-export async function removeAttachment(attachmentId: number, requesterId: number, reason: string) {
+export async function removeAttachment(attachmentId: number, reason: string) {
   return requestJson<{ id: number; removedAt: string; removalReason: string }>(`/api/attachments/${attachmentId}/remove`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },

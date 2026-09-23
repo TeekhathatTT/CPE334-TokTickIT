@@ -9,6 +9,11 @@
  * 3. Non-P2034 errors are NOT retried (exactly 1 $transaction call).
  * 4. Concurrent PATCH requests all resolve to 200 or domain 4xx, never 500 from P2034.
  * 5. Domain AppErrors (LAST_ADMIN / SELF_DEACTIVATION) do NOT trigger retry.
+ *
+ * The real-database equivalent (two Administrators deactivated simultaneously,
+ * asserting the live outcome is 200/409 with at least one active admin left and
+ * never HTTP 500) lives in tests/int/lab-03/users-admin.concurrency.int.test.ts
+ * and runs via `npm run test:int`.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
