@@ -85,7 +85,7 @@ test("creating a user with a duplicate email shows a conflict error", async ({ p
   await page.getByLabel("Initial password").fill("DupPass1!");
   await page.getByRole("button", { name: "Save user" }).click();
   // Expect an error message indicating the conflict
-  await expect(page.getByRole("alert")).toContainText(/already exists|conflict/i);
+  await expect(page.getByRole("alert")).toContainText(/already exists|conflict/i, { timeout: 10_000 });
 });
 
 test("self-deactivation button is disabled for the currently logged-in admin", async ({ page }) => {

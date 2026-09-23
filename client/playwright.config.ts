@@ -4,6 +4,11 @@ export default defineConfig({
   testDir: "./e2e",
   globalSetup: "./e2e/global-setup.ts",
   fullyParallel: false,
+  // The whole suite runs against one shared backend + Postgres instance (no
+  // DB-per-worker isolation), so multiple workers in parallel can race on the
+  // same rows (e.g. one spec mutating a user another spec is logging in as).
+  // Serialize workers on CI for deterministic results.
+  workers: process.env.CI ? 1 : undefined,
   // Baselines are per-platform ({platform} = win32/linux) because font
   // metrics differ between OSes: one shared image set cannot be compared on
   // both Windows and Linux without false failures. Commit both platforms.
