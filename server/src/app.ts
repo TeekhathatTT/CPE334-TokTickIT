@@ -241,4 +241,17 @@ app.post(
   addStaffNote,
 );
 
+// Global error handler — catches unhandled errors from async route handlers
+// (e.g. an exhausted P2034 retry, unexpected DB failure) and converts them to
+// a structured HTTP 500 instead of hanging the request indefinitely.
+// Must be registered AFTER all routes (Express 4 identifies error handlers by
+// the 4-parameter signature).
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: unknown, _req: Request, res: Response, _next: import("express").NextFunction) => {
+  console.error("[unhandled error]", err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred." } });
+  }
+});
+
 export default app;

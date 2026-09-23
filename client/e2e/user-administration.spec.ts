@@ -29,12 +29,16 @@ test("administrator can manage users and responsive layout does not overflow", a
   await page.getByLabel("Initial password").fill("E2ePass1!");
   await page.getByRole("button", { name: "Save user" }).click();
   await expect(page.getByText(/User created/i)).toBeVisible();
+  // Reset the Role filter so the newly-created REQUESTER user is visible in the table.
+  // Without this the filter still shows ADMINISTRATOR (set earlier) and the row is hidden.
+  await page.getByLabel("Role").selectOption("");
   await page.getByLabel("Search users").fill("E2E Managed");
 
   // Scope Edit click to the table container to avoid Playwright strict mode
   // violation caused by duplicate buttons in the hidden card view.
   const userTable = page.getByTestId("user-table");
   await userTable.getByRole("button", { name: "Edit" }).click();
+
   await page.getByRole("button", { name: "Save user" }).click();
 
   // Scope "Set initial password" similarly

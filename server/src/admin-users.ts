@@ -1,9 +1,38 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { hashPassword, validPassword } from "./auth.js";
 import { getPrisma } from "./prisma.js";
 
 const ROLES = ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"] as const;
 type Role = (typeof ROLES)[number];
+
+// Retry handler for Prisma P2034 (Serialization Failure / Deadlock).
+// Serializable isolation causes the DB to throw P2034 immediately on conflict
+// instead of waiting; without a retry loop the handler would propagate as HTTP 500.
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 50;
+
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  let attempt = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    try {
+      return await fn();
+    } catch (error: unknown) {
+      const isRetryable =
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code: unknown }).code === "P2034";
+      if (isRetryable && attempt < MAX_RETRIES) {
+        // Exponential back-off: 50ms, 100ms, 200ms
+        await new Promise((r) => setTimeout(r, BASE_DELAY_MS * 2 ** attempt));
+        attempt++;
+        continue;
+      }
+      throw error;
+    }
+  }
+}
 
 // Typed application error — avoids brittle string-matching in catch blocks.
 class AppError extends Error {
@@ -39,7 +68,7 @@ function mapUser(user: { id: number; name: string; email: string; role: Role; is
 
 const userSelect = { id: true, name: true, email: true, role: true, isActive: true, mustChangePassword: true, createdAt: true, updatedAt: true } as const;
 
-export async function listUsers(req: Request, res: Response) {
+export async function listUsers(req: Request, res: Response, next: NextFunction) {
   const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
   const role = req.query.role === undefined ? null : roleFrom(req.query.role);
   if (search.length > 120 || (req.query.role !== undefined && !role)) {
@@ -51,11 +80,15 @@ export async function listUsers(req: Request, res: Response) {
   const where: { role?: Role; OR?: Array<object> } = {};
   if (role) where.role = role;
   if (search) where.OR = [{ name: { contains: search, mode: "insensitive" } }, { email: { contains: search, mode: "insensitive" } }];
-  const users = await getPrisma().user.findMany({ where, select: userSelect, orderBy: [{ name: "asc" }, { id: "asc" }] });
-  return res.status(200).json({ data: users.map(mapUser) });
+  try {
+    const users = await getPrisma().user.findMany({ where, select: userSelect, orderBy: [{ name: "asc" }, { id: "asc" }] });
+    return res.status(200).json({ data: users.map(mapUser) });
+  } catch (error: unknown) {
+    next(error);
+  }
 }
 
-export async function createUser(req: Request, res: Response) {
+export async function createUser(req: Request, res: Response, next: NextFunction) {
   const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
   const email = emailFrom(req.body?.email);
   const role = roleFrom(req.body?.role);
@@ -75,11 +108,11 @@ export async function createUser(req: Request, res: Response) {
     return res.status(201).json({ data: mapUser(user) });
   } catch (error: unknown) {
     if (typeof error === "object" && error && "code" in error && error.code === "P2002") return res.status(409).json({ error: { code: "EMAIL_CONFLICT", message: "An account with this email already exists." } });
-    throw error;
+    next(error);
   }
 }
 
-export async function updateUser(req: Request, res: Response) {
+export async function updateUser(req: Request, res: Response, next: NextFunction) {
   const id = idFrom(req.params.id);
   if (!id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "User not found." } });
   const body = req.body ?? {};
@@ -95,25 +128,29 @@ export async function updateUser(req: Request, res: Response) {
   try {
     // Use Serializable isolation to prevent concurrent requests from bypassing
     // the last-active-Administrator guard via a TOCTOU race condition.
-    const user = await prisma.$transaction(async (tx) => {
-      const existing = await tx.user.findUnique({ where: { id }, select: { id: true, role: true, isActive: true } });
-      if (!existing) return null;
-      const removesActiveAdmin = existing.role === "ADMINISTRATOR" && existing.isActive && (data.isActive === false || (data.role !== undefined && data.role !== "ADMINISTRATOR"));
-      if (req.authUser!.id === id && data.isActive === false) throw new AppError("SELF_DEACTIVATION", "Administrators cannot deactivate their own account.");
-      if (removesActiveAdmin && await tx.user.count({ where: { role: "ADMINISTRATOR", isActive: true } }) <= 1) throw new AppError("LAST_ADMIN", "At least one active Administrator must remain.");
-      return tx.user.update({ where: { id }, data, select: userSelect });
-    }, { isolationLevel: "Serializable" });
+    // withRetry() handles Prisma P2034 (Serialization Failure / Deadlock) by
+    // transparently retrying with exponential back-off before surfacing an error.
+    const user = await withRetry(() =>
+      prisma.$transaction(async (tx) => {
+        const existing = await tx.user.findUnique({ where: { id }, select: { id: true, role: true, isActive: true } });
+        if (!existing) return null;
+        const removesActiveAdmin = existing.role === "ADMINISTRATOR" && existing.isActive && (data.isActive === false || (data.role !== undefined && data.role !== "ADMINISTRATOR"));
+        if (req.authUser!.id === id && data.isActive === false) throw new AppError("SELF_DEACTIVATION", "Administrators cannot deactivate their own account.");
+        if (removesActiveAdmin && await tx.user.count({ where: { role: "ADMINISTRATOR", isActive: true } }) <= 1) throw new AppError("LAST_ADMIN", "At least one active Administrator must remain.");
+        return tx.user.update({ where: { id }, data, select: userSelect });
+      }, { isolationLevel: "Serializable" }),
+    );
     if (!user) return res.status(404).json({ error: { code: "NOT_FOUND", message: "User not found." } });
     return res.status(200).json({ data: mapUser(user) });
   } catch (error: unknown) {
     if (error instanceof AppError && error.code === "SELF_DEACTIVATION") return res.status(409).json({ error: { code: "SELF_DEACTIVATION", message: error.message } });
     if (error instanceof AppError && error.code === "LAST_ADMIN") return res.status(409).json({ error: { code: "LAST_ACTIVE_ADMIN", message: error.message } });
     if (typeof error === "object" && error && "code" in error && error.code === "P2002") return res.status(409).json({ error: { code: "EMAIL_CONFLICT", message: "An account with this email already exists." } });
-    throw error;
+    next(error);
   }
 }
 
-export async function resetInitialPassword(req: Request, res: Response) {
+export async function resetInitialPassword(req: Request, res: Response, next: NextFunction) {
   const id = idFrom(req.params.id);
   const initialPassword = req.body?.initialPassword;
   if (!id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "User not found." } });
@@ -123,6 +160,6 @@ export async function resetInitialPassword(req: Request, res: Response) {
     return res.status(200).json({ data: mapUser(user) });
   } catch (error: unknown) {
     if (typeof error === "object" && error && "code" in error && error.code === "P2025") return res.status(404).json({ error: { code: "NOT_FOUND", message: "User not found." } });
-    throw error;
+    next(error);
   }
 }

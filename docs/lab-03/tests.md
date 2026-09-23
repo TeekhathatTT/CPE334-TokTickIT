@@ -26,6 +26,7 @@ This plan is written before Lab 3 implementation. Every row starts as `Planned`;
 | API-15 | API | AC-14 | Reset initial password | Hash changes and must-change flag is true | server/tests/lab-03/users-admin.api.test.ts | Pass |
 | API-16 | API | AC-10 | Plain activate/deactivate | Non-self, non-last-admin status changes succeed normally | server/tests/lab-03/users-admin.api.test.ts | Pass |
 | API-17 | API | AC-10, AC-11 | Update duplicate email and role change | Edit-time duplicate email returns 409; role change persists | server/tests/lab-03/users-admin.api.test.ts | Pass |
+| API-18 | API | AC-12, AC-13 | P2034 retry / concurrency safety | Retry-on-P2034 returns 200; exhausted retries return 500; AppErrors not retried; concurrent requests no 500 from P2034 | server/tests/lab-03/users-admin.concurrency.test.ts | Pass |
 | UI-01 | UI component | AC-01, AC-02, AC-17 | Login/password screens | Validation, busy state, checklist, safe failure | client/tests/lab-03/Login.test.tsx; client/tests/lab-03/ChangePassword.test.tsx | Planned |
 | UI-02 | UI component | AC-06 | Staff queue | Controls, loading, empty/no-results, responsive representation | client/tests/lab-03/StaffTicketQueue.test.tsx | Planned |
 | UI-03 | UI component | AC-07, AC-08, AC-09 | Staff detail | Role controls and distinct public/private panels | client/tests/lab-03/StaffTicketDetail.test.tsx | Planned |
@@ -74,6 +75,8 @@ e2e/lab-03/
 ```
 
 > **Correction (post-implementation, Administrator slice):** this repository has never used a top-level `e2e/` directory — Playwright's `testDir` is `client/e2e`, and Lab 2's E2E spec already lives at `client/e2e/lab-02.spec.ts` with no `lab-XX` subfolder. `user-administration.spec.ts` follows that same, already-established convention and lives at `client/e2e/user-administration.spec.ts`, not `e2e/lab-03/user-administration.spec.ts`. The row above and the traceability table reflect the real path. Whoever implements the remaining `authentication.spec.ts` and `staff-ticket-flow.spec.ts` should place them at `client/e2e/authentication.spec.ts` and `client/e2e/staff-ticket-flow.spec.ts` for consistency, and this section should be corrected to match once those slices land.
+
+> **Evidence (pre-merge pass, 2026-09-23):** All 57 server unit/structural tests pass (`npm test` exit 0, 10 test files). Verified locally via `vitest run --reporter=verbose`. Tests cover: Lab 01 (health, categories), Lab 02 (tickets, attachments, requesters), Lab 03 (auth, authorization, comments, admin CRUD + concurrency/P2034 retry). E2E tests require a live app + DB and have not been run in this pass; `client/e2e/user-administration.spec.ts` has a logical fix applied (Role filter reset after user creation) and is ready for live-app validation.
 
 These implementation/test files are not created in the documentation branch. Visual evidence later belongs under `artifacts/lab-03/screenshots/{authentication,staff-queue,staff-ticket-detail,user-management}/`.
 

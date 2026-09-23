@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, createUser, getUsers, setInitialPassword, updateUser, type ManagedUser, type UserRole } from "../api";
 
 const roles: UserRole[] = ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"];
@@ -6,13 +6,44 @@ const blank = { name: "", email: "", role: "REQUESTER" as UserRole, isActive: tr
 const passwordHelp = "Use 8+ characters with upper/lower case, a number, and a special character.";
 const PASSWORD_PATTERN = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
+// Selects all focusable elements within a container — used by the Focus Trap.
+const FOCUSABLE = [
+  'a[href]', 'button:not([disabled])', 'input:not([disabled])',
+  'select:not([disabled])', 'textarea:not([disabled])', '[tabindex]:not([tabindex="-1"])',
+].join(", ");
+
+function useFocusTrap(containerRef: React.RefObject<HTMLElement | null>, active: boolean) {
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (!active || e.key !== "Tab" || !containerRef.current) return;
+      const focusable = Array.from(
+        containerRef.current.querySelectorAll<HTMLElement>(FOCUSABLE),
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+      } else {
+        if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    },
+    [active, containerRef],
+  );
+  useEffect(() => {
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+}
+
 export default function UserManagementPage({ currentUserId }: { currentUserId: number }) {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<UserRole | "">("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [sessionExpired, setSessionExpired] = useState(false);
+  // Distinguish between 401 (session expired / not logged in) and 403 (logged in but not Admin).
+  const [authError, setAuthError] = useState<"unauthorized" | "forbidden" | null>(null);
   const [notice, setNotice] = useState("");
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [form, setForm] = useState(blank);
@@ -25,9 +56,17 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
   const [statusError, setStatusError] = useState("");
   const [statusSaving, setStatusSaving] = useState(false);
 
-  // Focus refs for modal accessibility
+  // Focus refs for modal accessibility + restore-focus refs (point back to the trigger button)
+  const resetModalRef = useRef<HTMLFormElement>(null);
   const resetModalFirstRef = useRef<HTMLInputElement>(null);
+  const resetTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const statusModalRef = useRef<HTMLDivElement>(null);
   const statusModalFirstRef = useRef<HTMLButtonElement>(null);
+  const statusTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  // Activate focus traps while the corresponding modal is open
+  useFocusTrap(resetModalRef, !!resetFor);
+  useFocusTrap(statusModalRef, !!statusTarget);
 
   const load = async () => {
     setLoading(true);
@@ -35,8 +74,10 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
     try {
       setUsers(await getUsers({ search: search || undefined, role: role || undefined }));
     } catch (e) {
-      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
-        setSessionExpired(true);
+      if (e instanceof ApiError && e.status === 401) {
+        setAuthError("unauthorized");
+      } else if (e instanceof ApiError && e.status === 403) {
+        setAuthError("forbidden");
       } else {
         setError(e instanceof Error ? e.message : "Unable to load users.");
       }
@@ -58,6 +99,14 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
     if (statusTarget) statusModalFirstRef.current?.focus();
   }, [statusTarget]);
 
+  // Restore focus to the trigger button when a modal closes
+  useEffect(() => {
+    if (!resetFor) resetTriggerRef.current?.focus();
+  }, [resetFor]);
+  useEffect(() => {
+    if (!statusTarget) statusTriggerRef.current?.focus();
+  }, [statusTarget]);
+
   const openCreate = () => { setEditing(null); setForm(blank); setFormErrors({}); setError(""); };
   const openEdit = (user: ManagedUser) => { setEditing(user); setForm({ name: user.name, email: user.email, role: user.role, isActive: user.isActive, initialPassword: "" }); setFormErrors({}); setError(""); };
 
@@ -77,14 +126,20 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
     setSaving(true);
     setError("");
     try {
-      if (editing) await updateUser(editing.id, { name: form.name, email: form.email, role: form.role, isActive: form.isActive });
-      else await createUser(form);
+      // Normalize: trim whitespace from name, lowercase+trim email before sending to API.
+      // validateForm() already checks form.name.trim() so the value is safe here.
+      const trimmedName = form.name.trim();
+      const normalizedEmail = form.email.trim().toLowerCase();
+      if (editing) await updateUser(editing.id, { name: trimmedName, email: normalizedEmail, role: form.role, isActive: form.isActive });
+      else await createUser({ ...form, name: trimmedName, email: normalizedEmail });
       setNotice(editing ? "User updated." : "User created. They must change their password at next login.");
       setEditing(null);
       await load();
     } catch (e) {
-      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
-        setSessionExpired(true);
+      if (e instanceof ApiError && e.status === 401) {
+        setAuthError("unauthorized");
+      } else if (e instanceof ApiError && e.status === 403) {
+        setAuthError("forbidden");
       } else {
         setError(e instanceof Error ? e.message : "Unable to save user.");
       }
@@ -97,7 +152,11 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
   // identifies the target user and, if the backend rejects the operation
   // (self-deactivation or last-active-Administrator), surfaces the exact
   // reason instead of a generic failure message.
-  const openStatusConfirm = (user: ManagedUser) => { setStatusTarget(user); setStatusError(""); };
+  const openStatusConfirm = (user: ManagedUser, triggerEl: HTMLButtonElement) => {
+    statusTriggerRef.current = triggerEl;
+    setStatusTarget(user);
+    setStatusError("");
+  };
   const closeStatusConfirm = () => { setStatusTarget(null); setStatusError(""); };
   const confirmStatusChange = async () => {
     if (!statusTarget) return;
@@ -113,8 +172,10 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
       // (e.g. "Administrators cannot deactivate their own account." or
       // "At least one active Administrator must remain.") rather than
       // bouncing the admin back to a generic page-level error banner.
-      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
-        setSessionExpired(true);
+      if (e instanceof ApiError && e.status === 401) {
+        setAuthError("unauthorized");
+      } else if (e instanceof ApiError && e.status === 403) {
+        setAuthError("forbidden");
       } else {
         setStatusError(e instanceof Error ? e.message : "Unable to update status.");
       }
@@ -140,8 +201,10 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
       setNewPassword("");
       await load();
     } catch (e) {
-      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
-        setSessionExpired(true);
+      if (e instanceof ApiError && e.status === 401) {
+        setAuthError("unauthorized");
+      } else if (e instanceof ApiError && e.status === 403) {
+        setAuthError("forbidden");
       } else {
         setError(e instanceof Error ? e.message : "Unable to reset password.");
       }
@@ -150,12 +213,23 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
     }
   };
 
-  if (sessionExpired) {
+  if (authError === "unauthorized") {
     return (
       <section className="page-card user-management">
         <div className="error-panel" role="alert">
           <strong>Session expired</strong>
-          <p>Your session has expired or you no longer have permission to access this page. Please <a href="/">sign in again</a>.</p>
+          <p>Your session has expired or you are not logged in. Please <a href="/">sign in again</a>.</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (authError === "forbidden") {
+    return (
+      <section className="page-card user-management">
+        <div className="error-panel" role="alert">
+          <strong>Access denied</strong>
+          <p>You do not have Administrator permission to access this page. Please contact your system administrator.</p>
         </div>
       </section>
     );
@@ -208,12 +282,17 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
                     <td><span className={`badge ${user.isActive ? "badge--resolved" : "badge--pending"}`}>{user.isActive ? "Active" : "Inactive"}</span></td>
                     <td className="header-actions">
                       <button className="link-button" onClick={() => openEdit(user)}>Edit</button>
-                      <button className="link-button" onClick={() => { setResetFor(user); setNewPassword(""); setPasswordError(""); }}>Set initial password</button>
+                      <button
+                        className="link-button"
+                        onClick={(e) => { resetTriggerRef.current = e.currentTarget; setResetFor(user); setNewPassword(""); setPasswordError(""); }}
+                      >
+                        Set initial password
+                      </button>
                       <button
                         className={user.isActive ? "destructive-button" : "secondary-button"}
                         disabled={user.id === currentUserId && user.isActive}
                         title={user.id === currentUserId && user.isActive ? "You cannot deactivate your own account." : undefined}
-                        onClick={() => openStatusConfirm(user)}
+                        onClick={(e) => openStatusConfirm(user, e.currentTarget)}
                       >
                         {user.isActive ? "Deactivate" : "Activate"}
                       </button>
@@ -235,11 +314,16 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
                 <p><span className="badge badge--open">{user.role}</span></p>
                 <div className="header-actions">
                   <button className="link-button" onClick={() => openEdit(user)}>Edit</button>
-                  <button className="link-button" onClick={() => { setResetFor(user); setNewPassword(""); setPasswordError(""); }}>Set initial password</button>
+                  <button
+                    className="link-button"
+                    onClick={(e) => { resetTriggerRef.current = e.currentTarget; setResetFor(user); setNewPassword(""); setPasswordError(""); }}
+                  >
+                    Set initial password
+                  </button>
                   <button
                     className={user.isActive ? "destructive-button" : "secondary-button"}
                     disabled={user.id === currentUserId && user.isActive}
-                    onClick={() => openStatusConfirm(user)}
+                    onClick={(e) => openStatusConfirm(user, e.currentTarget)}
                   >
                     {user.isActive ? "Deactivate" : "Activate"}
                   </button>
@@ -284,7 +368,7 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
         </div>
       </form>
 
-      {/* Password reset modal */}
+      {/* Password reset modal — focus-trapped; Escape and Cancel restore focus to trigger */}
       {resetFor && (
         <div
           className="modal-backdrop"
@@ -292,6 +376,7 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
           onKeyDown={(e) => { if (e.key === "Escape") { setResetFor(null); setPasswordError(""); } }}
         >
           <form
+            ref={resetModalRef}
             className="confirmation-dialog"
             onSubmit={submitPassword}
             role="dialog"
@@ -323,7 +408,7 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
         </div>
       )}
 
-      {/* Deactivate / Activate confirmation modal */}
+      {/* Deactivate / Activate confirmation modal — focus-trapped; Escape and Cancel restore focus to trigger */}
       {statusTarget && (
         <div
           className="modal-backdrop"
@@ -331,6 +416,7 @@ export default function UserManagementPage({ currentUserId }: { currentUserId: n
           onKeyDown={(e) => { if (e.key === "Escape") closeStatusConfirm(); }}
         >
           <div
+            ref={statusModalRef}
             className="confirmation-dialog"
             role="alertdialog"
             aria-modal="true"
