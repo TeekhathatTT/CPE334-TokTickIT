@@ -2,7 +2,24 @@
 
 ## 1. Visual continuity
 
-Reuse Lab 2's Zen Green tokens from `docs/lab-02/ui-spec.md`: primary `#006B3C`, secondary `#0B7A46`, pale green `#EAF6EF`, page `#F5F7F6`, white surfaces, charcoal-green text, editable/read-only field states, and red/amber/success feedback. Keep the existing spacing rhythm, field labels, button hierarchy, cards, badges, validation placement, and 40px controls. New screens must look like the same product.
+Reuse Lab 2's Zen Green tokens from `docs/lab-02/ui-spec.md`: primary `#006B3C`, secondary `#0B7A46`, pale green `#EAF6EF`, page `#F5F7F6`, white surfaces, charcoal-green text, editable/read-only field states, and red/amber/success feedback. Keep the existing spacing rhythm, field labels, button hierarchy, cards, badges, validation placement, and 40px controls. New screens must look like the same product. No new palette is introduced.
+
+Badge mapping extends the Lab 2 pill shape (`border-radius: 999px`, color plus label text together, never color alone) to the full Lab 3 value sets:
+
+| Badge | Mapping (existing tokens only) |
+|---|---|
+| Status New | pale-green bg / `--color-secondary` text (unchanged from Lab 2) |
+| Status Open | light-blue bg / dark text (unchanged) |
+| Status In Progress | amber bg / dark text (unchanged) |
+| Status Waiting for Requester | amber-outline bg / `--color-warning` text with waiting icon |
+| Status Resolved | green solid / white text (unchanged) |
+| Status Closed | gray solid / white text with lock icon |
+| Status Reopened | light-blue bg / `--color-primary` text with reopen icon |
+| Status Cancelled | gray bg / muted text with strikethrough-safe label |
+| Priority Low/Medium/High | unchanged from Lab 2 (pale-green / amber / light-red) |
+| Role Requester | pale-green bg / `--color-secondary` text |
+| Role IT Staff | light-blue bg / `--color-primary` text |
+| Role Administrator | `--color-primary` solid / white text |
 
 ## 2. Shell and navigation
 

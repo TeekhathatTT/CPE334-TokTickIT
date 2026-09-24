@@ -4,11 +4,11 @@ This plan is written before Lab 3 implementation. Every row starts as `Planned`;
 
 ## 1. Planned tests
 
-| Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final Status |
+| Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
 | API-01 | API | AC-01 | Valid login | Authenticated response; safe user data | server/tests/lab-03/auth.api.test.ts | Planned |
 | API-08 | API | AC-04 | Requester requests Internal Notes | Forbidden; no note data returned | server/tests/lab-03/comments-notes.api.test.ts | Planned |
-| E2E-02 | E2E | AC-02 | Initial password login and change | Normal app opens only after valid change | e2e/lab-03/authentication.spec.ts | Planned |
+| E2E-02 | E2E | AC-02 | Initial password login and change | Normal app opens only after valid change | client/e2e/lab-03/authentication.spec.ts | Planned |
 | API-02 | API | AC-01, AC-16 | Invalid credentials and inactive account | Same safe 401 response; no account enumeration | server/tests/lab-03/auth.api.test.ts | Planned |
 | API-03 | API | AC-05 | Logout | Session invalidated; protected call returns 401 | server/tests/lab-03/auth.api.test.ts | Planned |
 | API-04 | API | AC-17 | Password boundaries | Rules enforced at minimum and invalid values rejected | server/tests/lab-03/auth.api.test.ts | Planned |
@@ -28,14 +28,17 @@ This plan is written before Lab 3 implementation. Every row starts as `Planned`;
 | UI-02 | UI component | AC-06 | Staff queue | Controls, loading, empty/no-results, responsive representation | client/tests/lab-03/StaffTicketQueue.test.tsx | Planned |
 | UI-03 | UI component | AC-07, AC-08, AC-09 | Staff detail | Role controls and distinct public/private panels | client/tests/lab-03/StaffTicketDetail.test.tsx | Planned |
 | UI-04 | UI component | AC-10, AC-11, AC-12, AC-13, AC-14 | User management | List/search/filter/create/edit/safety feedback | client/tests/lab-03/UserManagement.test.tsx | Planned |
-| UI-05 | UI style | AC-21, AC-22 | Zen Green and accessibility | Tokens, focus, labels, badge text, no selector remnants | client/tests/lab-03/visual-accessibility.test.tsx | Planned |
+| UI-05 | UI style | AC-21, AC-22 | Zen Green and accessibility | Tokens, focus, labels, badge text, no selector remnants | client/tests/lab-03/Login.test.tsx; client/tests/lab-03/StaffTicketQueue.test.tsx; client/tests/lab-03/StaffTicketDetail.test.tsx; client/tests/lab-03/UserManagement.test.tsx | Planned |
+| UNIT-01 | Unit | AC-17 | Password hashing/verification in isolation | Same password verifies; wrong password fails; hashes differ per salt | server/tests/lab-03/auth.api.test.ts | Planned |
+| UNIT-02 | Unit | AC-19 | Status-transition validator in isolation | Allowed transitions pass; invalid transitions rejected without DB access | server/tests/lab-03/staff-ticket-detail.api.test.ts | Planned |
+| UNIT-03 | Unit | AC-23 | Authorization guard in isolation | Role/ownership predicate allows permitted roles and denies others | server/tests/lab-03/authorization.api.test.ts | Planned |
 | REG-01 | Migration/regression | AC-15, AC-20 | Lab 2 records and ownership | Existing Tickets/Attachments survive and map to Users correctly | server/tests/lab-03/authorization.api.test.ts; migration verification | Planned |
 | SEC-01 | Security/API | AC-23 | Safe failure matrix | 401/403/400/404/409/500 shapes and no protected leakage | server/tests/lab-03/authorization.api.test.ts | Planned |
-| E2E-01 | E2E | AC-15, AC-18 | Requester regression | Authenticated Requester creates/views/comment/signals own ticket | e2e/lab-03/authentication.spec.ts | Planned |
-| E2E-03 | E2E | AC-06, AC-07, AC-08, AC-09, AC-19 | Staff ticket flow | Queue to detail, assignment, priority/status, comments/notes | e2e/lab-03/staff-ticket-flow.spec.ts | Planned |
-| E2E-04 | E2E | AC-10, AC-11, AC-12, AC-13, AC-14 | User administration | Complete minimalist admin flow | e2e/lab-03/user-administration.spec.ts | Planned |
-| RESP-01 | Responsive | AC-22 | Desktop/tablet/mobile | No clipping, overlap, or unintended horizontal scroll | e2e/lab-03/staff-ticket-flow.spec.ts | Planned |
-| A11Y-01 | Accessibility | AC-22 | Keyboard and focus | All controls reachable; labels and focus states present | e2e/lab-03/authentication.spec.ts | Planned |
+| E2E-01 | E2E | AC-15, AC-18 | Requester regression | Authenticated Requester creates/views/comment/signals own ticket | client/e2e/lab-03/authentication.spec.ts | Planned |
+| E2E-03 | E2E | AC-06, AC-07, AC-08, AC-09, AC-19 | Staff ticket flow | Queue to detail, assignment, priority/status, comments/notes | client/e2e/lab-03/staff-ticket-flow.spec.ts | Planned |
+| E2E-04 | E2E | AC-10, AC-11, AC-12, AC-13, AC-14 | User administration | Complete minimalist admin flow | client/e2e/lab-03/user-administration.spec.ts | Planned |
+| RESP-01 | Responsive | AC-22 | Desktop/tablet/mobile | No clipping, overlap, or unintended horizontal scroll | client/e2e/lab-03/staff-ticket-flow.spec.ts | Planned |
+| A11Y-01 | Accessibility | AC-22 | Keyboard and focus | All controls reachable; labels and focus states present | client/e2e/lab-03/authentication.spec.ts | Planned |
 
 ## 2. Required file plan
 
@@ -65,13 +68,13 @@ client/tests/lab-03/
 E2E planned paths:
 
 ```text
-e2e/lab-03/
+client/e2e/lab-03/
 ├── authentication.spec.ts
 ├── staff-ticket-flow.spec.ts
 └── user-administration.spec.ts
 ```
 
-These implementation/test files are not created in the documentation branch. Visual evidence later belongs under `artifacts/lab-03/screenshots/{authentication,staff-queue,staff-ticket-detail,user-management}/`.
+These files already exist as empty stubs from scaffolding; no test logic is added in this documentation branch. Visual evidence later belongs under `artifacts/lab-03/screenshots/{authentication,staff-queue,staff-ticket-detail,user-management}/`.
 
 ## 3. AC to test traceability
 
@@ -93,13 +96,13 @@ These implementation/test files are not created in the documentation branch. Vis
 | AC-14 | API-15, E2E-02, E2E-04 |
 | AC-15 | REG-01, E2E-01, AUTHZ-01 |
 | AC-16 | API-02, SEC-01 |
-| AC-17 | API-04, UI-01 |
+| AC-17 | API-04, UI-01, UNIT-01 |
 | AC-18 | API-10, E2E-01 |
-| AC-19 | API-07, E2E-03 |
+| AC-19 | API-07, E2E-03, UNIT-02 |
 | AC-20 | REG-01 |
 | AC-21 | UI-01, UI-02, UI-03, UI-04, SEC-01 |
 | AC-22 | UI-05, RESP-01, A11Y-01 |
-| AC-23 | SEC-01, AUTHZ-02 |
+| AC-23 | SEC-01, AUTHZ-02, UNIT-03 |
 
 ## 4. Coverage checklist
 
