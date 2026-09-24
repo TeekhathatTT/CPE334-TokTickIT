@@ -28,7 +28,7 @@ Authentication: valid session, including a `mustChangePassword` session. Body: `
 
 ## 2. Authenticated Lab 2 continuation
 
-`GET /api/categories`, `GET /api/related-systems`, `POST /api/tickets`, `GET /api/tickets`, `GET /api/tickets/:id`, `POST /api/tickets/:id/attachments`, `GET /api/attachments/:id`, `GET /api/attachments/:id/download`, and `PATCH /api/attachments/:id/remove` retain the Lab 2 shapes and validation. They now require a valid session with role Requester and derive the Requester from the session. A supplied `requesterId` is rejected as invalid or ignored. Requester-owned resource mismatch returns `404`; no other user's data is included.
+`GET /api/categories`, `GET /api/related-systems`, `GET /api/requesters`, `POST /api/tickets`, `GET /api/tickets`, `GET /api/tickets/:id`, `POST /api/tickets/:id/attachments`, `GET /api/attachments/:id`, `GET /api/attachments/:id/download`, and `PATCH /api/attachments/:id/remove` retain the Lab 2 shapes and validation. They now require a valid session with role Requester and derive the Requester from the session. A supplied `requesterId` is rejected as invalid or ignored. Requester-owned resource mismatch returns `404`; no other user's data is included. `GET /api/requesters` is retained (authenticated, Requester role) for active-requester reference data; only the Development Requester Selection UI that consumed it is removed.
 
 ## 3. IT Staff queue and ticket operations
 
@@ -120,4 +120,26 @@ Every protected route distinguishes `401`, `403`, `400`, `404`, `409`, and `500`
 
 ## 7. Authentication decisions
 
-The session store is server-side and keyed by a random opaque cookie; sessions expire after a documented inactivity/absolute lifetime selected by implementation configuration. Logout destroys the server record and clears the cookie. Cookies are `HttpOnly`, `SameSite=Lax`, and `Secure` when HTTPS is enabled. SameSite plus an Origin/CSRF-token check protects state changes. Initial-password behavior is local-lab only and never sends credentials through email. Secrets and session keys come from environment configuration and are never committed.
+The session store is process-local and server-side, keyed by a random opaque cookie; sessions expire after 30 minutes idle or 8 hours absolute, whichever comes first (local-lab values; a server restart clears all sessions). Logout destroys the server record and clears the cookie. Passwords use scrypt with a random 16-byte salt and a 64-byte key (`crypto.scryptSync`). Cookies are `HttpOnly`, `SameSite=Lax`, and `Secure` when HTTPS is enabled. SameSite plus an Origin/CSRF-token check protects state changes. Initial-password behavior is local-lab only and never sends credentials through email. Secrets and session keys come from environment configuration and are never committed.
+
+## 8. Endpoint to requirement map
+
+| Endpoint | FR | BR |
+|---|---|---|
+| `POST /api/auth/login` | FR-01 | BR-01, BR-06, BR-08 |
+| `POST /api/auth/logout` | FR-01 | BR-07 |
+| `GET /api/auth/me` | FR-01 | BR-06 |
+| `POST /api/auth/change-password` | FR-01, FR-02 | BR-02, BR-08 |
+| Lab 2 continuation (`/api/tickets`, `/api/attachments/*`, reference data) | FR-04, FR-05 | BR-03, BR-25 |
+| `GET /api/staff/tickets` | FR-04, FR-07 | BR-28 |
+| `GET /api/staff/tickets/:id` | FR-04, FR-08 | BR-11 |
+| `PATCH /api/staff/tickets/:id/assignment` | FR-04, FR-08 | BR-11, BR-16 |
+| `PATCH /api/staff/tickets/:id/priority` | FR-04, FR-08 | BR-12 |
+| `PATCH /api/staff/tickets/:id/status` | FR-04, FR-08 | BR-13 |
+| `/api/tickets/:id/comments` (GET, POST) | FR-04, FR-06, FR-09 | BR-04, BR-14 |
+| `/api/staff/tickets/:id/notes` (GET, POST) | FR-04, FR-09 | BR-04, BR-14 |
+| `POST /api/tickets/:id/problem-appears-resolved` | FR-06 | BR-05 |
+| `GET /api/admin/users` | FR-04, FR-10 | BR-17, BR-18 |
+| `POST /api/admin/users` | FR-04, FR-11 | BR-17, BR-18, BR-19 |
+| `PATCH /api/admin/users/:id` | FR-04, FR-11, FR-12 | BR-17, BR-18, BR-20, BR-21, BR-22 |
+| `POST /api/admin/users/:id/initial-password` | FR-04, FR-11 | BR-19 |
