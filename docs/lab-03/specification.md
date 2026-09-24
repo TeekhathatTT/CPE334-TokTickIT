@@ -63,15 +63,15 @@ Replace the Lab 2 development identity selector with real role-aware access. Req
 5. **BR-05** A Requester may indicate that the problem appears resolved, but cannot formally set the Ticket to Resolved or Closed.
 6. **BR-06** Invalid credentials, inactive accounts, and missing sessions return safe messages that do not reveal whether an email is registered; passwords are never stored or returned in plaintext.
 7. **BR-07** Logout invalidates the server-side session; expired or invalid sessions cannot access protected resources.
-8. **BR-08** Passwords use scrypt (`crypto.scryptSync` with a random 16-byte salt and a 64-byte key — a memory-hard KDF available in Node.js without a native dependency, which suits this local lab), and valid new passwords are at least 8 characters with upper and lower case letters, a number, and a special character.
+8. **BR-08** Passwords use scrypt via Node.js `crypto.scryptSync(password, salt, keyLen, options)` (memory-hard KDF, no native dependency for this local lab) with the exact cost parameters `N = 16384`, `r = 8`, `p = 1`, `keyLen = 64` bytes, `maxmem = 32 MiB`, a per-password random 16-byte salt (`crypto.randomBytes(16)`), and UTF-8 password encoding. The stored value in `User.passwordHash (TEXT, NOT NULL)` is a single self-describing PHC-like string `scrypt$N=16384,r=8,p=1$<saltHex>$<hashHex>` where `<saltHex>` is the 16-byte salt hex-encoded (32 hex chars) and `<hashHex>` is the 64-byte derived key hex-encoded (128 hex chars); salt and hash are NOT stored in separate columns and no plaintext password is ever stored or returned. Verification re-parses `N/r/p`, recomputes `scryptSync` with the stored salt, and compares with `crypto.timingSafeEqual`. Valid new/initial passwords are at least 8 characters with upper- and lower-case letters, a number, and a special character.
 9. **BR-09** Requesters can access only their own permitted Tickets and Attachments; ownership violations return `404` without confirming another user's resource.
 10. **BR-10** Requesters cannot read Internal Notes and can create Public Comments only on their own Tickets.
-11. **BR-11** A Ticket may initially be unassigned; its owner, when present, must be an active IT Staff or Administrator user. Only IT Staff may invoke the claim/reassign operation in the approved matrix.
+11. **BR-11** A Ticket may initially be unassigned; its owner (`ticketOwnerId`), when present, must be an active IT Staff user only. Administrators cannot be assigned or reassigned as Ticket Owner (an Administrator id is rejected with `400`); only active IT Staff may invoke the claim/assign/reassign operation per the matrix in Section 6.
 12. **BR-12** Requested Priority remains the Requester value. IT Priority initially copies Requested Priority and can later be changed only by IT Staff.
-13. **BR-13** Ticket status values are `New`, `Open`, `In Progress`, `Waiting for Requester`, `Resolved`, `Closed`, `Reopened`, and `Cancelled`; only the transition matrix in `api-spec.md` is valid.
+13. **BR-13** Ticket status is exactly the 8-value enum `NEW`, `OPEN`, `IN_PROGRESS`, `WAITING_FOR_REQUESTER`, `RESOLVED`, `CLOSED`, `REOPENED`, `CANCELLED` (wire values uppercase with underscores; UI labels title-cased with spaces). Legacy Lab 2 `PENDING` is NOT a valid Lab 3 value: it is never returned in responses, never accepted in UI input, queue filters, or status transitions (rejected with `400`), and is eliminated by migration `PENDING → WAITING_FOR_REQUESTER` (see Section 8). Only the transition matrix in `api-spec.md` is valid.
 14. **BR-14** Public Comments and Internal Notes are append-only. The backend records author and creation time, rejects empty/whitespace content, and limits content to 2,000 characters.
 15. **BR-15** Lab 3 has no Actions Taken rule; resolution blocking based on incomplete Actions Taken is deferred to Lab 4.
-16. **BR-16** IT Staff can claim an unassigned ticket or assign/reassign it only to an active IT Staff user; reassignment is server-authorized.
+16. **BR-16** Active IT Staff can claim an unassigned ticket or assign/reassign it only to an active IT Staff user; reassignment is server-authorized and any attempt to assign an Administrator (or inactive user) is rejected with `400`. Consistent with BR-11: the owner set is exactly `{ active IT Staff }`.
 17. **BR-17** One user has exactly one permitted role; role values outside the three-role enum are invalid.
 18. **BR-18** Email addresses are normalized for comparison and must be unique case-insensitively.
 19. **BR-19** New or reset initial passwords set `mustChangePassword = true`; the initial password is communicated only through approved local-lab handling, never email.
@@ -104,7 +104,7 @@ Replace the Lab 2 development identity selector with real role-aware access. Req
 | Problem Appears Resolved | Own tickets | No | No |
 | Manage Users | No | No | Yes |
 
-This decision keeps Administrator user-management responsibility conceptually separate from IT Staff ticket operations. Administrators may see comments and notes for administration/support context, but do not automatically inherit queue, assignment, priority, or status permissions.
+This decision keeps Administrator user-management responsibility conceptually separate from IT Staff ticket operations. Administrators may see comments and notes for administration/support context, but do not inherit queue, ticket-detail, assignment, priority, or status permissions, and cannot be assigned as Ticket Owner (BR-11/BR-16).
 
 ## 7. UI Specification Summary
 
@@ -112,7 +112,7 @@ Use the existing Lab 2 Zen Green tokens, field conventions, cards, badges, butto
 
 ## 8. Data Changes
 
-Keep the Lab 2 `Requester` table untouched and add a new `User` model containing `id`, `name`, normalized unique `email`, `passwordHash`, `role` (`REQUESTER`, `IT_STAFF`, `ADMINISTRATOR`), `isActive`, `mustChangePassword`, `legacyRequesterId` (nullable, unique, referencing `Requester.id` as the migration link), `createdAt`, and `updatedAt`. A merge strategy (rewriting `Ticket.requesterId` to point at Users and dropping `Requester`) was considered and rejected: it rewrites Lab 2 foreign keys and risks orphaning rows. The reference strategy is zero-touch on existing rows — every Lab 2 `Requester` keeps its id and every `Ticket.requesterId` keeps pointing at it. A User has many submitted Tickets as Requester through a new `Ticket.requesterUserId` relation to User; `Ticket.requesterId` remains as the legacy provenance link. Ticket ownership becomes an optional `ticketOwnerId` relation to User, restricted by service logic to active IT Staff or Administrator users; only IT Staff can change that relationship through the approved API. Add `PublicComment` and `InternalNote` models with `id`, `ticketId`, `authorId`, `content`, and `createdAt`; index ticket/author/time access paths. The `TicketStatus` enum gains `WAITING_FOR_REQUESTER`, `CLOSED`, `REOPENED`, and `CANCELLED`; the legacy `PENDING` value is retained in the enum for existing rows but deprecated — no new transition targets it (see the transition matrix in `api-spec.md`), and the queue accepts it only as a filter value for old rows.
+Keep the Lab 2 `Requester` table untouched and add a new `User` model containing `id`, `name`, normalized unique `email`, `passwordHash`, `role` (`REQUESTER`, `IT_STAFF`, `ADMINISTRATOR`), `isActive`, `mustChangePassword`, `legacyRequesterId` (nullable, unique, referencing `Requester.id` as the migration link), `createdAt`, and `updatedAt`. A merge strategy (rewriting `Ticket.requesterId` to point at Users and dropping `Requester`) was considered and rejected: it rewrites Lab 2 foreign keys and risks orphaning rows. The reference strategy is zero-touch on existing rows — every Lab 2 `Requester` keeps its id and every `Ticket.requesterId` keeps pointing at it. A User has many submitted Tickets as Requester through a new `Ticket.requesterUserId` relation to User; `Ticket.requesterId` remains as the legacy provenance link. Ticket ownership becomes an optional `ticketOwnerId` relation to User, restricted by service logic to active IT Staff users only (Administrator ids are rejected; see BR-11/BR-16); only active IT Staff can change that relationship through `PATCH /api/staff/tickets/:id/assignment`. Add `PublicComment` and `InternalNote` models with `id`, `ticketId`, `authorId`, `content`, and `createdAt`; index ticket/author/time access paths. The `TicketStatus` enum becomes exactly the 8 required values (`NEW`, `OPEN`, `IN_PROGRESS`, `WAITING_FOR_REQUESTER`, `RESOLVED`, `CLOSED`, `REOPENED`, `CANCELLED`) via an explicit migration: (1) add the 4 new enum values, (2) backfill `UPDATE "Ticket" SET status = 'WAITING_FOR_REQUESTER' WHERE status = 'PENDING'`, (3) assert `SELECT count(*) FROM "Ticket" WHERE status = 'PENDING'` returns 0, (4) drop `PENDING` from the Postgres enum (recreate type / `ALTER TYPE ... DROP VALUE` per Prisma append-only migration). After migration no row, response, filter, or transition references `PENDING` (see the 8-state transition matrix in `api-spec.md`).
 
 Extend Ticket with `problemAppearsResolvedAt` and the complete status enum, preserve requested/IT priorities, timestamps, category, related system, requester, and attachments. Preserve existing Categories, Related Systems, Tickets, Attachments, ticket numbers, and Requester ownership. Add unique normalized email, role/status/password-state indexes, Ticket requester/status/owner indexes, comment/note ticket-time indexes, and foreign keys with restrictive or explicit nullable behavior. Use an append-only Prisma migration: create one User per existing Requester with Requester role and a temporary local initial credential, link each User to its Requester through `legacyRequesterId`, backfill `Ticket.requesterUserId` from `Ticket.requesterId`, then add comments/notes and new constraints. Verify counts and ownership before removing the old selector path. Never store plaintext passwords.
 
@@ -148,6 +148,27 @@ The API remains under `/api` and retains Lab 2 `{ data }` success and `{ error: 
 - **AC-22** All required screens are responsive, keyboard accessible, visibly focused, and free of clipping/overflow.
 - **AC-23** Safe errors distinguish unauthenticated, forbidden, invalid, missing, conflict, and unexpected failures without protected-resource disclosure.
 
+### 10.1 FR → AC traceability (Self-Check: every FR maps to at least one AC)
+
+| FR | Covering AC(s) | Note |
+|---|---|---|
+| FR-01 Authentication | AC-01, AC-05, AC-16, AC-17 | Login/logout/me/change-password happy path, inactive rejection, password rules |
+| FR-02 First login | AC-02, AC-14 | `mustChangePassword` gate until a valid new password is saved |
+| FR-03 Account state | AC-16 | Inactive users blocked from login and protected endpoints |
+| FR-04 Authorization | AC-03, AC-04, AC-23 | Session identity wins, Internal Notes hidden from Requesters, safe 401/403/404/409/500 |
+| FR-05 Requester regression | AC-15, AC-20 | Lab 2 flows work on session identity with ownership preserved after migration |
+| FR-06 Requester collaboration | AC-18 | Owned-ticket Public Comments + Problem Appears Resolved (no formal Resolved/Closed) |
+| FR-07 IT Staff queue | AC-06, AC-21 | Search/filters/sort/pagination/counts plus loading/empty/no-results/failure states |
+| FR-08 IT Staff operations | AC-07, AC-08, AC-19 | Claim/assign/reassign to active IT Staff owners, priority, 8-state transition matrix |
+| FR-09 Notes and comments | AC-09 | Visibility (Requester never sees Internal Notes) + append-only + 2,000-char rule |
+| FR-10 Administrator list | AC-10 | List with Name/Email/Role/Status/Edit, search + optional role filter |
+| FR-11 Administrator create/edit | AC-10, AC-11, AC-14 | Create/edit/activate + initial-password reset sets `mustChangePassword` |
+| FR-12 Administrator safeguards | AC-11, AC-12, AC-13 | Duplicate email, invalid role, self-deactivation, last-Administrator protection |
+| FR-13 Validation and errors | AC-17, AC-21, AC-23 | Input/conflict/not-found/forbidden/unauthenticated envelope without disclosure |
+| FR-14 Responsive/accessibility | AC-21, AC-22 | Desktop/tablet/mobile, keyboard, visible focus, no clipping/overflow |
+
+Every FR-01–FR-14 has ≥1 covering AC; every AC-01–AC-23 traces back to ≥1 FR above.
+
 ## 11. Definition of Done
 
 - [ ] FR-01–FR-14 and BR-01–BR-28 are implemented and server-enforced.
@@ -166,10 +187,10 @@ The API remains under `/api` and retains Lab 2 `{ data }` success and `{ error: 
 - CSRF protection is required for cookie-authenticated state-changing routes through SameSite policy plus an origin/CSRF-token check; safe CORS remains configured explicitly.
 - `403` means authenticated but forbidden; `404` hides another user's protected Ticket, Attachment, or Internal Note. `409` is used for duplicate email and administrator safety conflicts.
 - Wire enum values are uppercase with underscores (`WAITING_FOR_REQUESTER`, etc.); UI labels use spaces and title case.
-- Administrators can read/write Public Comments and Internal Notes but do not receive IT Staff queue permissions unless a future approved contract changes the matrix.
+- Administrators can read/write Public Comments and Internal Notes but do not receive IT Staff queue, ticket-detail, assignment-target, priority, or status permissions unless a future approved contract changes the matrix; they are never valid `ticketOwnerId` targets (BR-11/BR-16).
 - Local seed initial passwords are printed/documented only for development and always require change. No email delivery is attempted.
 - Reference (not merge) was chosen for Requester→User because it leaves every Lab 2 row and foreign key untouched; the `legacyRequesterId` link and the `Ticket.requesterUserId` backfill give a verifiable ownership trail instead of a rewrite.
-- scrypt was chosen over bcrypt/argon2 because it is memory-hard, ships with Node.js `crypto` (no native build dependency for this local lab), and its parameters are explicit in code review.
+- scrypt was chosen over bcrypt/argon2 because it is memory-hard, ships with Node.js `crypto` (no native build dependency for this local lab), and its parameters are explicit in code review — exact parameters are frozen in BR-08 (`N = 16384`, `r = 8`, `p = 1`, `keyLen = 64`, 16-byte random salt, single-column `scrypt$...$saltHex$hashHex` storage).
 - Sessions expire after 30 minutes idle or 8 hours absolute in a process-local store: adequate for a same-origin local lab, with restart logging everyone out as an accepted property, not a bug.
 - Endpoint paths keep the implemented names (`.../assignment`, staff-namespaced notes, `.../initial-password`, retained authenticated `GET /api/requesters`) instead of shorter aliases, so ticket-operation routes stay out of the Requester namespace; reviewers may propose aliases in review.
-- Legacy `PENDING` is retained-but-deprecated rather than mapped to `WAITING_FOR_REQUESTER`, so existing rows need no rewrite and old filter values keep working.
+- Legacy `PENDING` is migrated (not retained): every Lab 2 `PENDING` row is remapped to `WAITING_FOR_REQUESTER` in the append-only migration before `PENDING` is dropped from the enum, so the final enum holds strictly the 8 required statuses, no UI/response/filter accepts `PENDING`, and no row rewrite beyond this one-time backfill is needed.
