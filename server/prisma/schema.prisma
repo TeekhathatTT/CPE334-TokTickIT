@@ -13,12 +13,21 @@ enum Priority {
   HIGH
 }
 
+enum Role {
+  REQUESTER
+  IT_STAFF
+  ADMINISTRATOR
+}
+
 enum TicketStatus {
   NEW
   OPEN
   IN_PROGRESS
+  WAITING_FOR_REQUESTER
   RESOLVED
-  PENDING
+  CLOSED
+  REOPENED
+  CANCELLED
 }
 
 model Category {
@@ -30,6 +39,39 @@ model Category {
   tickets Ticket[]
 }
 
+// Lab 3 reference strategy (spec §8, Assumptions "Reference (not merge) was chosen"):
+// Keep the Lab 2 `Requester` table untouched. Every Lab 2 `Requester` keeps its
+// id and every `Ticket.requesterId` keeps pointing at it. `User.legacyRequesterId`
+// is the verifiable migration link; `Ticket.requesterUserId` is the new ownership trail.
+model User {
+  id                 Int      @id @default(autoincrement())
+  name               String
+  // Normalized (trimmed + lowercased) at the app layer per BR-18; uniqueness is
+  // enforced on the stored normalized value. Case-insensitive comparison must
+  // normalize before querying.
+  email              String   @unique
+  // scrypt PHC-like single-column TEXT per BR-08/api-spec §7:
+  // `scrypt$N=16384,r=8,p=1$<saltHex>$<hashHex>`. Never plaintext, never returned.
+  passwordHash       String
+  role               Role
+  isActive           Boolean  @default(true)
+  mustChangePassword Boolean  @default(true)
+  legacyRequesterId  Int?     @unique
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  legacyRequester  Requester? @relation(fields: [legacyRequesterId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  submittedTickets Ticket[]   @relation("TicketRequesterUser")
+  ownedTickets     Ticket[]   @relation("TicketOwner")
+  publicComments   PublicComment[]
+  internalNotes    InternalNote[]
+
+  @@index([role])
+  @@index([isActive])
+  @@index([mustChangePassword])
+  @@index([role, isActive])
+}
+
 model Requester {
   id        Int      @id @default(autoincrement())
   name      String
@@ -38,6 +80,8 @@ model Requester {
   createdAt DateTime @default(now())
 
   tickets Ticket[]
+  // Back-reference of the 1:1 migration link User.legacyRequesterId (spec §8).
+  linkedUser User?
 
   @@index([isActive])
 }
@@ -52,26 +96,42 @@ model RelatedSystem {
 }
 
 model Ticket {
-  id                Int          @id @default(autoincrement())
-  ticketNumber      String       @unique
-  requesterId       Int
-  categoryId        Int
-  relatedSystemId   Int
-  summary           String
-  description       String
-  requestedPriority Priority
-  itPriority        Priority?
-  status            TicketStatus @default(NEW)
-  ticketOwnerId     Int?
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  id                     Int          @id @default(autoincrement())
+  ticketNumber           String       @unique
+  // Legacy provenance link — untouched by the reference migration (spec §8).
+  requesterId            Int
+  // New ownership trail to User, backfilled from requesterId via
+  // User.legacyRequesterId (spec §8). Nullable so the append-only migration is
+  // zero-touch on existing rows before the backfill runs.
+  requesterUserId        Int?
+  categoryId             Int
+  relatedSystemId        Int
+  summary                String
+  description            String
+  requestedPriority      Priority
+  itPriority             Priority?
+  status                 TicketStatus @default(NEW)
+  // Optional owner (spec §8, BR-11/BR-16). Must be an active IT Staff user only;
+  // Administrator ids are rejected. Enforced at the service layer, not the DB.
+  ticketOwnerId          Int?
+  // Requester "Problem Appears Resolved" signal (api-spec §4, BR-05). Null until set.
+  problemAppearsResolvedAt DateTime?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
 
-  requester     Requester     @relation(fields: [requesterId], references: [id])
-  category      Category      @relation(fields: [categoryId], references: [id])
-  relatedSystem RelatedSystem @relation(fields: [relatedSystemId], references: [id])
+  requester     Requester     @relation(fields: [requesterId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  requesterUser User?         @relation("TicketRequesterUser", fields: [requesterUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  ticketOwner   User?         @relation("TicketOwner", fields: [ticketOwnerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  category      Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  relatedSystem RelatedSystem @relation(fields: [relatedSystemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   attachments   Attachment[]
+  publicComments PublicComment[]
+  internalNotes  InternalNote[]
 
   @@index([requesterId])
+  @@index([requesterUserId])
+  @@index([ticketOwnerId])
+  @@index([status])
   @@index([status, requestedPriority])
 }
 
@@ -86,8 +146,43 @@ model Attachment {
   removedAt        DateTime?
   removalReason    String?
 
-  ticket Ticket @relation(fields: [ticketId], references: [id])
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([ticketId])
   @@index([removedAt])
+}
+
+// Append-only per BR-14 (no updatedAt). Non-empty and max-2,000-char rules are
+// enforced at the app layer, not the DB (spec §8). Separate table from
+// InternalNote by design so a bug can't leak a note as a public comment.
+model PublicComment {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  author User   @relation(fields: [authorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([ticketId])
+  @@index([authorId])
+  @@index([ticketId, createdAt])
+}
+
+// Append-only per BR-14 (no updatedAt). Same shape as PublicComment but a
+// structurally distinct table (spec §8); never exposed to Requesters (BR-04/BR-10).
+model InternalNote {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  author User   @relation(fields: [authorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([ticketId])
+  @@index([authorId])
+  @@index([ticketId, createdAt])
 }

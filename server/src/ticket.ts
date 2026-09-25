@@ -575,13 +575,36 @@ export async function getTickets(
       ? (req.query.itPriority as (typeof PRIORITIES)[number])
       : undefined;
 
+    // Lab 3 BR-13: exactly the 8 post-migration values. Legacy Lab 2 PENDING
+    // was backfilled to WAITING_FOR_REQUESTER and dropped from the DB enum, so
+    // it is rejected here with 400 (not silently ignored) along with any other
+    // unknown status value.
     const allowedStatuses = [
       "NEW",
       "OPEN",
       "IN_PROGRESS",
+      "WAITING_FOR_REQUESTER",
       "RESOLVED",
-      "PENDING",
+      "CLOSED",
+      "REOPENED",
+      "CANCELLED",
     ] as const;
+
+    const rawStatus = req.query.status;
+    if (
+      rawStatus !== undefined &&
+      rawStatus !== "" &&
+      !allowedStatuses.includes(
+        rawStatus as (typeof allowedStatuses)[number],
+      )
+    ) {
+      return validationError(res, "Please correct the invalid fields.", {
+        status:
+          rawStatus === "PENDING"
+            ? "Legacy PENDING is no longer accepted; it was migrated to WAITING_FOR_REQUESTER."
+            : "Status must be one of NEW, OPEN, IN_PROGRESS, WAITING_FOR_REQUESTER, RESOLVED, CLOSED, REOPENED, CANCELLED.",
+      });
+    }
 
     const status = allowedStatuses.includes(
       req.query.status as (typeof allowedStatuses)[number],
