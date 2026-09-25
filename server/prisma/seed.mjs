@@ -6,7 +6,9 @@
 // This seed is idempotent (safe to run repeatedly): Categories/RelatedSystems/
 // Requesters/Users/Tickets use `upsert` by unique keys (name/email/ticketNumber,
 // emails normalized as trimmed+lowercased per BR-18); PublicComment/InternalNote
-// rows are reconciled per ticket (deleteMany + recreate) so reruns converge.
+// rows are append-only per BR-14 — seed examples are ensured per ticket with an
+// existence check (findFirst by ticketId + content) and created only when missing,
+// never deleted, so reruns converge without erasing authored history.
 // Spec: docs/lab-03/specification.md §8 + BR-26 (4 active + 1 inactive Requester,
 // 3 active + 1 inactive IT Staff, 1 active Administrator, distributed tickets,
 // safe example comments/notes). Strategy is reference (not merge): Requester rows
@@ -363,42 +365,50 @@ async function main() {
   }
 
   // Example comments/notes with non-sensitive content (no passwords, tokens, or
-  // personal data beyond the seeded names). Reconciled per ticket so reruns converge.
+  // personal data beyond the seeded names). Append-only per BR-14: never delete
+  // existing rows; ensure each seed example exists (by ticketId + exact content)
+  // and create only when missing, so reruns are idempotent without duplicates
+  // and without erasing authored history.
+  const SEED_REQUESTER_COMMENT =
+    "Thanks for looking into this. Happy to provide more details if it helps.";
+  const SEED_STAFF_COMMENT =
+    "Thanks for reporting. We are reviewing your ticket and will post updates here.";
+  const SEED_INTERNAL_NOTE =
+    "Checked initial diagnostics; no obvious errors. Will follow up with the requester for repro steps.";
   const tickets = await prisma.ticket.findMany({
     where: { ticketNumber: { in: seedTickets.map((t) => t.ticketNumber) } },
   });
   const liveUsersByEmail = new Map((await prisma.user.findMany()).map((u) => [normalizeEmail(u.email), u]));
+  async function ensurePublicComment(ticketId, authorId, content) {
+    const existing = await prisma.publicComment.findFirst({
+      where: { ticketId, content },
+      select: { id: true },
+    });
+    if (existing) return;
+    await prisma.publicComment.create({
+      data: { ticketId, authorId, content },
+    });
+  }
+  async function ensureInternalNote(ticketId, authorId, content) {
+    const existing = await prisma.internalNote.findFirst({
+      where: { ticketId, content },
+      select: { id: true },
+    });
+    if (existing) return;
+    await prisma.internalNote.create({
+      data: { ticketId, authorId, content },
+    });
+  }
   for (const ticket of tickets) {
     const seedDef = seedTickets.find((t) => t.ticketNumber === ticket.ticketNumber);
     const requesterUser = liveUsersByEmail.get(normalizeEmail(seedDef.requesterEmail));
     const ownerUser = seedDef.ownerEmail ? liveUsersByEmail.get(normalizeEmail(seedDef.ownerEmail)) : null;
     const commentAuthor = ownerUser ?? liveUsersByEmail.get("priya.patel@example.com");
 
-    await prisma.publicComment.deleteMany({ where: { ticketId: ticket.id } });
-    await prisma.internalNote.deleteMany({ where: { ticketId: ticket.id } });
-
-    await prisma.publicComment.create({
-      data: {
-        ticketId: ticket.id,
-        authorId: requesterUser.id,
-        content: "Thanks for looking into this. Happy to provide more details if it helps.",
-      },
-    });
-    await prisma.publicComment.create({
-      data: {
-        ticketId: ticket.id,
-        authorId: commentAuthor.id,
-        content: "Thanks for reporting. We are reviewing your ticket and will post updates here.",
-      },
-    });
+    await ensurePublicComment(ticket.id, requesterUser.id, SEED_REQUESTER_COMMENT);
+    await ensurePublicComment(ticket.id, commentAuthor.id, SEED_STAFF_COMMENT);
     if (ownerUser) {
-      await prisma.internalNote.create({
-        data: {
-          ticketId: ticket.id,
-          authorId: ownerUser.id,
-          content: "Checked initial diagnostics; no obvious errors. Will follow up with the requester for repro steps.",
-        },
-      });
+      await ensureInternalNote(ticket.id, ownerUser.id, SEED_INTERNAL_NOTE);
     }
   }
 

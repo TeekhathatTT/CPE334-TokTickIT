@@ -358,6 +358,8 @@ button:disabled {
 .badge--high { background: #fde2e0; color: var(--color-error); }
 .badge--open { background: #dceefa; color: #155a82; }
 .badge--resolved { background: var(--color-success); color: #fff; }
+.badge--waiting_for_requester, .badge--reopened { background: #fff1c7; color: #6c5200; }
+.badge--closed, .badge--cancelled { background: #e8ebe9; color: #536159; }
 .badge--pending, .badge--none { background: #e8ebe9; color: #536159; }
 .destructive-button { min-height: 40px; border: 1px solid var(--color-error); border-radius: 8px; padding: 10px 14px; color: var(--color-error); background: #fff; font-weight: 600; }
 .muted-label { color: #66736c; font-style: italic; }

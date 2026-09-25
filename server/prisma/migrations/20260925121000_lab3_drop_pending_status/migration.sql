@@ -9,6 +9,13 @@
 -- (NEW, OPEN, IN_PROGRESS, WAITING_FOR_REQUESTER, RESOLVED, CLOSED, REOPENED, CANCELLED).
 -- After this, no row, response, filter, or transition references PENDING.
 -- Existing Ticket/Attachment rows otherwise untouched.
+-- DEPLOYMENT ORDERING (breaking change): this migration drops PENDING from the
+-- DB enum and must only be applied together with / after the Lab 3 API + UI
+-- changes are deployed. Lab 2 consumers (GET /api/tickets?status=PENDING filter,
+-- PENDING option in MyTicketsPage, TicketStatus type) are updated in the same
+-- release to the 8-value enum; legacy PENDING filter/status writes are rejected
+-- with 400 VALIDATION_ERROR and PENDING never appears in responses. Do not run
+-- this migration while old Lab 2 clients still depend on PENDING.
 
 -- Step 2: backfill legacy PENDING → WAITING_FOR_REQUESTER (spec §8, BR-13).
 UPDATE "Ticket" SET "status" = 'WAITING_FOR_REQUESTER'::"TicketStatus" WHERE "status" = 'PENDING'::"TicketStatus";

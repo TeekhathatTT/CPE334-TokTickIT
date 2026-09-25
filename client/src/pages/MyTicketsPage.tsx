@@ -88,8 +88,11 @@ export default function MyTicketsPage({ requesterId, onCreateTicket, onSelectTic
           <option value="NEW">New</option>
           <option value="OPEN">Open</option>
           <option value="IN_PROGRESS">In Progress</option>
+          <option value="WAITING_FOR_REQUESTER">Waiting for Requester</option>
           <option value="RESOLVED">Resolved</option>
-          <option value="PENDING">Pending</option>
+          <option value="CLOSED">Closed</option>
+          <option value="REOPENED">Reopened</option>
+          <option value="CANCELLED">Cancelled</option>
         </select>
       </div>
 
