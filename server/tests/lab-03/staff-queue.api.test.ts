@@ -78,7 +78,7 @@ beforeEach(() => {
 
 describe("staff queue search and filters (AC-06)", () => {
   it("passes search into an OR across ticket/requester fields", async () => {
-    const findMany = vi.fn(async () => [sampleRow(101)]);
+    const findMany = vi.fn(async (_query: { where: Record<string, unknown> }) => [sampleRow(101)]);
     mockPrisma(queueMocks(staffUser, { count: vi.fn(async () => 1), findMany }));
 
     const response = await request(app)
@@ -93,7 +93,7 @@ describe("staff queue search and filters (AC-06)", () => {
   });
 
   it("filters by repeated status values", async () => {
-    const findMany = vi.fn(async () => []);
+    const findMany = vi.fn(async (_query: { where: Record<string, unknown> }) => []);
     mockPrisma(queueMocks(staffUser, { count: vi.fn(async () => 0), findMany }));
 
     const response = await request(app)
@@ -106,7 +106,7 @@ describe("staff queue search and filters (AC-06)", () => {
   });
 
   it("filters by priorities, category, and owner (including unassigned)", async () => {
-    const findMany = vi.fn(async () => []);
+    const findMany = vi.fn(async (_query: { where: Record<string, unknown> }) => []);
     const count = vi.fn(async () => 0);
 
     mockPrisma(queueMocks(staffUser, { count, findMany }));
@@ -121,7 +121,7 @@ describe("staff queue search and filters (AC-06)", () => {
       ticketOwnerId: 21,
     });
 
-    mockPrisma(queueMocks(staffUser, { count, findMany: vi.fn(async () => []) }));
+    mockPrisma(queueMocks(staffUser, { count, findMany: vi.fn(async (_query: { where: Record<string, unknown> }) => []) }));
     const unassigned = await request(app)
       .get("/api/staff/tickets?ownerId=unassigned")
       .set("Cookie", staffCookie());
@@ -131,7 +131,11 @@ describe("staff queue search and filters (AC-06)", () => {
 
 describe("staff queue sorting and pagination (AC-06)", () => {
   it("defaults to updatedAt desc with stable id tiebreak", async () => {
-    const findMany = vi.fn(async () => [sampleRow(1)]);
+    const findMany = vi.fn(
+      async (_query: { where: Record<string, unknown>; orderBy: Array<Record<string, unknown>> }) => [
+        sampleRow(1),
+      ],
+    );
     mockPrisma(queueMocks(staffUser, { count: vi.fn(async () => 1), findMany }));
 
     const response = await request(app).get("/api/staff/tickets").set("Cookie", staffCookie());
@@ -144,7 +148,14 @@ describe("staff queue sorting and pagination (AC-06)", () => {
   });
 
   it("honours explicit sort/order and page metadata", async () => {
-    const findMany = vi.fn(async () => [sampleRow(1), sampleRow(2)]);
+    const findMany = vi.fn(
+      async (_query: {
+        where: Record<string, unknown>;
+        orderBy: Array<Record<string, unknown>>;
+        skip: number;
+        take: number;
+      }) => [sampleRow(1), sampleRow(2)],
+    );
     mockPrisma(queueMocks(staffUser, { count: vi.fn(async () => 45), findMany }));
 
     const response = await request(app)
@@ -168,7 +179,7 @@ describe("staff queue sorting and pagination (AC-06)", () => {
   });
 
   it("distinguishes empty queue from no-results", async () => {
-    mockPrisma(queueMocks(staffUser, { count: vi.fn(async () => 0), findMany: vi.fn(async () => []) }));
+    mockPrisma(queueMocks(staffUser, { count: vi.fn(async () => 0), findMany: vi.fn(async (_query: { where: Record<string, unknown> }) => []) }));
     const empty = await request(app).get("/api/staff/tickets").set("Cookie", staffCookie());
     expect(empty.body.meta).toMatchObject({ isEmpty: true, isNoResults: false, totalPages: 0 });
 
