@@ -33,6 +33,7 @@ import {
   updateTicketPriority,
   updateTicketStatus,
 } from "./modules/staff/staff.controller.js";
+import usersRouter from "./modules/users/users.routes.js";
 import { authenticate } from "./middleware/auth.middleware.js";
 import {
   authorize,
@@ -325,5 +326,12 @@ app.post(
   authorize(["IT_STAFF", "ADMINISTRATOR"]),
   postNote,
 );
+
+// Administrator user management (api-spec.md §5, FR-10/FR-11/FR-12).
+// Minimalist scope only: list/search/role-filter, create, edit, activation,
+// and initial-password reset. No delete, bulk, import/export, history, or
+// recovery endpoint exists (BR-22/BR-27). The router carries the canonical
+// `initial-password` path only.
+app.use("/api/admin/users", authorize(["ADMINISTRATOR"]), usersRouter);
 
 export default app;
