@@ -1,4 +1,9 @@
-// Lab 3 scaffold stub — no business logic in this pass.
-// TODO(auth branch): hash/verify passwords using bcrypt or argon2.
-// Memory-hard/slow hash; never store or return plaintext passwords.
-export {};
+// Single password implementation for the codebase: scrypt exactly as frozen
+// in specification.md BR-08 / api-spec.md §7. Re-exported here so no caller
+// reaches for bcrypt/argon2 (no native dependency for this local lab).
+export {
+  hashPassword,
+  meetsPasswordPolicy,
+  passwordPolicyMessage,
+  verifyPassword,
+} from "../modules/auth/auth.service.js";

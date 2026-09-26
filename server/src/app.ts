@@ -15,12 +15,31 @@ import {
   downloadAttachment,
   removeAttachment,
 } from "./attachment.js";
+import { authRouter } from "./modules/auth/auth.routes.js";
+import {
+  getComments,
+  markProblemAppearsResolved,
+  postComment,
+} from "./modules/comments/comments.controller.js";
+import { authenticate } from "./middleware/auth.middleware.js";
+import {
+  authorize,
+  requireFreshPassword,
+} from "./middleware/authorize.middleware.js";
 
 void getPrisma;
 
 export const app = express();
 
-app.use(cors());
+// Safe CORS for cookie authentication (api-spec.md §7): exactly one
+// configured web origin may use the session cookie — never `*` with
+// credentials. SameSite=Lax on the cookie is the other CSRF layer.
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL ?? "http://localhost:5173",
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
 /*
@@ -42,7 +61,24 @@ app.get("/api/health", (_req: Request, res: Response) => {
   });
 });
 
-app.get("/api/categories", async (_req: Request, res: Response) => {
+// Authentication endpoints (api-spec.md §1). Login is public; logout, me,
+// and change-password carry their own session check. They are mounted before
+// the global session chain below so the must-change-password gate never
+// locks a user out of the three exempted routes.
+app.use("/api/auth", authRouter);
+
+// Every remaining /api route requires a valid session (401 when missing,
+// invalid, expired, or deactivated) and a fresh password (403
+// PASSWORD_CHANGE_REQUIRED while mustChangePassword is set).
+app.use("/api", authenticate, requireFreshPassword);
+
+// Requester-only reference data + Lab 2 continuation (api-spec.md §2).
+// Ownership always derives from the session (BR-03); Internal Notes are
+// never included in these responses.
+app.get(
+  "/api/categories",
+  authorize(["REQUESTER"]),
+  async (_req: Request, res: Response) => {
   try {
     const prisma = getPrisma();
 
@@ -74,48 +110,83 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
   }
 });
 
-app.get("/api/requesters", getRequesters);
+app.get(
+  "/api/requesters",
+  authorize(["REQUESTER"]),
+  getRequesters,
+);
 
 app.get(
   "/api/related-systems",
+  authorize(["REQUESTER"]),
   getRelatedSystems,
 );
 
 app.post(
   "/api/tickets",
+  authorize(["REQUESTER"]),
   upload.array("attachments", 5),
   createTicket,
 );
 
 app.get(
   "/api/tickets",
+  authorize(["REQUESTER"]),
   getTickets,
 );
 
 app.get(
   "/api/tickets/:id",
+  authorize(["REQUESTER"]),
   getTicket,
 );
 
 app.post(
   "/api/tickets/:id/attachments",
+  authorize(["REQUESTER"]),
   upload.single("file"),
   addAttachment,
 );
 
 app.get(
   "/api/attachments/:id",
+  authorize(["REQUESTER"]),
   getAttachment,
 );
 
 app.get(
   "/api/attachments/:id/download",
+  authorize(["REQUESTER"]),
   downloadAttachment,
 );
 
 app.patch(
   "/api/attachments/:id/remove",
+  authorize(["REQUESTER"]),
   removeAttachment,
+);
+
+// Public Comments: Requester (own ticket — enforced by ownership check in
+// the handler), IT Staff, or Administrator (api-spec.md §4). Requesters
+// never receive Internal Notes through these routes.
+app.get(
+  "/api/tickets/:id/comments",
+  authorize(["REQUESTER", "IT_STAFF", "ADMINISTRATOR"]),
+  getComments,
+);
+
+app.post(
+  "/api/tickets/:id/comments",
+  authorize(["REQUESTER", "IT_STAFF", "ADMINISTRATOR"]),
+  postComment,
+);
+
+// BR-05: flag-only signal, never a status transition (see controller note
+// for the staff-workflow branch).
+app.post(
+  "/api/tickets/:id/problem-appears-resolved",
+  authorize(["REQUESTER"]),
+  markProblemAppearsResolved,
 );
 
 export default app;

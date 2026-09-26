@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { AttachmentPicker } from "../components/AttachmentPicker";
 import { getCategories, getRelatedSystems, createTicket } from "../api";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 import type { Category, RelatedSystem, Priority } from "../types/ticket";
 import { validateDescription, validatePriority, validateSummary } from "../utils/validation";
 
 interface CreateTicketPageProps {
-  requesterId: number;
-  requesterName?: string;
   onCancel?: () => void;
   onViewTicket?: (ticketId: number) => void;
 }
@@ -25,7 +24,10 @@ const todayLabel = new Date().toLocaleDateString("en-GB", {
   year: "numeric",
 });
 
-export default function CreateTicketPage({ requesterId, requesterName = "Jennifer Anderson", onCancel, onViewTicket }: CreateTicketPageProps) {
+export default function CreateTicketPage({ onCancel, onViewTicket }: CreateTicketPageProps) {
+  // BR-03: the requester is the authenticated user — no selector state.
+  const currentUser = useCurrentUser();
+  const requesterName = currentUser?.name ?? "";
   const [categories, setCategories] = useState<Category[]>([]);
   const [relatedSystems, setRelatedSystems] = useState<RelatedSystem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,7 +105,6 @@ export default function CreateTicketPage({ requesterId, requesterName = "Jennife
         summary: summary.trim(),
         description: description.trim(),
         requestedPriority: requestedPriority as Priority,
-        requesterId,
         attachments,
       });
 

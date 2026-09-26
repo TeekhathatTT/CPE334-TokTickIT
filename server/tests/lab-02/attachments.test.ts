@@ -1,9 +1,13 @@
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { getPrisma } from "../../src/prisma.js";
+import {
+  clearAllSessions,
+  createSession,
+} from "../../src/modules/auth/auth.service.js";
 
 vi.mock("../../src/prisma.js", () => ({
   getPrisma: vi.fn(),
@@ -17,18 +21,57 @@ process.env.UPLOAD_DIR = uploadDir;
 const { default: app } = await import("../../src/app.js");
 
 function mockPrisma(overrides: Record<string, unknown>) {
-  vi.mocked(getPrisma).mockReturnValue(overrides as never);
+  // Lab 3: authenticated Requester session (see tickets.test.ts) replaces
+  // the Lab 2 `x-requester-id` stand-in; attachment behavior is unchanged.
+  const sessionUser = {
+    id: 1,
+    isActive: true,
+    legacyRequesterId: 1,
+    email: "jennifer.anderson@example.com",
+    role: "REQUESTER",
+    mustChangePassword: false,
+  };
+  vi.mocked(getPrisma).mockReturnValue({
+    user: {
+      findUnique: vi.fn().mockResolvedValue(sessionUser),
+      findFirst: vi.fn().mockResolvedValue(sessionUser),
+    },
+    ...overrides,
+  } as never);
 }
+
+function authCookie(): string {
+  return `toktickit_session=${createSession(1)}`;
+}
+
+beforeEach(() => {
+  clearAllSessions();
+});
 
 afterAll(async () => {
   await fs.rm(uploadDir, { recursive: true, force: true });
 });
 
 describe("POST /api/tickets/:id/attachments", () => {
-  it("rejects an inactive requester before checking attachment ownership", async () => {
+  it("returns 401 when the session user is inactive", async () => {
+    // Lab 3 successor to the Lab 2 "inactive requester" case: deactivation
+    // now lives on the session User, and the request is rejected before any
+    // attachment or ownership check runs.
+    const inactiveUser = {
+      id: 1,
+      isActive: false,
+      legacyRequesterId: 1,
+      email: "jennifer.anderson@example.com",
+      role: "REQUESTER",
+      mustChangePassword: false,
+    };
     mockPrisma({
+      user: {
+        findUnique: vi.fn().mockResolvedValue(inactiveUser),
+        findFirst: vi.fn().mockResolvedValue(inactiveUser),
+      },
       requester: {
-        findFirst: vi.fn().mockResolvedValue(null),
+        findFirst: vi.fn(),
       },
       ticket: {
         findFirst: vi.fn(),
@@ -37,14 +80,14 @@ describe("POST /api/tickets/:id/attachments", () => {
 
     const response = await request(app)
       .post("/api/tickets/101/attachments")
-      .set("x-requester-id", "1")
+      .set("Cookie", authCookie())
       .attach("file", Buffer.from("%PDF-1.4 test file"), {
         filename: "invoice.pdf",
         contentType: "application/pdf",
       });
 
     expect(response.status).toBe(401);
-    expect(response.body.error.code).toBe("UNAUTHORIZED");
+    expect(response.body.error.code).toBe("UNAUTHENTICATED");
   });
 
   it("adds an attachment to an owned ticket", async () => {
@@ -65,7 +108,7 @@ describe("POST /api/tickets/:id/attachments", () => {
 
     const response = await request(app)
       .post("/api/tickets/101/attachments")
-      .set("x-requester-id", "1")
+      .set("Cookie", authCookie())
       .attach("file", Buffer.from("%PDF-1.4 test file"), {
         filename: "invoice.pdf",
         contentType: "application/pdf",
@@ -87,7 +130,7 @@ describe("POST /api/tickets/:id/attachments", () => {
 
     const response = await request(app)
       .post("/api/tickets/101/attachments")
-      .set("x-requester-id", "1")
+      .set("Cookie", authCookie())
       .attach("file", Buffer.from("not a real docx"), {
         filename: "notes.docx",
         contentType:
@@ -110,7 +153,7 @@ describe("POST /api/tickets/:id/attachments", () => {
 
     const response = await request(app)
       .post("/api/tickets/101/attachments")
-      .set("x-requester-id", "1")
+      .set("Cookie", authCookie())
       .attach("file", Buffer.from("%PDF-1.4 test file"), {
         filename: "invoice.pdf",
         contentType: "application/pdf",
@@ -129,7 +172,7 @@ describe("POST /api/tickets/:id/attachments", () => {
 
     const response = await request(app)
       .post("/api/tickets/999/attachments")
-      .set("x-requester-id", "1")
+      .set("Cookie", authCookie())
       .attach("file", Buffer.from("%PDF-1.4 test file"), {
         filename: "invoice.pdf",
         contentType: "application/pdf",
@@ -157,7 +200,7 @@ describe("GET /api/attachments/:id", () => {
 
     const response = await request(app)
       .get("/api/attachments/501")
-      .set("x-requester-id", "1");
+      .set("Cookie", authCookie());
 
     expect(response.status).toBe(200);
     expect(response.body.data.id).toBe(501);
@@ -172,7 +215,7 @@ describe("GET /api/attachments/:id", () => {
 
     const response = await request(app)
       .get("/api/attachments/501")
-      .set("x-requester-id", "1");
+      .set("Cookie", authCookie());
 
     expect(response.status).toBe(404);
   });
@@ -200,7 +243,7 @@ describe("GET /api/attachments/:id/download", () => {
 
     const response = await request(app)
       .get("/api/attachments/501/download")
-      .set("x-requester-id", "1");
+      .set("Cookie", authCookie());
 
     expect(response.status).toBe(200);
     expect(response.headers["content-type"]).toContain("application/pdf");
@@ -221,7 +264,7 @@ describe("GET /api/attachments/:id/download", () => {
 
     const response = await request(app)
       .get("/api/attachments/501/download")
-      .set("x-requester-id", "1");
+      .set("Cookie", authCookie());
 
     expect(response.status).toBe(410);
   });
@@ -235,7 +278,7 @@ describe("GET /api/attachments/:id/download", () => {
 
     const response = await request(app)
       .get("/api/attachments/501/download")
-      .set("x-requester-id", "1");
+      .set("Cookie", authCookie());
 
     expect(response.status).toBe(404);
   });
@@ -259,7 +302,7 @@ describe("PATCH /api/attachments/:id/remove", () => {
 
     const response = await request(app)
       .patch("/api/attachments/501/remove")
-      .set("x-requester-id", "1")
+      .set("Cookie", authCookie())
       .send({ reason: "Wrong file attached" });
 
     expect(response.status).toBe(200);
@@ -278,7 +321,7 @@ describe("PATCH /api/attachments/:id/remove", () => {
 
     const response = await request(app)
       .patch("/api/attachments/501/remove")
-      .set("x-requester-id", "1")
+      .set("Cookie", authCookie())
       .send({ reason: "Hi" });
 
     expect(response.status).toBe(400);
@@ -297,7 +340,7 @@ describe("PATCH /api/attachments/:id/remove", () => {
 
     const response = await request(app)
       .patch("/api/attachments/501/remove")
-      .set("x-requester-id", "1")
+      .set("Cookie", authCookie())
       .send({ reason: "Duplicate removal attempt" });
 
     expect(response.status).toBe(409);
@@ -312,7 +355,7 @@ describe("PATCH /api/attachments/:id/remove", () => {
 
     const response = await request(app)
       .patch("/api/attachments/501/remove")
-      .set("x-requester-id", "1")
+      .set("Cookie", authCookie())
       .send({ reason: "Wrong file attached" });
 
     expect(response.status).toBe(404);
