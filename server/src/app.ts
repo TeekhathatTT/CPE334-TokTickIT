@@ -21,6 +21,18 @@ import {
   markProblemAppearsResolved,
   postComment,
 } from "./modules/comments/comments.controller.js";
+import {
+  getNotes,
+  postNote,
+} from "./modules/notes/notes.controller.js";
+import {
+  getStaffTicketDetail,
+  getStaffTickets,
+  listAssignableStaff,
+  updateTicketAssignment,
+  updateTicketPriority,
+  updateTicketStatus,
+} from "./modules/staff/staff.controller.js";
 import { authenticate } from "./middleware/auth.middleware.js";
 import {
   authorize,
@@ -252,6 +264,66 @@ app.post(
   "/api/tickets/:id/problem-appears-resolved",
   authorize(["REQUESTER"]),
   markProblemAppearsResolved,
+);
+
+// IT Staff queue + ticket operations (api-spec.md §3). Queue, operational
+// detail, assignment, priority, and status are IT Staff only per the spec §6
+// matrix — Administrators do not inherit them (notes below are the
+// exception). A Requester always sees 403 here, never ticket data.
+app.get(
+  "/api/staff/tickets",
+  authorize(["IT_STAFF"]),
+  getStaffTickets,
+);
+
+// Assignable-owner directory for the ui-spec §6 owner select (fills the
+// api-spec gap: no staff-scoped user directory existed, forcing the UI to
+// ask for a raw user id).
+app.get(
+  "/api/staff/users",
+  authorize(["IT_STAFF"]),
+  listAssignableStaff,
+);
+
+app.get(
+  "/api/staff/tickets/:id",
+  authorize(["IT_STAFF"]),
+  getStaffTicketDetail,
+);
+
+// Spec §8 decision: the implemented path is `.../assignment` (not the
+// shorter `.../owner` alias) so ticket-operation routes stay out of the
+// Requester namespace.
+app.patch(
+  "/api/staff/tickets/:id/assignment",
+  authorize(["IT_STAFF"]),
+  updateTicketAssignment,
+);
+
+app.patch(
+  "/api/staff/tickets/:id/priority",
+  authorize(["IT_STAFF"]),
+  updateTicketPriority,
+);
+
+app.patch(
+  "/api/staff/tickets/:id/status",
+  authorize(["IT_STAFF"]),
+  updateTicketStatus,
+);
+
+// Internal Notes (api-spec.md §4): IT Staff or Administrator only. The
+// guard returns 403 with no note content/count for Requesters (AC-04).
+app.get(
+  "/api/staff/tickets/:id/notes",
+  authorize(["IT_STAFF", "ADMINISTRATOR"]),
+  getNotes,
+);
+
+app.post(
+  "/api/staff/tickets/:id/notes",
+  authorize(["IT_STAFF", "ADMINISTRATOR"]),
+  postNote,
 );
 
 export default app;

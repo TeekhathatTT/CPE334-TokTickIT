@@ -263,3 +263,161 @@ export async function markProblemAppearsResolved(ticketId: number): Promise<Prob
     method: "POST",
   });
 }
+
+// ---------------------------------------------------------------------------
+// IT Staff queue + ticket operations (api-spec.md §3) and Internal Notes
+// (api-spec.md §4). Queue/detail/assignment/priority/status are IT Staff
+// only; notes additionally allow Administrators. No user-list endpoint
+// exists in the contract, so owner reassignment takes an explicit user id.
+// ---------------------------------------------------------------------------
+
+export interface StaffQueueMeta {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  queueTotal: number;
+  isEmpty: boolean;
+  isNoResults: boolean;
+}
+
+export interface StaffQueueRow {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  category: string;
+  requestedPriority: Priority;
+  itPriority: Priority | null;
+  status: TicketStatus;
+  owner: { id: number; name: string } | null;
+  requester: { name: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffTicketDetail {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  description: string;
+  category: string;
+  relatedSystem: string;
+  requester: { name: string; email: string; userId: number | null };
+  owner: { id: number; name: string } | null;
+  requestedPriority: Priority;
+  itPriority: Priority | null;
+  status: TicketStatus;
+  problemAppearsResolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  attachments: Array<{
+    id: number;
+    originalFilename: string;
+    sizeBytes: number;
+    uploadedAt: string;
+    removedAt: string | null;
+    removalReason: string | null;
+  }>;
+  publicComments: PublicComment[];
+  internalNotes: InternalNote[];
+  permittedActions: { allowedStatuses: TicketStatus[] };
+}
+
+export interface InternalNote {
+  id: number;
+  ticketId: number;
+  author: { id: number; name: string; role: string };
+  content: string;
+  createdAt: string;
+}
+
+export interface StaffUser {
+  id: number;
+  name: string;
+  email: string;
+}
+
+/** Assignable-owner directory (ui-spec.md §6): active IT Staff, safe fields. */
+export async function getStaffUsers(): Promise<StaffUser[]> {
+  return requestJson<StaffUser[]>("/api/staff/users");
+}
+
+export async function getStaffTickets(
+  filters: {
+    search?: string;
+    status?: string | string[];
+    requestedPriority?: string;
+    itPriority?: string;
+    categoryId?: string;
+    ownerId?: string;
+    sort?: string;
+    order?: "asc" | "desc";
+    page?: number;
+    pageSize?: number;
+  } = {},
+): Promise<{ data: StaffQueueRow[]; meta: StaffQueueMeta }> {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value === undefined || value === "" || value === "All") return;
+    if (Array.isArray(value)) {
+      value.forEach((entry) => params.append(key, String(entry)));
+    } else {
+      params.set(key, String(value));
+    }
+  });
+  const query = params.toString();
+  return requestJson<{ data: StaffQueueRow[]; meta: StaffQueueMeta }>(
+    `/api/staff/tickets${query ? `?${query}` : ""}`,
+    undefined,
+    false,
+  );
+}
+
+export async function getStaffTicket(ticketId: number): Promise<StaffTicketDetail> {
+  return requestJson<StaffTicketDetail>(`/api/staff/tickets/${ticketId}`);
+}
+
+export async function assignStaffTicket(
+  ticketId: number,
+  ownerId: number | null,
+): Promise<StaffTicketDetail> {
+  return requestJson<StaffTicketDetail>(`/api/staff/tickets/${ticketId}/assignment`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ownerId }),
+  });
+}
+
+export async function updateStaffPriority(
+  ticketId: number,
+  itPriority: Priority,
+): Promise<StaffTicketDetail> {
+  return requestJson<StaffTicketDetail>(`/api/staff/tickets/${ticketId}/priority`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ itPriority }),
+  });
+}
+
+export async function updateStaffStatus(
+  ticketId: number,
+  status: TicketStatus,
+): Promise<StaffTicketDetail> {
+  return requestJson<StaffTicketDetail>(`/api/staff/tickets/${ticketId}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function getInternalNotes(ticketId: number): Promise<InternalNote[]> {
+  return requestJson<InternalNote[]>(`/api/staff/tickets/${ticketId}/notes`);
+}
+
+export async function postInternalNote(ticketId: number, content: string): Promise<InternalNote> {
+  return requestJson<InternalNote>(`/api/staff/tickets/${ticketId}/notes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+}

@@ -397,6 +397,9 @@ export async function createTicket(
             summary,
             description,
             requestedPriority,
+            // BR-12: IT Priority initially copies Requested Priority; only
+            // IT Staff may change it afterwards via PATCH /status scope.
+            itPriority: requestedPriority,
             status: "NEW",
           },
         });

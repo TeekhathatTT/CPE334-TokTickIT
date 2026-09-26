@@ -2,12 +2,14 @@ import { useState, type ReactNode } from "react";
 import type { CurrentUser } from "../api";
 
 export type RequesterNavKey = "my-tickets" | "create-ticket";
+export type StaffNavKey = "ticket-queue";
+export type NavKey = RequesterNavKey | StaffNavKey;
 
 interface AppShellProps {
   children: ReactNode;
   user: CurrentUser;
-  activeNav?: RequesterNavKey;
-  onNavigate?: (view: RequesterNavKey) => void;
+  activeNav?: NavKey;
+  onNavigate?: (view: NavKey) => void;
   onLogout?: () => void;
 }
 
@@ -26,14 +28,13 @@ function roleLabel(role: CurrentUser["role"]): string {
 export function AppShell({ children, user, activeNav = "my-tickets", onNavigate, onLogout }: AppShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Role navigation (ui-spec.md §2). Only the Requester items ship in this
-  // branch — the staff-workflow and admin branches add their own entries
-  // here behind role checks (extension point: keep this a role-driven list,
-  // never a hardcoded "Requester only" assumption elsewhere).
-  const navItems: Array<{ key: RequesterNavKey; label: string; roles: CurrentUser["role"][] }> = [
+  // Role navigation (ui-spec.md §2): Requester items from the auth branch
+  // plus the staff-workflow Ticket Queue entry for IT Staff. The admin
+  // branch adds its own entry behind its role check.
+  const navItems: Array<{ key: NavKey; label: string; roles: CurrentUser["role"][] }> = [
     { key: "my-tickets", label: "My Tickets", roles: ["REQUESTER"] },
     { key: "create-ticket", label: "Create Ticket", roles: ["REQUESTER"] },
-    // EXTENSION POINT (staff-workflow branch): { key: "ticket-queue", label: "Ticket Queue", roles: ["IT_STAFF"] }
+    { key: "ticket-queue", label: "Ticket Queue", roles: ["IT_STAFF"] },
     // EXTENSION POINT (admin branch): { key: "user-management", label: "User Management", roles: ["ADMINISTRATOR"] }
   ];
   const visibleNavItems = navItems.filter((item) => item.roles.includes(user.role));
