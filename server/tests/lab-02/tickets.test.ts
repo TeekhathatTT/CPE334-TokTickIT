@@ -114,6 +114,62 @@ describe("POST /api/tickets", () => {
     expect(response.body.data.attachments).toEqual([]);
   });
 
+  it("initialises IT Priority from Requested Priority (BR-12)", async () => {
+    const create = vi.fn().mockResolvedValue({
+      id: 102,
+      ticketNumber: "TKT-2026-000002",
+      requesterId: 1,
+      categoryId: 2,
+      relatedSystemId: 3,
+      summary: "Server is down",
+      description: "The production server stopped responding to requests.",
+      requestedPriority: "HIGH",
+      itPriority: "HIGH",
+      status: "NEW",
+      createdAt: new Date("2026-08-19T09:14:00Z"),
+      attachments: [],
+    });
+    mockPrisma({
+      requester: {
+        findFirst: vi.fn().mockResolvedValue(activeRequester),
+      },
+      category: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValue({ id: 2, name: "Hardware", isActive: true }),
+      },
+      relatedSystem: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 3,
+          name: "Corporate Laptop",
+          isActive: true,
+        }),
+      },
+      ticket: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create,
+      },
+    });
+
+    const response = await request(app)
+      .post("/api/tickets")
+      .set("Cookie", authCookie())
+      .field("categoryId", "2")
+      .field("relatedSystemId", "3")
+      .field("summary", "Server is down")
+      .field(
+        "description",
+        "The production server stopped responding to requests.",
+      )
+      .field("requestedPriority", "HIGH");
+
+    expect(response.status).toBe(201);
+    expect(create).toHaveBeenCalledOnce();
+    const data = create.mock.calls[0]![0].data as Record<string, unknown>;
+    expect(data.requestedPriority).toBe("HIGH");
+    expect(data.itPriority).toBe("HIGH");
+  });
+
   it("returns 401 when unauthenticated (no session cookie)", async () => {
     const response = await request(app)
       .post("/api/tickets")

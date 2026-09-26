@@ -28,6 +28,7 @@ import {
 import {
   getStaffTicketDetail,
   getStaffTickets,
+  listAssignableStaff,
   updateTicketAssignment,
   updateTicketPriority,
   updateTicketStatus,
@@ -273,6 +274,15 @@ app.get(
   "/api/staff/tickets",
   authorize(["IT_STAFF"]),
   getStaffTickets,
+);
+
+// Assignable-owner directory for the ui-spec §6 owner select (fills the
+// api-spec gap: no staff-scoped user directory existed, forcing the UI to
+// ask for a raw user id).
+app.get(
+  "/api/staff/users",
+  authorize(["IT_STAFF"]),
+  listAssignableStaff,
 );
 
 app.get(

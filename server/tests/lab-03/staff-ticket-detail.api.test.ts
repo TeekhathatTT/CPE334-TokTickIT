@@ -124,6 +124,38 @@ describe("staff ticket detail (AC-07, AC-08)", () => {
   });
 });
 
+describe("assignable staff directory (ui-spec §6)", () => {
+  it("lists active IT Staff only, with safe fields", async () => {
+    const findMany = vi.fn(async (_query: Record<string, unknown>) => [
+      { id: 21, name: "Priya Patel", email: "priya.patel@example.com" },
+      { id: 22, name: "Tom Nguyen", email: "tom.nguyen@example.com" },
+    ]);
+    mockPrisma({
+      user: { findUnique: userFindUnique(staffUser, {}), findMany },
+    });
+
+    const response = await request(app).get("/api/staff/users").set("Cookie", staffCookie());
+
+    expect(response.status).toBe(200);
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { role: "IT_STAFF", isActive: true } }),
+    );
+    expect(response.body.data).toHaveLength(2);
+    expect(JSON.stringify(response.body)).not.toContain("passwordHash");
+  });
+
+  it("returns 403 for a Requester and 401 without a session", async () => {
+    mockPrisma(staffMocks({ sessionUser: requesterSessionUser }));
+    const forbidden = await request(app)
+      .get("/api/staff/users")
+      .set("Cookie", `toktickit_session=${createSession(requesterSessionUser.id)}`);
+    expect(forbidden.status).toBe(403);
+
+    const unauthenticated = await request(app).get("/api/staff/users");
+    expect(unauthenticated.status).toBe(401);
+  });
+});
+
 describe("claim and reassign (AC-07, BR-11/BR-16)", () => {
   function assignMocks() {
     return staffMocks({

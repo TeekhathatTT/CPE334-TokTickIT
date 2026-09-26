@@ -331,6 +331,17 @@ export interface InternalNote {
   createdAt: string;
 }
 
+export interface StaffUser {
+  id: number;
+  name: string;
+  email: string;
+}
+
+/** Assignable-owner directory (ui-spec.md §6): active IT Staff, safe fields. */
+export async function getStaffUsers(): Promise<StaffUser[]> {
+  return requestJson<StaffUser[]>("/api/staff/users");
+}
+
 export async function getStaffTickets(
   filters: {
     search?: string;

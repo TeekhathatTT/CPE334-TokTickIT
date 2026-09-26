@@ -33,6 +33,10 @@ function detail(overrides: Partial<api.StaffTicketDetail> = {}): api.StaffTicket
 
 function renderDetail(props: Record<string, unknown> = {}) {
   vi.spyOn(api, "getInternalNotes").mockResolvedValue([]);
+  vi.spyOn(api, "getStaffUsers").mockResolvedValue([
+    { id: 21, name: "Priya Patel", email: "priya.patel@example.com" },
+    { id: 22, name: "Tom Nguyen", email: "tom.nguyen@example.com" },
+  ]);
   render(<StaffTicketDetailPage ticketId={101} currentUserId={21} {...props} />);
 }
 
@@ -59,6 +63,29 @@ describe("Lab 3 StaffTicketDetail", () => {
 
     await waitFor(() => expect(assign).toHaveBeenCalledWith(101, 21));
     expect(await screen.findByText(/ticket claimed/i)).toBeInTheDocument();
+  });
+
+  it("reassigns through the active-IT-Staff select, never a raw id", async () => {
+    vi.spyOn(api, "getStaffTicket").mockResolvedValue(detail());
+    const assign = vi
+      .spyOn(api, "assignStaffTicket")
+      .mockResolvedValue(detail({ owner: { id: 22, name: "Tom Nguyen" } }));
+    renderDetail();
+
+    const select = (await screen.findByLabelText(/reassign to/i)) as HTMLSelectElement;
+    const options = Array.from(select.options).map((option) => option.text);
+    expect(options).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Priya Patel"),
+        expect.stringContaining("Tom Nguyen"),
+      ]),
+    );
+
+    fireEvent.change(select, { target: { value: "22" } });
+    fireEvent.click(screen.getByRole("button", { name: /^reassign$/i }));
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith(101, 22));
+    expect(await screen.findByText(/ticket reassigned/i)).toBeInTheDocument();
   });
 
   it("offers only permitted next statuses, never the full enum", async () => {

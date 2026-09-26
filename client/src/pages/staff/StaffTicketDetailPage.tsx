@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import {
   assignStaffTicket,
   getStaffTicket,
+  getStaffUsers,
   updateStaffPriority,
   updateStaffStatus,
   type StaffTicketDetail,
+  type StaffUser,
 } from "../../api";
 import type { Priority, TicketStatus } from "../../types/ticket";
 import { PublicComments } from "../../components/tickets/PublicComments";
@@ -44,6 +46,13 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
   const [assignError, setAssignError] = useState<string | null>(null);
   const [reassignId, setReassignId] = useState("");
 
+  // Assignable-owner directory (ui-spec §6 select). Loaded independently of
+  // the ticket so a directory failure never blocks the rest of the screen.
+  const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
+  const [staffLoading, setStaffLoading] = useState(true);
+  const [staffError, setStaffError] = useState<string | null>(null);
+  const [staffRetryToken, setStaffRetryToken] = useState(0);
+
   const [priorityBusy, setPriorityBusy] = useState(false);
   const [priorityMessage, setPriorityMessage] = useState<string | null>(null);
   const [priorityError, setPriorityError] = useState<string | null>(null);
@@ -76,12 +85,37 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
     return () => { active = false; };
   }, [ticketId, retryToken]);
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadStaffUsers() {
+      setStaffLoading(true);
+      setStaffError(null);
+      try {
+        const users = await getStaffUsers();
+        if (!active) return;
+        setStaffUsers(users);
+      } catch (usersError) {
+        if (active) {
+          setStaffError(usersError instanceof Error ? usersError.message : "Unable to load staff list.");
+          setStaffUsers([]);
+        }
+      } finally {
+        if (active) setStaffLoading(false);
+      }
+    }
+
+    void loadStaffUsers();
+    return () => { active = false; };
+  }, [staffRetryToken]);
+
   const mutate = async (
     operation: () => Promise<StaffTicketDetail>,
     setBusy: (busy: boolean) => void,
     setOk: (message: string | null) => void,
     setFail: (message: string | null) => void,
     okCopy: string,
+    onSuccess?: () => void,
   ) => {
     setBusy(true);
     setOk(null);
@@ -90,6 +124,7 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
       const updated = await operation();
       setTicket(updated);
       setOk(okCopy);
+      onSuccess?.();
     } catch (failure) {
       setFail(failure instanceof Error ? failure.message : "Unable to save changes.");
     } finally {
@@ -104,10 +139,14 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
   const handleReassign = () => {
     const parsed = Number(reassignId);
     if (!Number.isInteger(parsed) || parsed <= 0) {
-      setAssignError("Owner ID must be a positive number.");
+      setAssignError("Select an IT Staff member to reassign to.");
       return;
     }
-    void mutate(() => assignStaffTicket(ticketId, parsed), setAssignBusy, setAssignMessage, setAssignError, "Ticket reassigned.");
+    void mutate(
+      () => assignStaffTicket(ticketId, parsed),
+      setAssignBusy, setAssignMessage, setAssignError, "Ticket reassigned.",
+      () => setReassignId(String(parsed)),
+    );
   };
 
   const handlePriority = (value: string) => {
@@ -206,18 +245,37 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
           </button>
         </div>
         <div className="ticket-actions">
-          <label className="field-label" htmlFor={`reassign-${ticketId}`}>Reassign to IT Staff user ID</label>
-          <input
-            id={`reassign-${ticketId}`}
-            className="input-field"
-            inputMode="numeric"
-            value={reassignId}
-            onChange={(event) => setReassignId(event.target.value)}
-            placeholder="e.g. 21"
-          />
-          <button type="button" className="secondary-button" disabled={assignBusy || reassignId.trim() === ""} onClick={handleReassign}>
-            Reassign
-          </button>
+          <label className="field-label" htmlFor={`reassign-${ticketId}`}>Reassign to</label>
+          {staffLoading ? (
+            <div className="loading-state" role="status">Loading staff list…</div>
+          ) : staffError ? (
+            <div className="error-panel" role="alert">
+              {staffError}
+              <button type="button" className="secondary-button" onClick={() => setStaffRetryToken((token) => token + 1)}>
+                Retry
+              </button>
+            </div>
+          ) : (
+            <>
+              <select
+                id={`reassign-${ticketId}`}
+                className="select-field"
+                value={reassignId}
+                disabled={assignBusy}
+                onChange={(event) => setReassignId(event.target.value)}
+              >
+                <option value="">Select an IT Staff member</option>
+                {staffUsers.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name} ({member.email}){ticket.owner?.id === member.id ? " — current" : ""}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="secondary-button" disabled={assignBusy || reassignId === ""} onClick={handleReassign}>
+                Reassign
+              </button>
+            </>
+          )}
         </div>
       </div>
 

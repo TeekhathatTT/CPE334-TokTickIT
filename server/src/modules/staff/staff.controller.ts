@@ -36,6 +36,43 @@ function ticketNotFound(res: Response) {
   });
 }
 
+/**
+ * GET /api/staff/users — assignable-owner directory (ui-spec.md §6:
+ * "Assignment selects active IT Staff"). Returns active IT Staff users
+ * only, safe fields, no hashes. This fills the api-spec gap noted in
+ * review: no staff-scoped user directory existed, forcing the UI to ask
+ * for a raw user id. IT Staff only, like every other staff operation.
+ */
+export async function listAssignableStaff(req: Request, res: Response) {
+  if (!req.user) {
+    return res.status(401).json({
+      error: {
+        code: "UNAUTHENTICATED",
+        message: "Authentication is required.",
+      },
+    });
+  }
+
+  try {
+    const prisma = getPrisma();
+    const users = (await prisma.user.findMany({
+      where: { role: "IT_STAFF", isActive: true },
+      select: { id: true, name: true, email: true },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+    })) as Array<{ id: number; name: string; email: string }>;
+
+    return res.status(200).json({ data: users });
+  } catch (error) {
+    console.error("Failed to load assignable staff", error);
+    return res.status(500).json({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Unable to fetch staff users",
+      },
+    });
+  }
+}
+
 function toIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
