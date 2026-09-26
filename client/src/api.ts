@@ -421,3 +421,72 @@ export async function postInternalNote(ticketId: number, content: string): Promi
     body: JSON.stringify({ content }),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Administrator user management (api-spec.md §5, ui-spec.md §7).
+// Minimalist scope: list/search/role-filter, create, edit, activation, and
+// initial-password reset. No delete endpoint exists (BR-22). The reset path
+// is the canonical `initial-password` per api-spec §5.
+// ---------------------------------------------------------------------------
+
+export interface AdminUser {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  mustChangePassword: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function listAdminUsers(filters: {
+  search?: string;
+  role?: string;
+} = {}): Promise<AdminUser[]> {
+  const params = new URLSearchParams();
+  if (filters.search !== undefined && filters.search !== "") {
+    params.set("search", filters.search);
+  }
+  if (filters.role !== undefined && filters.role !== "" && filters.role !== "All") {
+    params.set("role", filters.role);
+  }
+  const query = params.toString();
+  return requestJson<AdminUser[]>(`/api/admin/users${query ? `?${query}` : ""}`);
+}
+
+export async function createAdminUser(input: {
+  name: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  initialPassword: string;
+}): Promise<AdminUser> {
+  return requestJson<AdminUser>("/api/admin/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateAdminUser(
+  userId: number,
+  patch: Partial<Pick<AdminUser, "name" | "email" | "role" | "isActive">>,
+): Promise<AdminUser> {
+  return requestJson<AdminUser>(`/api/admin/users/${userId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function setAdminInitialPassword(
+  userId: number,
+  initialPassword: string,
+): Promise<AdminUser> {
+  return requestJson<AdminUser>(`/api/admin/users/${userId}/initial-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ initialPassword }),
+  });
+}
