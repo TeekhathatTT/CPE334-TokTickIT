@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError, listAdminUsers, type AdminUser } from "../../api";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { UserList } from "../../components/admin/UserList";
@@ -20,69 +20,85 @@ export function UserManagementPage() {
   const currentUser = useCurrentUser();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [retryToken, setRetryToken] = useState(0);
+  const hasLoadedOnce = useRef(false);
 
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    setErrorCode(null);
-    try {
-      const rows = await listAdminUsers({ search, role: roleFilter });
-      setUsers(rows);
-    } catch (loadError) {
-      if (loadError instanceof ApiError) {
-        setError(loadError.message);
-        setErrorCode(loadError.code);
-      } else {
-        setError(loadError instanceof Error ? loadError.message : "Unable to load users.");
-        setErrorCode(null);
-      }
-      setUsers([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [search, roleFilter, retryToken]);
+  // Debounce free-text search so every keystroke does not fire a request.
+  // The input stays controlled by `search` (immediate) while fetching uses
+  // `debouncedSearch`, so focus is never lost while typing.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
-    void loadUsers();
-  }, [loadUsers]);
+    let active = true;
+    const isFirstLoad = !hasLoadedOnce.current;
+    if (isFirstLoad) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+    setError(null);
+    setErrorCode(null);
+    listAdminUsers({ search: debouncedSearch, role: roleFilter })
+      .then((rows) => {
+        if (!active) return;
+        setUsers(rows);
+        hasLoadedOnce.current = true;
+      })
+      .catch((loadError) => {
+        if (!active) return;
+        if (loadError instanceof ApiError) {
+          setError(loadError.message);
+          setErrorCode(loadError.code);
+        } else {
+          setError(loadError instanceof Error ? loadError.message : "Unable to load users.");
+          setErrorCode(null);
+        }
+        setUsers([]);
+        hasLoadedOnce.current = true;
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoading(false);
+        setRefreshing(false);
+      });
+    // Stale responses are ignored via `active` so an older query can never
+    // overwrite newer results.
+    return () => {
+      active = false;
+    };
+  }, [debouncedSearch, roleFilter, retryToken]);
 
   const clearFilters = () => {
     setSearch("");
+    // Clear immediately so "Clear Filters" does not wait for the debounce.
+    setDebouncedSearch("");
     setRoleFilter("");
   };
 
   const handleSaved = (saved: AdminUser, message: string) => {
     setDrawer(null);
     setNotice(message);
-    // Refresh the list so the saved row is visible immediately.
+    // Optimistic update so the saved row is visible immediately; the
+    // canonical reload below keeps ordering/filtering truthful without a
+    // second competing fetch that could race the main effect.
     setUsers((current) => {
       const exists = current.some((row) => row.id === saved.id);
       if (!exists) return [...current, saved];
       return current.map((row) => (row.id === saved.id ? saved : row));
     });
-    // Re-fetch in the background to keep ordering/filtering truthful.
-    void listAdminUsers({ search, role: roleFilter })
-      .then((rows) => setUsers(rows))
-      .catch(() => undefined);
+    setRetryToken((token) => token + 1);
   };
-
-  if (loading) {
-    return (
-      <div className="page-card">
-        <h1 className="page-title">User Management</h1>
-        <div className="loading-state" role="status">
-          Loading users…
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="page-card">
@@ -119,6 +135,11 @@ export function UserManagementPage() {
           <option value="IT_STAFF">IT Staff</option>
           <option value="ADMINISTRATOR">Administrator</option>
         </select>
+        {refreshing ? (
+          <span className="helper-text" role="status" aria-live="polite">
+            Updating…
+          </span>
+        ) : null}
       </div>
 
       {notice ? (
@@ -127,7 +148,11 @@ export function UserManagementPage() {
         </div>
       ) : null}
 
-      {error ? (
+      {loading ? (
+        <div className="loading-state" role="status">
+          Loading users…
+        </div>
+      ) : error ? (
         <div className="error-panel" role="alert">
           <strong>{errorCode === "FORBIDDEN" ? "Not allowed." : "Unable to load users."}</strong>
           <p>{error}</p>
@@ -135,7 +160,6 @@ export function UserManagementPage() {
             type="button"
             className="secondary-button"
             onClick={() => {
-              setLoading(true);
               setRetryToken((token) => token + 1);
             }}
           >
@@ -144,7 +168,7 @@ export function UserManagementPage() {
         </div>
       ) : users.length === 0 ? (
         <div className="empty-state">
-          {search !== "" || roleFilter !== "" ? (
+          {debouncedSearch !== "" || roleFilter !== "" ? (
             <>
               <p>No users match your search.</p>
               <button type="button" className="secondary-button" onClick={clearFilters}>

@@ -2,9 +2,9 @@
 //
 // Mounted in app.ts behind `authorize(["ADMINISTRATOR"])` — every route here
 // is Administrator-only (403 for other roles, 401 without a session via the
-// global `authenticate` chain). Canonical reset path is `initial-password`
-// per api-spec §5; `reset-password` is a compatibility alias for the
-// feature prompt's naming with identical behavior.
+// global `authenticate` chain). The reset path is `initial-password` only per
+// api-spec §5; no `reset-password` alias exists (api-spec §5: "No ...
+// advanced recovery endpoint exists").
 
 import { Router } from "express";
 import {
@@ -20,7 +20,5 @@ usersRouter.get("/", listUsers);
 usersRouter.post("/", createUser);
 usersRouter.patch("/:id", updateUser);
 usersRouter.post("/:id/initial-password", setInitialPassword);
-// Prompt-compat alias (see controller header for the spec-gap note).
-usersRouter.post("/:id/reset-password", setInitialPassword);
 
 export default usersRouter;

@@ -5,12 +5,15 @@
 //   POST  /api/admin/users                      — create (admin-supplied
 //       initialPassword per api-spec §5, mustChangePassword=true always)
 //   PATCH /api/admin/users/:id                  — edit name/email/role/isActive
+//       + unassign owned tickets when the target stops being an eligible
+//       owner (BR-11), in the same transaction as the user update
 //   POST  /api/admin/users/:id/initial-password — reset (admin-supplied,
 //       mustChangePassword=true; never emailed, never returned)
-//   POST  /api/admin/users/:id/reset-password   — compatibility alias for the
-//       prompt's naming; identical behavior to initial-password. Spec gap:
-//       prompt says `reset-password`, api-spec §5 mandates `initial-password`.
-//       Both are mounted; api-spec is canonical.
+//
+// No other reset/recovery endpoint or password field alias exists: api-spec
+// §5 states "No delete, bulk, import/export, role history, email
+// invitation, or advanced recovery endpoint exists in Lab 3." The canonical
+// body field is `initialPassword` only.
 //
 // Safeguards (FR-12, BR-20/BR-21/BR-22):
 //   - Duplicate email (case-insensitive via normalized email, BR-18) → 409.
@@ -80,6 +83,56 @@ function userNotFound(res: Response) {
       code: "NOT_FOUND",
       message: "User not found.",
     },
+  });
+}
+
+/** Prisma unique-violation (concurrent duplicate email) → 409, not 500. */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === "P2002"
+  );
+}
+
+/** Prisma serialization / transaction conflict (concurrent admin guard). */
+function isSerializationFailure(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const code = (error as { code?: unknown }).code;
+  return code === "P2034" || code === "40001";
+}
+
+class LastAdminError extends Error {
+  constructor() {
+    super("At least one active Administrator must remain.");
+    this.name = "LastAdminError";
+  }
+}
+
+/**
+ * Run `fn` in a Serializable transaction when the client supports it.
+ * Falls back to a direct call for mocked clients without `$transaction`
+ * (unit tests) — production Prisma (Postgres) always takes the
+ * transactional path so the last-admin count+update is atomic.
+ */
+async function runSerializableTransaction<T>(
+  prisma: ReturnType<typeof getPrisma>,
+  fn: (tx: ReturnType<typeof getPrisma>) => Promise<T>,
+): Promise<T> {
+  const candidate = prisma as unknown as Record<string, unknown>;
+  if (typeof candidate.$transaction === "function") {
+    const run = candidate.$transaction as (
+      arg: (tx: ReturnType<typeof getPrisma>) => Promise<T>,
+      options?: Record<string, unknown>,
+    ) => Promise<T>;
+    return run(fn, { isolationLevel: "Serializable" });
+  }
+  return fn(prisma);
+}
+
+function duplicateEmailConflict(res: Response) {
+  return conflict(res, "A user with this email already exists.", {
+    email: "A user with this email already exists.",
   });
 }
 
@@ -154,15 +207,9 @@ export async function createUser(req: Request, res: Response) {
     else active = isActive;
   }
 
-  // api-spec §5 canonical field is `initialPassword` (admin-supplied, never
-  // generated, never emailed). Accept `password` as a tolerated alias only
-  // for prompt-compat test bodies — api-spec remains authoritative.
-  const suppliedPassword =
-    typeof initialPassword === "string"
-      ? initialPassword
-      : typeof req.body?.password === "string"
-        ? req.body.password
-        : undefined;
+  // api-spec §5 canonical field is `initialPassword` only (admin-supplied,
+  // never generated, never emailed). No `password` alias exists.
+  const suppliedPassword = initialPassword;
   if (typeof suppliedPassword !== "string" || suppliedPassword === "") {
     fields.initialPassword = "Initial password is required.";
   } else if (!meetsPasswordPolicy(suppliedPassword)) {
@@ -182,9 +229,7 @@ export async function createUser(req: Request, res: Response) {
       select: { id: true },
     });
     if (existing) {
-      return conflict(res, "A user with this email already exists.", {
-        email: "A user with this email already exists.",
-      });
+      return duplicateEmailConflict(res);
     }
 
     const created = (await prisma.user.create({
@@ -201,6 +246,11 @@ export async function createUser(req: Request, res: Response) {
 
     return res.status(201).json({ data: toSafeAdminUser(created) });
   } catch (error) {
+    // Concurrent creates with the same email can both pass the pre-check;
+    // the unique constraint is authoritative → 409, not 500.
+    if (isUniqueViolation(error)) {
+      return duplicateEmailConflict(res);
+    }
     console.error("Failed to create user", error);
     return res.status(500).json({
       error: {
@@ -285,7 +335,9 @@ export async function updateUser(req: Request, res: Response) {
       });
     }
 
-    // Duplicate email (case-insensitive, BR-18) on edit.
+    // Duplicate email (case-insensitive, BR-18) on edit — fast-path
+    // pre-check. The unique constraint remains authoritative; a concurrent
+    // edit that slips past this check surfaces as P2002 → 409 below.
     let normalizedEmail: string | undefined;
     if (hasEmail) {
       normalizedEmail = normalizeEmail(body.email as string);
@@ -295,32 +347,24 @@ export async function updateUser(req: Request, res: Response) {
           select: { id: true },
         });
         if (clash && (clash as { id: number }).id !== targetId) {
-          return conflict(res, "A user with this email already exists.", {
-            email: "A user with this email already exists.",
-          });
+          return duplicateEmailConflict(res);
         }
       }
     }
 
-    // BR-21 last-active-Administrator guard: runs before every update that
-    // could reduce the active-admin count to zero, including role changes
-    // away from ADMINISTRATOR.
     const nextRole = hasRole ? (body.role as string) : current.role;
     const nextActive = hasActive ? (body.isActive as boolean) : current.isActive;
     const wasActiveAdmin = current.role === "ADMINISTRATOR" && current.isActive;
     const willBeActiveAdmin = nextRole === "ADMINISTRATOR" && nextActive;
-    if (wasActiveAdmin && !willBeActiveAdmin) {
-      const remaining = await countOtherActiveAdmins(prisma, targetId);
-      if (remaining === 0) {
-        return conflict(
-          res,
-          "At least one active Administrator must remain.",
-          {
-            role: "At least one active Administrator must remain.",
-          },
-        );
-      }
-    }
+    const losesAdminStanding = wasActiveAdmin && !willBeActiveAdmin;
+
+    // BR-11: the owner set is exactly { active IT_STAFF }. When the target
+    // stops being eligible (demoted away from IT_STAFF or deactivated),
+    // unassign their tickets in the same transaction so no ticket keeps
+    // pointing at a user who may no longer own tickets.
+    const wasEligibleOwner = current.role === "IT_STAFF" && current.isActive;
+    const willBeEligibleOwner = nextRole === "IT_STAFF" && nextActive;
+    const needsUnassign = wasEligibleOwner && !willBeEligibleOwner;
 
     const data: Record<string, unknown> = {};
     if (hasName) data.name = (body.name as string).trim();
@@ -335,14 +379,58 @@ export async function updateUser(req: Request, res: Response) {
     }
     if (hasActive) data.isActive = body.isActive as boolean;
 
-    const updated = (await prisma.user.update({
-      where: { id: targetId },
-      data,
-      select: ADMIN_SELECT,
-    })) as UserRow;
+    // BR-21 last-active-Administrator guard + user update + ticket unassign
+    // run atomically in a Serializable transaction so two concurrent
+    // deactivations/demotions cannot both sneak past the count check.
+    const updated = await runSerializableTransaction(prisma, async (tx) => {
+      if (losesAdminStanding) {
+        const remaining = await countOtherActiveAdmins(tx, targetId);
+        if (remaining === 0) {
+          throw new LastAdminError();
+        }
+      }
+
+      const row = (await tx.user.update({
+        where: { id: targetId },
+        data,
+        select: ADMIN_SELECT,
+      })) as UserRow;
+
+      if (needsUnassign) {
+        const ticketDelegate = (tx as unknown as Record<string, unknown>)
+          .ticket as
+          | { updateMany?: (args: unknown) => Promise<unknown> }
+          | undefined;
+        if (ticketDelegate?.updateMany) {
+          await ticketDelegate.updateMany({
+            where: { ticketOwnerId: targetId },
+            data: { ticketOwnerId: null },
+          });
+        }
+      }
+
+      return row;
+    });
 
     return res.status(200).json({ data: toSafeAdminUser(updated) });
   } catch (error) {
+    if (error instanceof LastAdminError) {
+      return conflict(res, error.message, {
+        role: "At least one active Administrator must remain.",
+      });
+    }
+    // Concurrent edits to the same email → unique constraint → 409.
+    if (isUniqueViolation(error)) {
+      return duplicateEmailConflict(res);
+    }
+    // A serialization conflict means a concurrent admin-membership change
+    // raced us; fail closed as a 409 rather than silently removing the last
+    // administrator or returning a bare 500.
+    if (isSerializationFailure(error)) {
+      return conflict(res, "At least one active Administrator must remain.", {
+        role: "At least one active Administrator must remain.",
+      });
+    }
     console.error("Failed to update user", error);
     return res.status(500).json({
       error: {
@@ -354,24 +442,16 @@ export async function updateUser(req: Request, res: Response) {
 }
 
 /**
- * POST /api/admin/users/:id/initial-password (canonical) and
- * POST /api/admin/users/:id/reset-password (prompt-compat alias).
+ * POST /api/admin/users/:id/initial-password (api-spec §5 canonical).
  * Admin override — no old password required. Forces mustChangePassword=true
  * (BR-19) and rotates the target's sessions so a holder of the previous
- * password loses access.
+ * password loses access. The body field is `initialPassword` only.
  */
 export async function setInitialPassword(req: Request, res: Response) {
   const targetId = parseUserId(req);
   if (!targetId) return userNotFound(res);
 
-  const supplied =
-    typeof req.body?.initialPassword === "string"
-      ? req.body.initialPassword
-      : typeof req.body?.password === "string"
-        ? req.body.password
-        : typeof req.body?.newPassword === "string"
-          ? req.body.newPassword
-          : undefined;
+  const supplied = req.body?.initialPassword;
 
   if (typeof supplied !== "string" || supplied === "") {
     return validationError(res, "Please correct the invalid fields.", {

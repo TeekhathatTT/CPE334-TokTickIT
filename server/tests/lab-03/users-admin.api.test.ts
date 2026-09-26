@@ -392,7 +392,7 @@ describe("PATCH /api/admin/users/:id edit (AC-10, API-13)", () => {
 });
 
 describe("POST initial-password reset (AC-14, API-15)", () => {
-  it("sets mustChangePassword=true and the new password verifies (canonical + alias)", async () => {
+  it("sets mustChangePassword=true and the new password verifies (canonical path only)", async () => {
     const target = {
       id: 11,
       name: "Jennifer Anderson",
@@ -425,18 +425,28 @@ describe("POST initial-password reset (AC-14, API-15)", () => {
     });
     mockPrisma({ user: mock });
 
-    for (const path of ["/api/admin/users/11/initial-password", "/api/admin/users/11/reset-password"]) {
-      const response = await request(app)
-        .post(path)
-        .set("Cookie", adminCookie())
-        .send({ initialPassword: NEW_PASSWORD });
+    const response = await request(app)
+      .post("/api/admin/users/11/initial-password")
+      .set("Cookie", adminCookie())
+      .send({ initialPassword: NEW_PASSWORD });
 
-      expect(response.status).toBe(200);
-      expect(response.body.data.mustChangePassword).toBe(true);
-      expect(JSON.stringify(response.body)).not.toContain("passwordHash");
-    }
+    expect(response.status).toBe(200);
+    expect(response.body.data.mustChangePassword).toBe(true);
+    expect(JSON.stringify(response.body)).not.toContain("passwordHash");
     expect(verifyPassword(NEW_PASSWORD, writtenHash)).toBe(true);
     expect(verifyPassword("Oldpass123!", writtenHash)).toBe(false);
+  });
+
+  it("has no reset-password alias (api-spec §5: no advanced recovery endpoint)", async () => {
+    const byId = new Map<number, unknown>([[adminUser.id, adminUser]]);
+    mockPrisma({ user: userMock(byId) });
+
+    const response = await request(app)
+      .post("/api/admin/users/11/reset-password")
+      .set("Cookie", adminCookie())
+      .send({ initialPassword: NEW_PASSWORD });
+
+    expect(response.status).toBe(404);
   });
 
   it("new password logs in but normal routes stay gated until change (AC-14)", async () => {
@@ -526,15 +536,19 @@ describe("admin authorization (FR-04)", () => {
             .send({ initialPassword: NEW_PASSWORD })
         ).status,
       ).toBe(403);
-      expect(
-        (
-          await request(app)
-            .post("/api/admin/users/11/reset-password")
-            .set("Cookie", cookie)
-            .send({ initialPassword: NEW_PASSWORD })
-        ).status,
-      ).toBe(403);
     }
+  });
+
+  it("returns 404 for the removed reset-password alias", async () => {
+    const byId = new Map<number, unknown>([[adminUser.id, adminUser]]);
+    mockPrisma({ user: userMock(byId) });
+
+    const response = await request(app)
+      .post("/api/admin/users/11/reset-password")
+      .set("Cookie", adminCookie())
+      .send({ initialPassword: NEW_PASSWORD });
+
+    expect(response.status).toBe(404);
   });
 
   it("returns 401 without a session", async () => {

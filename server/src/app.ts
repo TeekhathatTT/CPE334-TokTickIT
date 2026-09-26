@@ -329,9 +329,9 @@ app.post(
 
 // Administrator user management (api-spec.md §5, FR-10/FR-11/FR-12).
 // Minimalist scope only: list/search/role-filter, create, edit, activation,
-// and initial-password reset. No delete, bulk, import/export, or history
-// endpoint exists (BR-22/BR-27). The router carries the canonical
-// `initial-password` path plus the prompt-compat `reset-password` alias.
+// and initial-password reset. No delete, bulk, import/export, history, or
+// recovery endpoint exists (BR-22/BR-27). The router carries the canonical
+// `initial-password` path only.
 app.use("/api/admin/users", authorize(["ADMINISTRATOR"]), usersRouter);
 
 export default app;
