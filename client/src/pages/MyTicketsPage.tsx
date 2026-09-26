@@ -3,7 +3,6 @@ import { getCategories, getTickets, type TicketListMeta, type TicketListRow } fr
 import type { Category } from "../types/ticket";
 
 interface MyTicketsPageProps {
-  requesterId: number;
   onCreateTicket?: () => void;
   onSelectTicket?: (ticketId: number) => void;
 }
@@ -11,7 +10,7 @@ interface MyTicketsPageProps {
 const formatDate = (value: string) => new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 const badge = (value: string | null | undefined) => <span className={`badge badge--${(value ?? "none").toLowerCase()}`}>{value?.replaceAll("_", " ") ?? "None"}</span>;
 
-export default function MyTicketsPage({ requesterId, onCreateTicket, onSelectTicket }: MyTicketsPageProps) {
+export default function MyTicketsPage({ onCreateTicket, onSelectTicket }: MyTicketsPageProps) {
   const [rows, setRows] = useState<TicketListRow[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [meta, setMeta] = useState<TicketListMeta>({ page: 1, pageSize: 10, totalItems: 0, totalPages: 1, isEmpty: false, isNoResults: false });
@@ -36,7 +35,9 @@ export default function MyTicketsPage({ requesterId, onCreateTicket, onSelectTic
       setLoading(true);
       setError(null);
       try {
-        const result = await getTickets(requesterId, { search, category, requestedPriority, itPriority, status, sort, order, page, pageSize });
+        // BR-03: ownership comes from the authenticated session — no
+        // requesterId is passed (a forged value would be ignored anyway).
+        const result = await getTickets({ search, category, requestedPriority, itPriority, status, sort, order, page, pageSize });
         if (!active) return;
         setRows(result.data);
         setMeta(result.meta);
@@ -53,7 +54,7 @@ export default function MyTicketsPage({ requesterId, onCreateTicket, onSelectTic
 
     void loadTickets();
     return () => { active = false; };
-  }, [requesterId, search, category, requestedPriority, itPriority, status, sort, order, page, pageSize, retryToken]);
+  }, [search, category, requestedPriority, itPriority, status, sort, order, page, pageSize, retryToken]);
 
   useEffect(() => { void getCategories().then(setCategories).catch(() => undefined); }, []);
   const clearFilters = () => { setSearch(""); setCategory(""); setRequestedPriority(""); setItPriority(""); setStatus(""); setPage(1); };

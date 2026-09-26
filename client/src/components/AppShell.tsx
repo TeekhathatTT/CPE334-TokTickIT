@@ -1,25 +1,42 @@
 import { useState, type ReactNode } from "react";
+import type { CurrentUser } from "../api";
+
+export type RequesterNavKey = "my-tickets" | "create-ticket";
 
 interface AppShellProps {
   children: ReactNode;
-  activeNav?: "my-tickets" | "create-ticket";
-  selectedRequesterName?: string;
-  onNavigate?: (view: "my-tickets" | "create-ticket") => void;
-  onChangeRequester?: () => void;
+  user: CurrentUser;
+  activeNav?: RequesterNavKey;
+  onNavigate?: (view: RequesterNavKey) => void;
+  onLogout?: () => void;
 }
 
-export function AppShell({
-  children,
-  activeNav = "my-tickets",
-  selectedRequesterName = "Requester",
-  onNavigate,
-  onChangeRequester,
-}: AppShellProps) {
+function roleBadgeClass(role: CurrentUser["role"]): string {
+  if (role === "IT_STAFF") return "badge badge--role-staff";
+  if (role === "ADMINISTRATOR") return "badge badge--role-admin";
+  return "badge badge--role-requester";
+}
+
+function roleLabel(role: CurrentUser["role"]): string {
+  if (role === "IT_STAFF") return "IT Staff";
+  if (role === "ADMINISTRATOR") return "Administrator";
+  return "Requester";
+}
+
+export function AppShell({ children, user, activeNav = "my-tickets", onNavigate, onLogout }: AppShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const navItems: Array<{ key: "my-tickets" | "create-ticket"; label: string }> = [
-    { key: "my-tickets", label: "My Tickets" },
-    { key: "create-ticket", label: "Create Ticket" },
+
+  // Role navigation (ui-spec.md §2). Only the Requester items ship in this
+  // branch — the staff-workflow and admin branches add their own entries
+  // here behind role checks (extension point: keep this a role-driven list,
+  // never a hardcoded "Requester only" assumption elsewhere).
+  const navItems: Array<{ key: RequesterNavKey; label: string; roles: CurrentUser["role"][] }> = [
+    { key: "my-tickets", label: "My Tickets", roles: ["REQUESTER"] },
+    { key: "create-ticket", label: "Create Ticket", roles: ["REQUESTER"] },
+    // EXTENSION POINT (staff-workflow branch): { key: "ticket-queue", label: "Ticket Queue", roles: ["IT_STAFF"] }
+    // EXTENSION POINT (admin branch): { key: "user-management", label: "User Management", roles: ["ADMINISTRATOR"] }
   ];
+  const visibleNavItems = navItems.filter((item) => item.roles.includes(user.role));
 
   return (
     <div className="app-shell">
@@ -31,7 +48,7 @@ export function AppShell({
 
           <button type="button" className="menu-toggle" aria-label="Open navigation menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((current) => !current)}>☰</button>
           <nav className={`main-nav ${menuOpen ? "main-nav--open" : ""}`} aria-label="Main navigation">
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <button
                 key={item.key}
                 type="button"
@@ -43,10 +60,10 @@ export function AppShell({
             ))}
           </nav>
 
-          <div className={`profile-menu ${menuOpen ? "profile-menu--open" : ""}`} aria-label="Selected requester">
-            <span>{selectedRequesterName}</span>
-            <span aria-hidden="true">⌄</span>
-            <button type="button" className="tertiary-button" onClick={onChangeRequester}>Change Requester</button>
+          <div className={`profile-menu ${menuOpen ? "profile-menu--open" : ""}`} aria-label="Signed-in user">
+            <span>{user.name}</span>
+            <span className={roleBadgeClass(user.role)}>{roleLabel(user.role)}</span>
+            <button type="button" className="tertiary-button tertiary-button--light" onClick={onLogout}>Logout</button>
           </div>
         </div>
       </header>

@@ -1,5 +1,11 @@
-// Lab 3 scaffold stub — no business logic in this pass.
-// TODO(auth branch): current-user hook (id, name, email, role, flags).
-export function useCurrentUser() {
-  return null;
+import { useAuth } from "./useAuth";
+import type { CurrentUser } from "../api";
+
+/**
+ * Thin accessor for the authenticated identity (id, name, email, role,
+ * mustChangePassword). Requester screens source the "current requester"
+ * from here — never from selector state or local storage (BR-03).
+ */
+export function useCurrentUser(): CurrentUser | null {
+  return useAuth().user;
 }

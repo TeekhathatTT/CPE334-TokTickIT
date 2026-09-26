@@ -361,6 +361,27 @@ button:disabled {
 .badge--waiting_for_requester, .badge--reopened { background: #fff1c7; color: #6c5200; }
 .badge--closed, .badge--cancelled { background: #e8ebe9; color: #536159; }
 .badge--pending, .badge--none { background: #e8ebe9; color: #536159; }
+/* Lab 3 role badges (ui-spec.md §1): pill shape + text, never color alone. */
+.badge--role-requester { background: var(--color-pale-green); color: var(--color-secondary); }
+.badge--role-staff { background: #dceefa; color: var(--color-primary); }
+.badge--role-admin { background: var(--color-primary); color: #fff; }
+.tertiary-button--light { color: #fff; }
+/* Mandatory password-change live checklist (ui-spec.md §3): text + icon. */
+.password-checklist { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; font-size: 0.875rem; }
+.password-checklist__item { color: rgba(31, 42, 36, 0.75); }
+.password-checklist__item--met { color: var(--color-secondary); font-weight: 600; }
+.password-checklist__state { font-weight: 400; }
+/* Public Comments thread (ui-spec.md §4): visually distinct from attachments
+   and (in later branches) from Internal Notes. */
+.comment-panel { border: 1px solid var(--color-border); border-radius: 10px; background: white; padding: 16px; }
+.comment-list { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 12px; }
+.comment-card { border: 1px solid var(--color-border); border-left: 4px solid var(--color-secondary); border-radius: 8px; padding: 12px; background: var(--color-surface); }
+.comment-card__header { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+.comment-card__meta { color: rgba(31, 42, 36, 0.7); font-size: 0.8rem; }
+.comment-card__body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.comment-form { border-top: 1px solid var(--color-border-strong); padding-top: 16px; }
+.success-panel--inline { text-align: left; padding: 16px; }
+.success-panel--inline p { margin: 8px 0 0; }
 .destructive-button { min-height: 40px; border: 1px solid var(--color-error); border-radius: 8px; padding: 10px 14px; color: var(--color-error); background: #fff; font-weight: 600; }
 .muted-label { color: #66736c; font-style: italic; }
 .loading-state { min-height: 180px; display: grid; place-items: center; }

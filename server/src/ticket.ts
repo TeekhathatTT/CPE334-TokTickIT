@@ -1,38 +1,132 @@
 import type { Request, Response } from "express";
 import type { Prisma } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
+import {
+  ownedTicketFilter,
+  type RequesterSessionRow,
+} from "./middleware/authorize.middleware.js";
+import { normalizeEmail } from "./modules/auth/auth.service.js";
 
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH"] as const;
 
-function getRequesterId(req: Request): number | null {
-  const raw = req.header("x-requester-id");
-
-  if (!raw) {
+/**
+ * BR-03: the authenticated session identity determines Requester ownership.
+ * Client-supplied `x-requester-id` headers / `requesterId` body fields are
+ * never trusted (a forged value is ignored, never applied).
+ */
+async function loadRequesterSession(
+  req: Request,
+  res: Response,
+): Promise<RequesterSessionRow | null> {
+  if (!req.user) {
+    res.status(401).json({
+      error: {
+        code: "UNAUTHENTICATED",
+        message: "Authentication is required.",
+      },
+    });
     return null;
   }
 
-  const requesterId = Number(raw);
+  const prisma = getPrisma();
+  const user = (await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { id: true, name: true, isActive: true, legacyRequesterId: true, email: true },
+  })) as {
+    id: number;
+    name: string;
+    isActive: boolean;
+    legacyRequesterId: number | null;
+    email: string;
+  } | null;
 
-  if (!Number.isInteger(requesterId) || requesterId <= 0) {
+  if (!user || !user.isActive) {
+    res.status(401).json({
+      error: {
+        code: "UNAUTHENTICATED",
+        message: "Authentication is required.",
+      },
+    });
     return null;
   }
 
-  return requesterId;
+  return {
+    id: user.id,
+    name: user.name,
+    legacyRequesterId: user.legacyRequesterId,
+    email: user.email,
+  };
 }
 
-async function getActiveRequester(requesterId: number) {
+/**
+ * Resolve the legacy `Requester` row backing a session user so new tickets
+ * keep both the legacy `requesterId` provenance link and the new
+ * `requesterUserId` ownership trail (spec §8 reference strategy).
+ *
+ * Admin-created Requester users may have no `legacyRequesterId` and no
+ * matching `Requester` row yet. Instead of failing ticket creation with a
+ * silent 500, lazily provision the companion `Requester` row (keyed by
+ * normalized email) and link it back to `User.legacyRequesterId`, then
+ * return its id. Returns null only when the user has no usable email.
+ */
+async function ensureLegacyRequesterId(
+  user: RequesterSessionRow,
+  email: string,
+): Promise<number | null> {
+  if (user.legacyRequesterId) return user.legacyRequesterId;
   const prisma = getPrisma();
-
-  return prisma.requester.findFirst({
-    where: {
-      id: requesterId,
-      isActive: true,
-    },
-    select: {
-      id: true,
-      name: true,
-    },
+  const normalized = normalizeEmail(email);
+  if (!normalized) return null;
+  const existing = await prisma.requester.findUnique({
+    where: { email: normalized },
+    select: { id: true },
   });
+  if (existing) {
+    const foundId = (existing as { id: number }).id;
+    // Best-effort back-link so the next call hits the fast path. A failure
+    // here must not block ticket creation.
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { legacyRequesterId: foundId },
+      });
+      user.legacyRequesterId = foundId;
+    } catch {
+      // Ignore link failure — the resolved id is still usable.
+    }
+    return foundId;
+  }
+  try {
+    const created = (await prisma.requester.create({
+      data: {
+        name: (user.name ?? "").trim() || normalized,
+        email: normalized,
+      },
+      select: { id: true },
+    })) as { id: number };
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { legacyRequesterId: created.id },
+      });
+      user.legacyRequesterId = created.id;
+    } catch {
+      // Ignore link failure — the created row is still usable.
+    }
+    return created.id;
+  } catch (createError) {
+    // Race: another request created the same email row concurrently.
+    const isConflict =
+      createError instanceof Error && /unique|P2002/i.test(createError.message);
+    if (isConflict) {
+      const retry = await prisma.requester.findUnique({
+        where: { email: normalized },
+        select: { id: true },
+      });
+      if (retry) return (retry as { id: number }).id;
+    }
+    throw createError;
+  }
 }
 
 function validationError(
@@ -142,31 +236,19 @@ export async function createTicket(
   req: Request,
   res: Response,
 ) {
-  const requesterId = getRequesterId(req);
+  // BR-03: any client-supplied `requesterId` is ignored — ownership always
+  // comes from the authenticated session, so a forged value cannot leak or
+  // hijack another Requester's data.
+  const sessionUser = await loadRequesterSession(req, res);
 
-  if (!requesterId) {
-    return res.status(401).json({
-      error: {
-        code: "UNAUTHORIZED",
-        message: "Valid x-requester-id is required.",
-      },
-    });
+  if (!sessionUser) {
+    return;
   }
 
   let createdTicketId: number | null = null;
 
   try {
-    const requester = await getActiveRequester(requesterId);
-
-    if (!requester) {
-      return res.status(401).json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Valid x-requester-id is required.",
-        },
-      });
-    }
-
+    const prisma = getPrisma();
     const categoryId = parsePositiveInt(
       req.body.categoryId,
     );
@@ -233,8 +315,6 @@ export async function createTicket(
       );
     }
 
-    const prisma = getPrisma();
-
     const [category, relatedSystem] =
       await Promise.all([
         prisma.category.findFirst({
@@ -275,7 +355,34 @@ export async function createTicket(
      *
      * If Ticket creation itself fails, the catch block returns 500
      * and no Ticket is returned to the client.
+     *
+     * Both ownership columns are written (spec §8 reference strategy):
+     * `requesterId` keeps the legacy provenance link and `requesterUserId`
+     * records the new session-identity trail.
      */
+    const legacyRequesterId = await ensureLegacyRequesterId(
+      sessionUser,
+      sessionUser.email ?? "",
+    );
+
+    if (!legacyRequesterId) {
+      // No silent 500: the account genuinely has no Requester profile and no
+      // usable email to provision one from. Surface an explicit conflict so
+      // the caller (and the admin branch) knows a companion Requester row is
+      // required.
+      console.error(
+        "Ticket creation refused: no Requester profile linked to user",
+        sessionUser.id,
+      );
+      return res.status(409).json({
+        error: {
+          code: "REQUESTER_PROFILE_MISSING",
+          message:
+            "No Requester profile is linked to this account. Contact an administrator.",
+        },
+      });
+    }
+
     let ticket;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const ticketNumber = await generateTicketNumber();
@@ -283,7 +390,8 @@ export async function createTicket(
         ticket = await prisma.ticket.create({
           data: {
             ticketNumber,
-            requesterId: requester.id,
+            requesterId: legacyRequesterId,
+            requesterUserId: sessionUser.id,
             categoryId: category.id,
             relatedSystemId: relatedSystem.id,
             summary,
@@ -533,29 +641,16 @@ export async function getTickets(
   req: Request,
   res: Response,
 ) {
-  const requesterId = getRequesterId(req);
+  const sessionUser = await loadRequesterSession(req, res);
 
-  if (!requesterId) {
-    return res.status(401).json({
-      error: {
-        code: "UNAUTHORIZED",
-        message: "Valid x-requester-id is required.",
-      },
-    });
+  if (!sessionUser) {
+    return;
   }
 
+  // BR-03/BR-09: only the session owner's tickets are ever queried.
+  const ownership = ownedTicketFilter(sessionUser);
+
   try {
-    const requester = await getActiveRequester(requesterId);
-
-    if (!requester) {
-      return res.status(401).json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Valid x-requester-id is required.",
-        },
-      });
-    }
-
     const search =
       typeof req.query.search === "string"
         ? req.query.search.trim()
@@ -641,7 +736,7 @@ export async function getTickets(
         : 10;
 
     const where = {
-      requesterId,
+      ...ownership,
       ...(categoryId ? { categoryId } : {}),
       ...(requestedPriority
         ? { requestedPriority }
@@ -676,7 +771,7 @@ export async function getTickets(
 
     const totalAllTickets = await prisma.ticket.count({
       where: {
-        requesterId,
+        ...ownership,
       },
     });
 
@@ -754,16 +849,11 @@ export async function getTicket(
   req: Request,
   res: Response,
 ) {
-  const requesterId = getRequesterId(req);
+  const sessionUser = await loadRequesterSession(req, res);
   const ticketId = parsePositiveInt(req.params.id);
 
-  if (!requesterId) {
-    return res.status(401).json({
-      error: {
-        code: "UNAUTHORIZED",
-        message: "Valid x-requester-id is required.",
-      },
-    });
+  if (!sessionUser) {
+    return;
   }
 
   if (!ticketId) {
@@ -776,23 +866,14 @@ export async function getTicket(
   }
 
   try {
-    const requester = await getActiveRequester(requesterId);
-
-    if (!requester) {
-      return res.status(401).json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Valid x-requester-id is required.",
-        },
-      });
-    }
-
     const prisma = getPrisma();
 
+    // BR-09: the ownership predicate is part of the lookup, so another
+    // Requester's ticket yields the same 404 as a missing ticket.
     const ticket = await prisma.ticket.findFirst({
       where: {
         id: ticketId,
-        requesterId,
+        ...ownedTicketFilter(sessionUser),
       },
       include: {
         requester: {
