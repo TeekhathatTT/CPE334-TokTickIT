@@ -174,6 +174,17 @@ export function destroySession(token: string | null | undefined): void {
   if (token) sessions.delete(token);
 }
 
+/**
+ * Invalidate every session belonging to a user. Used on password change so
+ * a holder of a previous (e.g. temporary) password loses access on all
+ * devices — rotating only the current session would leave the others valid.
+ */
+export function destroySessionsForUser(userId: number): void {
+  for (const [token, record] of sessions) {
+    if (record.userId === userId) sessions.delete(token);
+  }
+}
+
 /** Local-lab/test helper: drop every session (e.g. between isolated tests). */
 export function clearAllSessions(): void {
   sessions.clear();

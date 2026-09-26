@@ -95,6 +95,7 @@ export function requireFreshPassword(
 export interface RequesterSessionRow {
   id: number;
   legacyRequesterId: number | null;
+  name?: string;
   email?: string;
 }
 

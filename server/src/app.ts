@@ -1,4 +1,4 @@
-import express, { Request, Response } from "express";
+import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import multer from "multer";
 import { getPrisma } from "./prisma.js";
@@ -41,6 +41,71 @@ app.use(
   }),
 );
 app.use(express.json());
+
+// Origin/CSRF guard (api-spec.md §0 + §7): cookie auth alone is not enough.
+// CORS never blocks cross-origin form POSTs and SameSite=Lax treats
+// localhost on different ports as same-site, so state-changing requests
+// (POST/PUT/PATCH/DELETE) must carry an Origin (or Referer fallback)
+// matching the configured CLIENT_URL origin. Requests without any
+// Origin/Referer (non-browser clients such as supertest/curl) are allowed
+// through — there is no browser CSRF vector to block there.
+const ALLOWED_ORIGIN = (() => {
+  const raw = process.env.CLIENT_URL ?? "http://localhost:5173";
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return raw;
+  }
+})();
+
+function csrfOriginGuard(req: Request, res: Response, next: NextFunction): void {
+  if (
+    req.method !== "POST" &&
+    req.method !== "PUT" &&
+    req.method !== "PATCH" &&
+    req.method !== "DELETE"
+  ) {
+    next();
+    return;
+  }
+
+  const origin = req.headers.origin ?? null;
+  const referer = req.headers.referer ?? null;
+  const candidate = origin ?? referer ?? null;
+
+  // No Origin/Referer: non-browser client (tests, curl) — nothing to check.
+  if (!candidate) {
+    next();
+    return;
+  }
+
+  let candidateOrigin: string;
+  try {
+    candidateOrigin = new URL(candidate).origin;
+  } catch {
+    res.status(403).json({
+      error: {
+        code: "FORBIDDEN",
+        message: "Cross-origin request was rejected.",
+      },
+    });
+    return;
+  }
+
+  if (candidateOrigin !== ALLOWED_ORIGIN) {
+    res.status(403).json({
+      error: {
+        code: "FORBIDDEN",
+        message: "Cross-origin request was rejected.",
+      },
+    });
+    return;
+  }
+
+  next();
+}
+
+app.use(csrfOriginGuard);
 
 /*
  * Do not use multer fileSize/files limits here.

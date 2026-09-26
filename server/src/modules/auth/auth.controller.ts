@@ -11,6 +11,7 @@ import {
   buildSetSessionCookie,
   createSession,
   destroySession,
+  destroySessionsForUser,
   hashPassword,
   meetsPasswordPolicy,
   normalizeEmail,
@@ -279,8 +280,10 @@ export async function changePassword(req: Request, res: Response) {
       mustChangePassword: boolean;
     };
 
-    // Rotate the session so a captured pre-change token cannot be reused.
-    destroySession(req.sessionToken);
+    // Rotate ALL sessions: the current token is replaced below, and every
+    // other session for this user is invalidated so a holder of the previous
+    // (e.g. temporary) password cannot keep using the account.
+    destroySessionsForUser(record.id);
     const token = createSession(updated.id);
     res.setHeader("Set-Cookie", buildSetSessionCookie(token));
     return res.status(200).json({

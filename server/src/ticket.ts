@@ -31,9 +31,10 @@ async function loadRequesterSession(
   const prisma = getPrisma();
   const user = (await prisma.user.findUnique({
     where: { id: req.user.id },
-    select: { id: true, isActive: true, legacyRequesterId: true, email: true },
+    select: { id: true, name: true, isActive: true, legacyRequesterId: true, email: true },
   })) as {
     id: number;
+    name: string;
     isActive: boolean;
     legacyRequesterId: number | null;
     email: string;
@@ -51,6 +52,7 @@ async function loadRequesterSession(
 
   return {
     id: user.id,
+    name: user.name,
     legacyRequesterId: user.legacyRequesterId,
     email: user.email,
   };
@@ -60,18 +62,71 @@ async function loadRequesterSession(
  * Resolve the legacy `Requester` row backing a session user so new tickets
  * keep both the legacy `requesterId` provenance link and the new
  * `requesterUserId` ownership trail (spec §8 reference strategy).
+ *
+ * Admin-created Requester users may have no `legacyRequesterId` and no
+ * matching `Requester` row yet. Instead of failing ticket creation with a
+ * silent 500, lazily provision the companion `Requester` row (keyed by
+ * normalized email) and link it back to `User.legacyRequesterId`, then
+ * return its id. Returns null only when the user has no usable email.
  */
-async function resolveLegacyRequesterId(
+async function ensureLegacyRequesterId(
   user: RequesterSessionRow,
   email: string,
 ): Promise<number | null> {
   if (user.legacyRequesterId) return user.legacyRequesterId;
   const prisma = getPrisma();
-  const requester = await prisma.requester.findUnique({
-    where: { email: normalizeEmail(email) },
+  const normalized = normalizeEmail(email);
+  if (!normalized) return null;
+  const existing = await prisma.requester.findUnique({
+    where: { email: normalized },
     select: { id: true },
   });
-  return requester ? (requester as { id: number }).id : null;
+  if (existing) {
+    const foundId = (existing as { id: number }).id;
+    // Best-effort back-link so the next call hits the fast path. A failure
+    // here must not block ticket creation.
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { legacyRequesterId: foundId },
+      });
+      user.legacyRequesterId = foundId;
+    } catch {
+      // Ignore link failure — the resolved id is still usable.
+    }
+    return foundId;
+  }
+  try {
+    const created = (await prisma.requester.create({
+      data: {
+        name: (user.name ?? "").trim() || normalized,
+        email: normalized,
+      },
+      select: { id: true },
+    })) as { id: number };
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { legacyRequesterId: created.id },
+      });
+      user.legacyRequesterId = created.id;
+    } catch {
+      // Ignore link failure — the created row is still usable.
+    }
+    return created.id;
+  } catch (createError) {
+    // Race: another request created the same email row concurrently.
+    const isConflict =
+      createError instanceof Error && /unique|P2002/i.test(createError.message);
+    if (isConflict) {
+      const retry = await prisma.requester.findUnique({
+        where: { email: normalized },
+        select: { id: true },
+      });
+      if (retry) return (retry as { id: number }).id;
+    }
+    throw createError;
+  }
 }
 
 function validationError(
@@ -305,20 +360,25 @@ export async function createTicket(
      * `requesterId` keeps the legacy provenance link and `requesterUserId`
      * records the new session-identity trail.
      */
-    const legacyRequesterId = await resolveLegacyRequesterId(
+    const legacyRequesterId = await ensureLegacyRequesterId(
       sessionUser,
       sessionUser.email ?? "",
     );
 
     if (!legacyRequesterId) {
+      // No silent 500: the account genuinely has no Requester profile and no
+      // usable email to provision one from. Surface an explicit conflict so
+      // the caller (and the admin branch) knows a companion Requester row is
+      // required.
       console.error(
         "Ticket creation refused: no Requester profile linked to user",
         sessionUser.id,
       );
-      return res.status(500).json({
+      return res.status(409).json({
         error: {
-          code: "INTERNAL_ERROR",
-          message: "Unable to create ticket",
+          code: "REQUESTER_PROFILE_MISSING",
+          message:
+            "No Requester profile is linked to this account. Contact an administrator.",
         },
       });
     }
