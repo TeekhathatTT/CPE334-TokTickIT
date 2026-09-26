@@ -7,7 +7,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function row(id: number, overrides: Record<string, unknown> = {}) {
+function row(id: number, overrides: Partial<api.StaffQueueRow> = {}): api.StaffQueueRow {
   return {
     id,
     ticketNumber: `TKT-2026-${String(id).padStart(6, "0")}`,

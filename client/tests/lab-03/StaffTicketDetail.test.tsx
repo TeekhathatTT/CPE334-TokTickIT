@@ -7,7 +7,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function detail(overrides: Record<string, unknown> = {}) {
+function detail(overrides: Partial<api.StaffTicketDetail> = {}): api.StaffTicketDetail {
   return {
     id: 101,
     ticketNumber: "TKT-2026-000101",
