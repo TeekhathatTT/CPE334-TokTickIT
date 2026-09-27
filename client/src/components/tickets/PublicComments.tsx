@@ -4,6 +4,22 @@ import { ApiError, getComments, postComment, type PublicComment } from "../../ap
 const MAX_LENGTH = 2000;
 
 /**
+ * Avatar initials for the comment header (reference mockup): decorative
+ * duplicate of the adjacent author name, hence `aria-hidden` so accessible
+ * names and text queries are unaffected. Green for requesters, blue staff.
+ */
+function avatarFor(author: { name: string; role: string }) {
+  const parts = author.name.trim().split(/\s+/);
+  const text = `${parts[0]?.[0] ?? ""}${parts[1]?.[0] ?? ""}`.toUpperCase();
+  const staff = author.role === "IT_STAFF" || author.role === "ADMINISTRATOR";
+  return (
+    <span aria-hidden="true" className={staff ? "avatar staff" : "avatar"}>
+      {text}
+    </span>
+  );
+}
+
+/**
  * Requester-visible Public Comments thread (ui-spec.md §4, FR-06/FR-09):
  * append-only list plus a post form with blank/length validation. Internal
  * Notes are a separate staff-only surface and are never rendered here.
@@ -92,7 +108,10 @@ export function PublicComments({ ticketId }: { ticketId: number }) {
             {comments.map((comment) => (
               <li key={comment.id} className="comment-card">
                 <div className="comment-card__header">
-                  <strong>{comment.author.name}</strong>
+                  <span className="comment-card__author">
+                    {avatarFor(comment.author)}
+                    <strong>{comment.author.name}</strong>
+                  </span>
                   <span className="comment-card__meta">
                     {comment.author.role.replaceAll("_", " ")} ·{" "}
                     {new Date(comment.createdAt).toLocaleString("en-GB", {

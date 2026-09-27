@@ -171,15 +171,45 @@ Every FR-01–FR-14 has ≥1 covering AC; every AC-01–AC-23 traces back to ≥
 
 ## 11. Definition of Done
 
-- [ ] FR-01–FR-14 and BR-01–BR-28 are implemented and server-enforced.
+(Note: the integration brief calls this “§10”; in this document the DoD is
+§11 — §10 is Acceptance Criteria. Numbering left intact to avoid breaking
+cross-references.)
+
+Verified on `feature/lab3-e2e-integration` (2026-09-27, incl. the UI-alignment
+pass). “Met” means passing evidence exists; “Partial” names exactly what is
+left.
+
+- [x] FR-01–FR-14 and BR-01–BR-28 are implemented and server-enforced.
+  → `server/tests/lab-03/*`, 124/124 pass (`docs/lab-03/tests.md` §5.1).
 - [ ] All AC-01–AC-23 map to planned tests and have passing evidence before product completion.
-- [ ] Authentication secrets and password hashes are absent from frontend responses and source control.
-- [ ] Prisma migration preserves existing records and ownership; idempotent seed counts meet Section 8.
-- [ ] API responses and safe errors match `api-spec.md`.
-- [ ] All required screens match `ui-spec.md` at desktop, tablet, and mobile widths.
-- [ ] No Development Requester selector or Change Requester action remains.
+  → **Partial:** every AC maps to tests and all API/UI evidence passes, but
+  the E2E rows (E2E-01–E2E-04, RESP-01, A11Y-01) are implemented yet
+  `Not run*` — no database in this environment (`docs/lab-03/tests.md` §5.2).
+  Rerun `npm run test:e2e` with Postgres before the final merge to `main`.
+- [x] Authentication secrets and password hashes are absent from frontend responses and source control.
+  → safe `toSafeAdminUser`/`CurrentUser` shapes; `auth`/`users-admin` API
+  tests assert no hash leakage; seed holds only the documented local-dev
+  fake password (`server/prisma/seed.mjs` header).
+- [x] Prisma migration preserves existing records and ownership; idempotent seed counts meet Section 8.
+  → REG-01 Pass; append-only migrations + idempotent seed (5+4+1 users,
+  8-status tickets).
+- [x] API responses and safe errors match `api-spec.md`.
+  → API-01–API-15, AUTHZ-01/02, SEC-01 all Pass.
+- [x] All required screens match `ui-spec.md` at desktop, tablet, and mobile widths.
+  → 20 screenshots in `artifacts/lab-03/screenshots/` (re-captured after the
+  mockup alignment) + pass-per-breakpoint `docs/lab-03/visual-checklist.md`
+  (incl. the tablet table→cards fix); tokens extracted to
+  `client/src/styles/zen-green-tokens.css` from
+  `docs/lab-03/ui-reference/toktickit-mockup.html`.
+- [x] No Development Requester selector or Change Requester action remains.
+  → no selector UI, no `x-requester-id` usage in `client/src` (only code
+  comments); UI-05 “no selector remnants” passes.
 - [ ] Accessibility, authorization, migration/regression, and E2E tests are automated and passing.
-- [ ] README/run instructions and visual evidence paths are updated by the later implementation branch.
+  → **Partial:** authorization/migration/a11y-component tests automated and
+  passing; E2E automated (23 tests) but awaiting a live run — same gap as above.
+- [x] README/run instructions and visual evidence paths are updated by the later implementation branch.
+  → `README.md` (migrate/seed/E2E/`E2E_SEED`/origin note); evidence paths in
+  `ui-spec.md` §11 populated with 20 PNGs.
 
 ## 12. Assumptions and Decisions
 

@@ -76,9 +76,6 @@ export function ChangePasswordPage() {
   return (
     <div className="selection-page">
       <div className="selection-card">
-        <div className="selection-card__icon" aria-hidden="true">
-          🔑
-        </div>
         <h1 className="selection-card__title">Change your password</h1>
         <p className="selection-card__subtitle">
           Your account requires a new password before you can continue.
