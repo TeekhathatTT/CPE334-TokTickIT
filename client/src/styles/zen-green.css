@@ -495,6 +495,17 @@ button:disabled {
   .ticket-grid--three {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  /* Lab 3 tablet: the 8–9 column tables cannot render readably at this width
+     (owner/last-updated columns clip against the card edge), so tablet uses
+     the same stacked cards as mobile. Desktop keeps the table. */
+  .ticket-table-wrap { display: none; }
+  .ticket-cards { display: grid; gap: 12px; }
+  .ticket-card { border: 1px solid var(--color-border); border-radius: 8px; padding: 12px; background: var(--color-surface); }
+  .ticket-card__header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .ticket-card__summary { margin: 12px 0; font-weight: 600; overflow-wrap: anywhere; }
+  .ticket-card__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; font-size: 0.8rem; color: rgba(31, 42, 36, 0.75); }
+  .ticket-card__grid strong { display: block; margin-top: 4px; color: var(--color-text); font-size: 0.9rem; overflow-wrap: anywhere; }
 }
 
 @media (max-width: 767px) {

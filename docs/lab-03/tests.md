@@ -6,39 +6,39 @@ This plan is written before Lab 3 implementation. Every row starts as `Planned`;
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
-| API-01 | API | AC-01 | Valid login | Authenticated response; safe user data | server/tests/lab-03/auth.api.test.ts | Planned |
-| API-08 | API | AC-04 | Requester requests Internal Notes | Forbidden; no note data returned | server/tests/lab-03/comments-notes.api.test.ts | Planned |
-| E2E-02 | E2E | AC-02 | Initial password login and change | Normal app opens only after valid change | client/e2e/lab-03/authentication.spec.ts | Planned |
-| API-02 | API | AC-01, AC-16 | Invalid credentials and inactive account | Same safe 401 response; no account enumeration | server/tests/lab-03/auth.api.test.ts | Planned |
-| API-03 | API | AC-05 | Logout | Session invalidated; protected call returns 401 | server/tests/lab-03/auth.api.test.ts | Planned |
-| API-04 | API | AC-17 | Password boundaries | Rules enforced at minimum and invalid values rejected | server/tests/lab-03/auth.api.test.ts | Planned |
-| AUTHZ-01 | Security/API | AC-03, AC-15 | Client requesterId tampering | Session identity controls ownership; other data returns 404 | server/tests/lab-03/authorization.api.test.ts | Planned |
-| AUTHZ-02 | Security/API | AC-04, AC-09 | Direct role authorization | Requester cannot read notes; permitted roles can | server/tests/lab-03/authorization.api.test.ts | Planned |
-| API-05 | API | AC-06 | Staff queue queries | Search, filters, sort, pagination, counts, invalid query | server/tests/lab-03/staff-queue.api.test.ts | Planned |
-| API-06 | API | AC-07 | Claim/reassign | Only active IT Staff owner accepted | server/tests/lab-03/staff-ticket-detail.api.test.ts | Planned |
-| API-07 | API | AC-08, AC-19 | Priority/status transitions | Allowed transitions succeed; invalid transitions conflict | server/tests/lab-03/staff-ticket-detail.api.test.ts | Planned |
-| API-09 | API | AC-09 | Comment/note append-only | Valid content records backend author/time; blank/edit/delete rejected | server/tests/lab-03/comments-notes.api.test.ts | Planned |
-| API-10 | API | AC-18 | Problem Appears Resolved | Own Requester can signal; no formal Resolved/Closed transition | server/tests/lab-03/comments-notes.api.test.ts | Planned |
-| API-11 | API | AC-10 | Administrator user listing/search/filter | Safe fields only; non-admin forbidden | server/tests/lab-03/users-admin.api.test.ts | Planned |
-| API-12 | API | AC-11 | User creation and duplicate email | One role accepted; normalized duplicate returns 409 | server/tests/lab-03/users-admin.api.test.ts | Planned |
-| API-13 | API | AC-10 | User edit and activation | Name/email/role/status updates persist | server/tests/lab-03/users-admin.api.test.ts | Planned |
-| API-14 | API | AC-12, AC-13 | Administrator safety | Self-deactivation and last-admin removal return 409 | server/tests/lab-03/users-admin.api.test.ts | Planned |
-| API-15 | API | AC-14 | Reset initial password | Hash changes and must-change flag is true | server/tests/lab-03/users-admin.api.test.ts | Planned |
-| UI-01 | UI component | AC-01, AC-02, AC-17 | Login/password screens | Validation, busy state, checklist, safe failure | client/tests/lab-03/Login.test.tsx; client/tests/lab-03/ChangePassword.test.tsx | Planned |
-| UI-02 | UI component | AC-06 | Staff queue | Controls, loading, empty/no-results, responsive representation | client/tests/lab-03/StaffTicketQueue.test.tsx | Planned |
-| UI-03 | UI component | AC-07, AC-08, AC-09 | Staff detail | Role controls and distinct public/private panels | client/tests/lab-03/StaffTicketDetail.test.tsx | Planned |
-| UI-04 | UI component | AC-10, AC-11, AC-12, AC-13, AC-14 | User management | List/search/filter/create/edit/safety feedback | client/tests/lab-03/UserManagement.test.tsx | Planned |
-| UI-05 | UI style | AC-21, AC-22 | Zen Green and accessibility | Tokens, focus, labels, badge text, no selector remnants | client/tests/lab-03/Login.test.tsx; client/tests/lab-03/StaffTicketQueue.test.tsx; client/tests/lab-03/StaffTicketDetail.test.tsx; client/tests/lab-03/UserManagement.test.tsx | Planned |
-| UNIT-01 | Unit | AC-17 | Password hashing/verification in isolation | Same password verifies; wrong password fails; hashes differ per salt | server/tests/lab-03/auth.api.test.ts | Planned |
-| UNIT-02 | Unit | AC-19 | Status-transition validator in isolation | Allowed transitions pass; invalid transitions rejected without DB access | server/tests/lab-03/staff-ticket-detail.api.test.ts | Planned |
-| UNIT-03 | Unit | AC-23 | Authorization guard in isolation | Role/ownership predicate allows permitted roles and denies others | server/tests/lab-03/authorization.api.test.ts | Planned |
-| REG-01 | Migration/regression | AC-15, AC-20 | Lab 2 records and ownership | Existing Tickets/Attachments survive and map to Users correctly | server/tests/lab-03/authorization.api.test.ts; migration verification | Planned |
-| SEC-01 | Security/API | AC-23 | Safe failure matrix | 401/403/400/404/409/500 shapes and no protected leakage | server/tests/lab-03/authorization.api.test.ts | Planned |
-| E2E-01 | E2E | AC-15, AC-18 | Requester regression | Authenticated Requester creates/views/comment/signals own ticket | client/e2e/lab-03/authentication.spec.ts | Planned |
-| E2E-03 | E2E | AC-06, AC-07, AC-08, AC-09, AC-19 | Staff ticket flow | Queue to detail, assignment, priority/status, comments/notes | client/e2e/lab-03/staff-ticket-flow.spec.ts | Planned |
-| E2E-04 | E2E | AC-10, AC-11, AC-12, AC-13, AC-14 | User administration | Complete minimalist admin flow | client/e2e/lab-03/user-administration.spec.ts | Planned |
-| RESP-01 | Responsive | AC-22 | Desktop/tablet/mobile | No clipping, overlap, or unintended horizontal scroll | client/e2e/lab-03/staff-ticket-flow.spec.ts | Planned |
-| A11Y-01 | Accessibility | AC-22 | Keyboard and focus | All controls reachable; labels and focus states present | client/e2e/lab-03/authentication.spec.ts | Planned |
+| API-01 | API | AC-01 | Valid login | Authenticated response; safe user data | server/tests/lab-03/auth.api.test.ts | Pass |
+| API-08 | API | AC-04 | Requester requests Internal Notes | Forbidden; no note data returned | server/tests/lab-03/comments-notes.api.test.ts | Pass |
+| E2E-02 | E2E | AC-02 | Initial password login and change | Normal app opens only after valid change | client/e2e/lab-03/authentication.spec.ts | Not run* |
+| API-02 | API | AC-01, AC-16 | Invalid credentials and inactive account | Same safe 401 response; no account enumeration | server/tests/lab-03/auth.api.test.ts | Pass |
+| API-03 | API | AC-05 | Logout | Session invalidated; protected call returns 401 | server/tests/lab-03/auth.api.test.ts | Pass |
+| API-04 | API | AC-17 | Password boundaries | Rules enforced at minimum and invalid values rejected | server/tests/lab-03/auth.api.test.ts | Pass |
+| AUTHZ-01 | Security/API | AC-03, AC-15 | Client requesterId tampering | Session identity controls ownership; other data returns 404 | server/tests/lab-03/authorization.api.test.ts | Pass |
+| AUTHZ-02 | Security/API | AC-04, AC-09 | Direct role authorization | Requester cannot read notes; permitted roles can | server/tests/lab-03/authorization.api.test.ts | Pass |
+| API-05 | API | AC-06 | Staff queue queries | Search, filters, sort, pagination, counts, invalid query | server/tests/lab-03/staff-queue.api.test.ts | Pass |
+| API-06 | API | AC-07 | Claim/reassign | Only active IT Staff owner accepted | server/tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
+| API-07 | API | AC-08, AC-19 | Priority/status transitions | Allowed transitions succeed; invalid transitions conflict | server/tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
+| API-09 | API | AC-09 | Comment/note append-only | Valid content records backend author/time; blank/edit/delete rejected | server/tests/lab-03/comments-notes.api.test.ts | Pass |
+| API-10 | API | AC-18 | Problem Appears Resolved | Own Requester can signal; no formal Resolved/Closed transition | server/tests/lab-03/comments-notes.api.test.ts | Pass |
+| API-11 | API | AC-10 | Administrator user listing/search/filter | Safe fields only; non-admin forbidden | server/tests/lab-03/users-admin.api.test.ts | Pass |
+| API-12 | API | AC-11 | User creation and duplicate email | One role accepted; normalized duplicate returns 409 | server/tests/lab-03/users-admin.api.test.ts | Pass |
+| API-13 | API | AC-10 | User edit and activation | Name/email/role/status updates persist | server/tests/lab-03/users-admin.api.test.ts | Pass |
+| API-14 | API | AC-12, AC-13 | Administrator safety | Self-deactivation and last-admin removal return 409 | server/tests/lab-03/users-admin.api.test.ts | Pass |
+| API-15 | API | AC-14 | Reset initial password | Hash changes and must-change flag is true | server/tests/lab-03/users-admin.api.test.ts | Pass |
+| UI-01 | UI component | AC-01, AC-02, AC-17 | Login/password screens | Validation, busy state, checklist, safe failure | client/tests/lab-03/Login.test.tsx; client/tests/lab-03/ChangePassword.test.tsx | Pass |
+| UI-02 | UI component | AC-06 | Staff queue | Controls, loading, empty/no-results, responsive representation | client/tests/lab-03/StaffTicketQueue.test.tsx | Pass |
+| UI-03 | UI component | AC-07, AC-08, AC-09 | Staff detail | Role controls and distinct public/private panels | client/tests/lab-03/StaffTicketDetail.test.tsx | Pass |
+| UI-04 | UI component | AC-10, AC-11, AC-12, AC-13, AC-14 | User management | List/search/filter/create/edit/safety feedback | client/tests/lab-03/UserManagement.test.tsx | Pass |
+| UI-05 | UI style | AC-21, AC-22 | Zen Green and accessibility | Tokens, focus, labels, badge text, no selector remnants | client/tests/lab-03/Login.test.tsx; client/tests/lab-03/StaffTicketQueue.test.tsx; client/tests/lab-03/StaffTicketDetail.test.tsx; client/tests/lab-03/UserManagement.test.tsx | Pass |
+| UNIT-01 | Unit | AC-17 | Password hashing/verification in isolation | Same password verifies; wrong password fails; hashes differ per salt | server/tests/lab-03/auth.api.test.ts | Pass |
+| UNIT-02 | Unit | AC-19 | Status-transition validator in isolation | Allowed transitions pass; invalid transitions rejected without DB access | server/tests/lab-03/staff-ticket-detail.api.test.ts | Pass |
+| UNIT-03 | Unit | AC-23 | Authorization guard in isolation | Role/ownership predicate allows permitted roles and denies others | server/tests/lab-03/authorization.api.test.ts | Pass |
+| REG-01 | Migration/regression | AC-15, AC-20 | Lab 2 records and ownership | Existing Tickets/Attachments survive and map to Users correctly | server/tests/lab-03/authorization.api.test.ts; migration verification | Pass |
+| SEC-01 | Security/API | AC-23 | Safe failure matrix | 401/403/400/404/409/500 shapes and no protected leakage | server/tests/lab-03/authorization.api.test.ts | Pass |
+| E2E-01 | E2E | AC-15, AC-18 | Requester regression | Authenticated Requester creates/views/comment/signals own ticket | client/e2e/lab-03/authentication.spec.ts | Not run* |
+| E2E-03 | E2E | AC-06, AC-07, AC-08, AC-09, AC-19 | Staff ticket flow | Queue to detail, assignment, priority/status, comments/notes | client/e2e/lab-03/staff-ticket-flow.spec.ts | Not run* |
+| E2E-04 | E2E | AC-10, AC-11, AC-12, AC-13, AC-14 | User administration | Complete minimalist admin flow | client/e2e/lab-03/user-administration.spec.ts | Not run* |
+| RESP-01 | Responsive | AC-22 | Desktop/tablet/mobile | No clipping, overlap, or unintended horizontal scroll | client/e2e/lab-03/staff-ticket-flow.spec.ts | Not run* |
+| A11Y-01 | Accessibility | AC-22 | Keyboard and focus | All controls reachable; labels and focus states present | client/e2e/lab-03/authentication.spec.ts | Not run* |
 
 ## 2. Required file plan
 
@@ -107,3 +107,79 @@ These files already exist as empty stubs from scaffolding; no test logic is adde
 ## 4. Coverage checklist
 
 The plan covers valid/invalid login, inactive accounts, password boundaries, logout, role navigation, direct API authorization, Requester regression, ownership, queue queries, IT Priority, all eight statuses, Public Comments, Internal Notes, user administration, migration, responsive behavior, accessibility, and safe failures. All statuses and role decisions must be tested from the backend; frontend tests alone are insufficient.
+
+## 5. Final results (`feature/lab3-e2e-integration`, 2026-09-27)
+
+### 5.1 Unit / API / component (actually run — all pass)
+
+- Server: `npm run test` in `server/` → **11 files, 124 tests, all pass**
+  (Lab 1: health, categories; Lab 2: requesters, tickets, attachments;
+  Lab 3: auth, authorization, staff-queue, staff-ticket-detail,
+  comments-notes, users-admin). Covers API-01–API-15, AUTHZ-01/02,
+  UNIT-01/02/03, REG-01, SEC-01.
+- Client: `npm run test` in `client/` → **12 files, 61 tests, all pass**
+  (Lab 1/2 suites plus Lab 3 Login, ChangePassword, StaffTicketQueue,
+  StaffTicketDetail, UserManagement). Covers UI-01–UI-05.
+- No integration-only regressions: the merged `lab3-staging` content passes
+  every prior suite unchanged, so this branch contains no functional fixes
+  except the two documented E2E/visual items in §5.3.
+
+### 5.2 E2E (`Not run*` — implemented, not executed live here)
+
+23 Lab 3 E2E tests are implemented across the three planned files (plus the
+shared `client/e2e/lab-03/helpers.ts` and `client/e2e/global-setup.ts`):
+7 in `authentication.spec.ts` (E2E-01/E2E-02/A11Y-01), 7 in
+`staff-ticket-flow.spec.ts` (E2E-03/RESP-01), 9 in
+`user-administration.spec.ts` (E2E-04). Verified without a database by
+`npx tsc --noEmit` (clean) and `npx playwright test --list` (29 tests
+collected, including the 6 legacy Lab 2 E2E). They were **not executed**
+because this environment has no Postgres (no Docker; nothing on `5434`), and
+per the plan nothing is marked Pass without a run.
+
+To run them with a database:
+
+```powershell
+docker compose up -d db        # Postgres on 127.0.0.1:5434 (see server/.env)
+cd server; npm run prisma:migrate; cd ../client
+npm run test:e2e                # globalSetup reseeds automatically
+# E2E_SEED=0 npm run test:e2e   # skip reseed with hand-managed data
+```
+
+The specs require a freshly seeded database (all seed users on the local-dev
+initial password with `mustChangePassword=true`); `globalSetup` guarantees it
+unless `E2E_SEED=0`. Created rows use run-unique emails/content so reruns
+after a reseed never collide. Each spec file owns disjoint seed accounts
+(documented in `helpers.ts`) so parallel workers cannot steal each other's
+rotated passwords.
+
+### 5.3 Integration-branch changes (beyond E2E/docs/evidence)
+
+1. **`client/playwright.config.ts` — E2E `baseURL` `127.0.0.1` → `localhost`.**
+   The API CORS/CSRF contract allows exactly one web origin (`CLIENT_URL`,
+   default `http://localhost:5173`). Under the old `127.0.0.1` baseURL every
+   session/authenticated call failed CORS ("Failed to fetch", captured in a
+   screenshot during evidence collection). Test-harness alignment only; no
+   application behavior changed.
+2. **`client/src/styles/zen-green.css` — tablet table→cards.** Found via the
+   visual checklist: the 9-column staff queue clipped at 834px
+   (`overflow: hidden` with no fallback). At `≤991px` the list screens now
+   render the stacked cards; desktop tables are untouched. See
+   `docs/lab-03/visual-checklist.md`.
+
+### 5.4 Known gaps (flagged, not deleted)
+
+- E2E live execution is the remaining gap: rerun §5.2 with a database and
+  flip the `Not run*` rows to Pass/Fail on evidence before the final merge
+  to `main`.
+- The `Not run*` footnote: `*` = implemented + typechecked + collected, never
+  executed live in this environment.
+- `user-administration.spec.ts` documents why deactivating a *different* last
+  admin is unreachable by construction (any logged-in admin actor staying
+  active means the target is never last); the reachable BR-21 trigger
+  (self-demotion of the sole admin → `409 At least one active Administrator
+  must remain.`) is asserted in UI, and the race guard at API level is
+  covered by `users-admin.api.test.ts` (API-14, Pass).
+- The legacy `client/e2e/lab-02.spec.ts` (Development Requester selector) is
+  superseded by BR-03/BR-25 and no longer passes against authenticated Lab 3
+  code; it is intentionally untouched by this branch (E2E regression scope is
+  Lab 3 specs; Lab 1/2 unit/API/component suites all pass).

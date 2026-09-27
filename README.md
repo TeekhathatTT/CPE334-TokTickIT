@@ -50,9 +50,18 @@ npm test
 Run browser E2E and responsive checks (requires Docker Desktop/PostgreSQL and seeded data):
 
 ```
-cd client
+docker compose up -d db
+cd server
+npm run prisma:migrate
+npm run prisma:seed
+cd ../client
 npm run test:e2e
 ```
+
+Lab 3 E2E (`client/e2e/lab-03/`) reseeds automatically via Playwright
+`globalSetup` (set `E2E_SEED=0` to skip with hand-managed data) and requires
+the client origin `http://localhost:5173` to match the API CORS/CSRF contract
+(`CLIENT_URL`, see `client/playwright.config.ts`).
 
 Notes:
 - Do not commit `.env` or `node_modules`. The client uses `VITE_API_URL` from `client/.env.example`.
