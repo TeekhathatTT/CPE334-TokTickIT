@@ -89,51 +89,59 @@ export async function rotatePassword(page: Page, email: string, tag: string): Pr
   return next;
 }
 
-/** Same-origin GET returning only the HTTP status (session cookie included). */
-export function apiStatus(page: Page, path: string): Promise<number> {
-  return page.evaluate(async (target: string) => {
-    const response = await fetch(target, { headers: { Accept: "application/json" } });
-    return response.status;
-  }, path);
+/**
+ * Base URL of the API under test. The app itself calls the API through an
+ * absolute `VITE_API_URL` (there is no Vite dev proxy), so these helpers must
+ * do the same — a relative `fetch("/api/...")` would execute in the browser
+ * at the Vite origin (`:5173`) and answer 404 instead of reaching the API.
+ * Override with `VITE_API_URL=http://host:port npm run test:e2e` when the API
+ * does not run at the default.
+ */
+export const API_URL = process.env.VITE_API_URL ?? "http://localhost:3000";
+
+function apiUrl(path: string): string {
+  return `${API_URL}${path}`;
 }
 
-/** Same-origin GET returning `{ status, body }` as JSON. */
-export function apiGet<T>(page: Page, path: string): Promise<{ status: number; body: T }> {
-  return page.evaluate(async (target: string) => {
-    const response = await fetch(target, { headers: { Accept: "application/json" } });
-    let body: unknown = null;
-    try {
-      body = await response.json();
-    } catch {
-      body = null;
-    }
-    return { status: response.status, body: body as never };
-  }, path);
+async function readJson(response: { json(): Promise<unknown> }): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
 }
 
-/** Same-origin PATCH with a JSON body, returning `{ status, body }`. */
-export function apiPatch<B, T>(
+/**
+ * GET against the API returning only the HTTP status. Uses `page.request`,
+ * which shares the browser context's session cookie and runs from Node, so
+ * it is not subject to the browser's CORS policy.
+ */
+export async function apiStatus(page: Page, path: string): Promise<number> {
+  const response = await page.request.get(apiUrl(path), {
+    headers: { Accept: "application/json" },
+  });
+  return response.status();
+}
+
+/** GET against the API returning `{ status, body }` as JSON. */
+export async function apiGet<T>(page: Page, path: string): Promise<{ status: number; body: T }> {
+  const response = await page.request.get(apiUrl(path), {
+    headers: { Accept: "application/json" },
+  });
+  return { status: response.status(), body: (await readJson(response)) as T };
+}
+
+/** PATCH against the API with a JSON body, returning `{ status, body }`. */
+export async function apiPatch<B, T>(
   page: Page,
   path: string,
   payload: B,
 ): Promise<{ status: number; body: T }> {
-  return page.evaluate(
-    async ({ target, data }: { target: string; data: B }) => {
-      const response = await fetch(target, {
-        method: "PATCH",
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      let body: unknown = null;
-      try {
-        body = await response.json();
-      } catch {
-        body = null;
-      }
-      return { status: response.status, body: body as never };
-    },
-    { target: path, data: payload },
-  );
+  const response = await page.request.patch(apiUrl(path), {
+    headers: { Accept: "application/json" },
+    data: payload,
+  });
+  return { status: response.status(), body: (await readJson(response)) as T };
 }
 
 /** Asserts the page has no unintended horizontal overflow at its viewport. */
