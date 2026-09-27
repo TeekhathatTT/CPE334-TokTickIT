@@ -4,6 +4,21 @@ import { ApiError, getInternalNotes, postInternalNote, type InternalNote } from 
 const MAX_LENGTH = 2000;
 
 /**
+ * Avatar initials for the note header (reference mockup): decorative
+ * duplicate of the adjacent author name, hence `aria-hidden` so accessible
+ * names and text queries are unaffected. Notes are staff-only, always blue.
+ */
+function avatarFor(author: { name: string }) {
+  const parts = author.name.trim().split(/\s+/);
+  const text = `${parts[0]?.[0] ?? ""}${parts[1]?.[0] ?? ""}`.toUpperCase();
+  return (
+    <span aria-hidden="true" className="avatar staff">
+      {text}
+    </span>
+  );
+}
+
+/**
  * Staff-only Internal Notes thread (ui-spec.md §6, FR-09/BR-04/BR-14).
  * Deliberately visually distinct from PublicComments: amber-tinted panel,
  * lock icon, and "staff only" copy on every render so private text can
@@ -96,7 +111,10 @@ export function InternalNotes({ ticketId }: { ticketId: number }) {
             {notes.map((note) => (
               <li key={note.id} className="comment-card comment-card--internal">
                 <div className="comment-card__header">
-                  <strong>{note.author.name}</strong>
+                  <span className="comment-card__author">
+                    {avatarFor(note.author)}
+                    <strong>{note.author.name}</strong>
+                  </span>
                   <span className="comment-card__meta">
                     {note.author.role.replaceAll("_", " ")} ·{" "}
                     {new Date(note.createdAt).toLocaleString("en-GB", {

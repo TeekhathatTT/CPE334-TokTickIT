@@ -241,12 +241,14 @@ Approved by `Chessuker`, who then merged the PR into `lab3-staging`.
 
 ## 8. This Integration Branch (`feature/lab3-e2e-integration` → `lab3-staging`)
 
-**Status:** Pending — entry to be completed once the PR from Step 9 is
-reviewed. Maintainer: fill in reviewer identity, review date, at least one
-substantive comment, the author response, and the approval link here,
-following the format of §§3–7 above. The PR must show: full regression
-evidence (§5 of `tests.md`), the 20 screenshots, `visual-checklist.md`, and
-the live E2E run flipping the `Not run*` rows on evidence.
+**Status:** Pending — entry to be completed once the PR from Step 10 is
+reviewed (expected title: `Feature: Lab 3 UI alignment, E2E integration, and
+DoD verification`). Maintainer: fill in reviewer identity, review date, at
+least one substantive comment, the author response, and the approval link
+here, following the format of §§3–7 above. The PR must show: full regression
+evidence (§5 of `tests.md`), the UI-alignment token override list, the 20
+post-alignment screenshots, `visual-checklist.md`, and the live E2E run
+flipping the `Not run*` rows on evidence.
 
 ---
 

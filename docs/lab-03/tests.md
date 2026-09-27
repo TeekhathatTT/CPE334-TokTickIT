@@ -119,10 +119,13 @@ The plan covers valid/invalid login, inactive accounts, password boundaries, log
   UNIT-01/02/03, REG-01, SEC-01.
 - Client: `npm run test` in `client/` → **12 files, 61 tests, all pass**
   (Lab 1/2 suites plus Lab 3 Login, ChangePassword, StaffTicketQueue,
-  StaffTicketDetail, UserManagement). Covers UI-01–UI-05.
+  StaffTicketDetail, UserManagement). Covers UI-01–UI-05. Re-run **after**
+  the Step 1 UI alignment (tokens file, badge/token reconciliation, avatar
+  additions): still 61/61 — no test couples to classes or colors, and no
+  assertion about behavior was changed.
 - No integration-only regressions: the merged `lab3-staging` content passes
   every prior suite unchanged, so this branch contains no functional fixes
-  except the two documented E2E/visual items in §5.3.
+  except the documented E2E/visual items in §5.3.
 
 ### 5.2 E2E (`Not run*` — implemented, not executed live here)
 
@@ -152,15 +155,31 @@ after a reseed never collide. Each spec file owns disjoint seed accounts
 (documented in `helpers.ts`) so parallel workers cannot steal each other's
 rotated passwords.
 
+Re-verified after the Step 1 UI alignment: the alignment changed only CSS
+values (no class renames, no copy changes) plus `aria-hidden` avatar spans,
+so no E2E selector or text assertion is affected — `npx tsc --noEmit` is
+clean and `npx playwright test --list` still collects 29 tests. The
+screenshots in `artifacts/lab-03/screenshots/` were re-captured after the
+alignment (timestamps verified) and now show the aligned UI.
+
 ### 5.3 Integration-branch changes (beyond E2E/docs/evidence)
 
-1. **`client/playwright.config.ts` — E2E `baseURL` `127.0.0.1` → `localhost`.**
+1. **UI alignment to `docs/lab-03/ui-reference/toktickit-mockup.html`.**
+   New `client/src/styles/zen-green-tokens.css` (reference `:root`, `.b-*`
+   badges, avatar, tabs); `zen-green.css` reconciled to the reference values
+   (mockup wins — override list in the PR description); avatar-circle
+   initials added to comment/note headers (`aria-hidden`); auth submits
+   full-width; password checklist in the green rules box. Deliberately NOT
+   adopted: tab-strip restructure, admin side-by-side layout, numbered
+   pager, dark mode (see `visual-checklist.md` §Outcome). No logic, API,
+   route, or assertion changed; client suite still 61/61.
+2. **`client/playwright.config.ts` — E2E `baseURL` `127.0.0.1` → `localhost`.**
    The API CORS/CSRF contract allows exactly one web origin (`CLIENT_URL`,
    default `http://localhost:5173`). Under the old `127.0.0.1` baseURL every
    session/authenticated call failed CORS ("Failed to fetch", captured in a
    screenshot during evidence collection). Test-harness alignment only; no
    application behavior changed.
-2. **`client/src/styles/zen-green.css` — tablet table→cards.** Found via the
+3. **`client/src/styles/zen-green.css` — tablet table→cards.** Found via the
    visual checklist: the 9-column staff queue clipped at 834px
    (`overflow: hidden` with no fallback). At `≤991px` the list screens now
    render the stacked cards; desktop tables are untouched. See

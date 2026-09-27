@@ -1,17 +1,21 @@
 :root {
-  --color-primary: #006B3C;
-  --color-secondary: #0B7A46;
-  --color-pale-green: #EAF6EF;
-  --color-bg-page: #F5F7F6;
-  --color-surface: #FFFFFF;
-  --color-text: #1F2A24;
-  --color-field-editable-bg: #FFFFFF;
-  --color-field-readonly-bg: #F1F3EE;
-  --color-error: #B3261E;
-  --color-warning: #B98900;
-  --color-success: #0B7A46;
-  --color-border: #c9d3cd;
-  --color-border-strong: #dce2dc;
+  /* Bridged onto the canonical reference tokens (zen-green-tokens.css) —
+     mockup values win on conflict (see PR description for the override list).
+     --color-* names are kept so existing components need no markup changes. */
+  --color-primary: #14532d;
+  --color-secondary: #166534;
+  --color-pale-green: #f0f7f2;
+  --color-bg-page: #f6f8f6;
+  --color-surface: #ffffff;
+  --color-text: #1f2a24;
+  --color-muted: #6b7a70;
+  --color-field-editable-bg: #ffffff;
+  --color-field-readonly-bg: #e5e7eb;
+  --color-error: #991b1b;
+  --color-warning: #92400e;
+  --color-success: #166534;
+  --color-border: #e2e8e4;
+  --color-border-strong: #e2e8e4;
   --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
@@ -156,6 +160,7 @@ button:disabled {
   margin-bottom: 8px;
   font-size: 0.875rem;
   font-weight: 600;
+  color: var(--color-muted);
 }
 
 .input-field,
@@ -353,22 +358,35 @@ button:disabled {
 .link-button { text-decoration: underline; }
 .tertiary-button:hover, .link-button:hover { text-decoration: underline; }
 .badge { display: inline-block; border-radius: 999px; padding: 6px 12px; font-size: 0.875rem; font-weight: 700; text-transform: uppercase; }
-.badge--low, .badge--new { background: var(--color-pale-green); color: var(--color-secondary); }
-.badge--medium, .badge--in_progress { background: #fff1c7; color: #6c5200; }
-.badge--high { background: #fde2e0; color: var(--color-error); }
-.badge--open { background: #dceefa; color: #155a82; }
-.badge--resolved { background: var(--color-success); color: #fff; }
-.badge--waiting_for_requester, .badge--reopened { background: #fff1c7; color: #6c5200; }
-.badge--closed, .badge--cancelled { background: #e8ebe9; color: #536159; }
-.badge--pending, .badge--none { background: #e8ebe9; color: #536159; }
-/* Lab 3 role badges (ui-spec.md §1): pill shape + text, never color alone. */
-.badge--role-requester { background: var(--color-pale-green); color: var(--color-secondary); }
-.badge--role-staff { background: #dceefa; color: var(--color-primary); }
-.badge--role-admin { background: var(--color-primary); color: #fff; }
+/* Application badge classes mapped onto the reference pairs (b-* equivalents
+   in zen-green-tokens.css) — class names kept so no markup/test churn. */
+.badge--low, .badge--new { background: #dcfce7; color: #166534; }
+.badge--medium, .badge--in_progress, .badge--waiting_for_requester, .badge--reopened { background: #fef3c7; color: #92400e; }
+.badge--high { background: #fee2e2; color: #991b1b; }
+.badge--open { background: #dbeafe; color: #1e40af; }
+.badge--resolved { background: #dcfce7; color: #166534; }
+.badge--closed, .badge--cancelled { background: #e5e7eb; color: #374151; }
+.badge--pending { background: #fef9c3; color: #854d0e; }
+.badge--none { background: #e5e7eb; color: #374151; }
+/* Lab 3 role badges (ui-spec.md §1 + reference): pill shape + text, never color alone. */
+.badge--role-requester { background: #e5e7eb; color: #374151; }
+.badge--role-staff { background: #dbeafe; color: #1e40af; }
+.badge--role-admin { background: #ede9fe; color: #5b21b6; }
 .tertiary-button--light { color: #fff; }
-/* Mandatory password-change live checklist (ui-spec.md §3): text + icon. */
-.password-checklist { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; font-size: 0.875rem; }
-.password-checklist__item { color: rgba(31, 42, 36, 0.75); }
+/* Mandatory password-change live checklist (ui-spec.md §3 + reference rules
+   box): green-tinted box, text + icon state, never color alone. */
+.password-checklist {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+  font-size: 0.875rem;
+  background: var(--color-pale-green);
+  border-radius: 7px;
+  color: var(--color-secondary);
+}
+.password-checklist__item { color: var(--color-muted); }
 .password-checklist__item--met { color: var(--color-secondary); font-weight: 600; }
 .password-checklist__state { font-weight: 400; }
 /* Public Comments thread (ui-spec.md §4): visually distinct from attachments
@@ -376,24 +394,25 @@ button:disabled {
 .comment-panel { border: 1px solid var(--color-border); border-radius: 10px; background: white; padding: 16px; }
 .comment-list { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 12px; }
 .comment-card { border: 1px solid var(--color-border); border-left: 4px solid var(--color-secondary); border-radius: 8px; padding: 12px; background: var(--color-surface); }
-.comment-card__header { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
-.comment-card__meta { color: rgba(31, 42, 36, 0.7); font-size: 0.8rem; }
+.comment-card__header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.comment-card__author { display: inline-flex; align-items: center; gap: 10px; }
+.comment-card__meta { color: var(--color-muted); font-size: 0.8rem; }
 .comment-card__body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .comment-form { border-top: 1px solid var(--color-border-strong); padding-top: 16px; }
 /* Internal Notes thread (ui-spec.md §6): amber-tinted and lock-labelled so
    staff can never mistake it for the public thread. Tokens only — no new
    palette (amber surfaces already used by in-progress/waiting badges). */
-.internal-notes-panel { border: 2px solid var(--color-warning); border-radius: 10px; background: #fff8e1; padding: 16px; }
+.internal-notes-panel { border: 2px solid var(--color-warning); border-radius: 10px; background: var(--amber-bg); padding: 16px; }
 .comment-card--internal { border-left-color: var(--color-warning); background: #fffdf5; }
-.warning-panel { border: 1px solid var(--color-warning); border-left: 4px solid var(--color-warning); border-radius: 8px; background: #fff8e1; padding: 16px; margin-bottom: 16px; }
+.warning-panel { border: 1px solid var(--color-warning); border-left: 4px solid var(--color-warning); border-radius: 8px; background: var(--amber-bg); padding: 16px; margin-bottom: 16px; }
 .warning-panel p { margin: 8px 0 0; }
 .success-panel--inline { text-align: left; padding: 16px; }
 .success-panel--inline p { margin: 8px 0 0; }
 .destructive-button { min-height: 40px; border: 1px solid var(--color-error); border-radius: 8px; padding: 10px 14px; color: var(--color-error); background: #fff; font-weight: 600; }
-.muted-label { color: #66736c; font-style: italic; }
+.muted-label { color: var(--color-muted); font-style: italic; }
 .loading-state { min-height: 180px; display: grid; place-items: center; }
 .modal-backdrop { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(31, 42, 36, 0.35); z-index: 10; }
-.confirmation-dialog { width: min(100%, 480px); background: var(--color-surface); border-radius: 8px; padding: 24px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.confirmation-dialog { width: min(100%, 480px); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 24px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
 
 .filters-row {
   display: grid;
@@ -416,9 +435,15 @@ button:disabled {
 
 .ticket-table th,
 .ticket-table td {
-  border-bottom: 1px solid #e7ece8;
-  padding: 12px 10px;
+  border-bottom: 1px solid var(--color-border);
+  padding: 12px 16px;
   text-align: left;
+}
+
+.ticket-table th {
+  color: var(--color-muted);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .pagination-row {
@@ -580,6 +605,11 @@ button:disabled {
   justify-content: flex-end;
   gap: 12px;
   margin-top: 28px;
+}
+
+/* Reference auth screens use a full-width primary submit. */
+.selection-actions .primary-button {
+  width: 100%;
 }
 
 .primary-button,

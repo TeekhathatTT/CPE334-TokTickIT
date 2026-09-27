@@ -1,0 +1,107 @@
+/* Zen Green canonical tokens — extracted verbatim from the reference mockup
+ * `docs/lab-03/ui-reference/toktickit-mockup.html` (`:root`, badges, avatar,
+ * tabs). This file is the single source of truth for reference colors; the
+ * application stylesheet (`zen-green.css`) bridges its older `--color-*`
+ * names onto these values (mockup wins on conflict — see PR description).
+ *
+ * Lab 3 status → badge mapping (wire values uppercase, UI labels spaced):
+ * - Requested/IT Priority LOW → .b-low, MEDIUM → .b-med, HIGH → .b-high
+ * - Status NEW → .b-low treatment, OPEN → .b-open, IN_PROGRESS → .b-progress,
+ *   WAITING_FOR_REQUESTER → .b-progress treatment, RESOLVED → .b-resolved,
+ *   CLOSED → .b-closed, REOPENED → .b-progress treatment, CANCELLED → .b-closed treatment
+ * - Role REQUESTER → .b-req, IT_STAFF → .b-staff, ADMINISTRATOR → .b-admin
+ * - Account Active → .b-active, Inactive → .b-inactive
+ * - .b-pending is legacy-only (BR-13: never rendered in Lab 3).
+ *
+ * Excluded from the mockup on purpose: the dark-mode `:root` overrides (the
+ * app has no theme switch) and the numbered `.pager` (real pagination keeps
+ * its Prev/Next + range structure; only its colors follow the tokens).
+ */
+
+:root {
+  --green-900: #0f4c34;
+  --green-800: #14532d;
+  --green-700: #166534;
+  --green-600: #1f7a4d;
+  --green-50: #f0f7f2;
+  --border: #e2e8e4;
+  --ink: #1f2a24;
+  --muted: #6b7a70;
+  --bg: #f6f8f6;
+  --card: #ffffff;
+  --focus: #166534;
+  --amber-bg: #fef3c7;
+  --amber-tx: #92400e;
+  --red-bg: #fee2e2;
+  --red-tx: #991b1b;
+  --green-bg: #dcfce7;
+  --green-tx: #166534;
+  --blue-bg: #dbeafe;
+  --blue-tx: #1e40af;
+  --gray-bg: #e5e7eb;
+  --gray-tx: #374151;
+  --purple-bg: #ede9fe;
+  --purple-tx: #5b21b6;
+  --pending-bg: #fef9c3;
+  --pending-tx: #854d0e;
+}
+
+/* Badges — base + color variants, verbatim from the mockup. */
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.b-med { background: var(--amber-bg); color: var(--amber-tx); }
+.b-high { background: var(--red-bg); color: var(--red-tx); }
+.b-low { background: var(--green-bg); color: var(--green-tx); }
+.b-open { background: var(--blue-bg); color: var(--blue-tx); }
+.b-progress { background: var(--amber-bg); color: var(--amber-tx); }
+.b-resolved { background: var(--green-bg); color: var(--green-tx); }
+.b-closed { background: var(--gray-bg); color: var(--gray-tx); }
+.b-pending { background: var(--pending-bg); color: var(--pending-tx); }
+.b-active { background: var(--green-bg); color: var(--green-tx); }
+.b-inactive { background: var(--red-bg); color: var(--red-tx); }
+.b-staff { background: var(--blue-bg); color: var(--blue-tx); }
+.b-admin { background: var(--purple-bg); color: var(--purple-tx); }
+.b-req { background: var(--gray-bg); color: var(--gray-tx); }
+
+/* Avatar circle with initials (comments/notes headers). Green for requesters,
+ * blue for staff — mirrors the mockup; decorative duplicate of the adjacent
+ * author name, so render it `aria-hidden`. */
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--green-700);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.avatar.staff { background: #2563eb; }
+
+/* Tab strip (active vs inactive underline), verbatim from the mockup.
+ * Extracted as a shared piece for future tabbed surfaces — Lab 3 keeps the
+ * stacked Public/Notes sections (hiding safety-relevant content behind tabs
+ * would remove functionality), so this is currently reference-only. */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
+.tabs button {
+  border: none;
+  background: transparent;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.tabs button.active {
+  color: var(--green-800);
+  border-color: var(--green-800);
+  font-weight: 600;
+}

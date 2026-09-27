@@ -171,8 +171,13 @@ Every FR-01–FR-14 has ≥1 covering AC; every AC-01–AC-23 traces back to ≥
 
 ## 11. Definition of Done
 
-Verified on `feature/lab3-e2e-integration` (2026-09-27). “Met” means passing
-evidence exists; “Partial” names exactly what is left.
+(Note: the integration brief calls this “§10”; in this document the DoD is
+§11 — §10 is Acceptance Criteria. Numbering left intact to avoid breaking
+cross-references.)
+
+Verified on `feature/lab3-e2e-integration` (2026-09-27, incl. the UI-alignment
+pass). “Met” means passing evidence exists; “Partial” names exactly what is
+left.
 
 - [x] FR-01–FR-14 and BR-01–BR-28 are implemented and server-enforced.
   → `server/tests/lab-03/*`, 124/124 pass (`docs/lab-03/tests.md` §5.1).
@@ -191,8 +196,11 @@ evidence exists; “Partial” names exactly what is left.
 - [x] API responses and safe errors match `api-spec.md`.
   → API-01–API-15, AUTHZ-01/02, SEC-01 all Pass.
 - [x] All required screens match `ui-spec.md` at desktop, tablet, and mobile widths.
-  → 20 screenshots in `artifacts/lab-03/screenshots/` + pass-per-breakpoint
-  `docs/lab-03/visual-checklist.md` (incl. the tablet table→cards fix).
+  → 20 screenshots in `artifacts/lab-03/screenshots/` (re-captured after the
+  mockup alignment) + pass-per-breakpoint `docs/lab-03/visual-checklist.md`
+  (incl. the tablet table→cards fix); tokens extracted to
+  `client/src/styles/zen-green-tokens.css` from
+  `docs/lab-03/ui-reference/toktickit-mockup.html`.
 - [x] No Development Requester selector or Change Requester action remains.
   → no selector UI, no `x-requester-id` usage in `client/src` (only code
   comments); UI-05 “no selector remnants” passes.

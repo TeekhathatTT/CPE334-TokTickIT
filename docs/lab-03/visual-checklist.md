@@ -1,108 +1,111 @@
 # Lab 3 Visual Consistency Checklist
 
-Completed on `feature/lab3-e2e-integration` against the screenshots in
-`artifacts/lab-03/screenshots/` (20 PNGs, reviewed readable at native size).
+Completed on `feature/lab3-e2e-integration` **after Step 1 UI alignment**,
+against the freshly re-captured screenshots in
+`artifacts/lab-03/screenshots/` (20 PNGs, all captured post-alignment —
+timestamps verified — and reviewed readable at native size).
 
-## Capture method (read before citing a shot as live evidence)
+Reference: `docs/lab-03/ui-reference/toktickit-mockup.html` (canonical) and
+`client/src/styles/zen-green-tokens.css` (extracted tokens).
+Legend: ✅ pass · ⚠️ pass with noted deviation · ❌ fail (none open).
 
-- `authentication/login-*` were captured against the **live backend** (real
-  `401` from `GET /api/auth/me` renders `LoginPage` with no database needed).
-- All authenticated screens were captured with the **real frontend build**
-  (vite dev + express API running locally) and **stubbed API responses that
-  mirror the seed shapes** (`server/prisma/seed.mjs` rows mapped through the
-  `client/src/api.ts` types). No database was available in the capture
-  environment, so session, queue, detail, comments, notes, staff-directory,
-  and admin-list payloads were fulfilled by route interception with
-  representative seed content (e.g. `TKT-2026-000001…000005`, Priya Patel,
-  Alice Admin). Component styling, layout, badges, breakpoints, and copy are
-  the production code paths, not mockups.
-- Breakpoints follow the Lab 2 E2E sizes: desktop `1280×900`, tablet
-  `834×1112`, mobile `375×812` (ui-spec §9 bands: desktop ≥992px, tablet
-  768–991px, mobile <768px).
-- Behavioral (not just visual) coverage of the same screens lives in
-  `client/e2e/lab-03/*.spec.ts`, which runs against the live seeded backend,
-  including no-horizontal-overflow assertions at all three breakpoints.
+## Capture method
 
-## Per-screen results
+- `authentication/login-*`: live backend (real `401` → `LoginPage`).
+- Authenticated screens: real frontend build with stubbed API responses
+  mirroring the seed shapes (no database in the capture environment).
+- Breakpoints: desktop `1280×900`, tablet `834×1112`, mobile `375×812`.
+- Behavioral coverage of the same screens: `client/e2e/lab-03/*.spec.ts`
+  (live seeded backend, incl. no-overflow assertions per breakpoint).
 
-Legend: ✅ pass · ⚠️ pass with note · ❌ fail (none open).
+## 1. Login (`authentication/login-desktop|tablet|mobile.png`)
 
-### 1. Login (`authentication/login-desktop|tablet|mobile.png`)
-
-| Item | Desktop | Tablet | Mobile |
+| Item | D | T | M |
 |---|---|---|---|
-| Zen Green tokens only (no ad-hoc colors) | ✅ | ✅ | ✅ |
-| Role-based navigation (none before login — correct) | ✅ | ✅ | ✅ |
-| Status/Priority/Role badges n/a (none on screen) | ✅ | ✅ | ✅ |
-| Editable vs read-only fields distinguishable | ✅ | ✅ | ✅ |
-| Validation messages below their field (`field-error`) | ✅ (code + `Login.test.tsx`) | ✅ | ✅ |
-| Focus states visible (2px `--color-secondary` outline) | ✅ (`zen-green.css` + E2E Tab-order test) | ✅ | ✅ |
-| No clipping / overlap / horizontal overflow | ✅ | ✅ | ✅ |
-
-### 2. Change Password (`authentication/change-password-desktop|tablet|mobile.png`)
-
-| Item | Desktop | Tablet | Mobile |
-|---|---|---|---|
-| Zen Green tokens only | ✅ | ✅ | ✅ |
-| Gated shell: no role nav, no logout until saved (FR-02) | ✅ | ✅ | ✅ |
-| Rule checklist is text + icon, never color alone | ✅ (`(met)`/`(not met)` copy in shot) | ✅ | ✅ |
+| Tokens match `zen-green-tokens.css`, no ad-hoc colors | ✅ | ✅ | ✅ |
+| Role nav: none pre-login (correct) | ✅ | ✅ | ✅ |
+| Labels muted, full-width green submit, red errbox per mockup | ✅ | ✅ | ✅ |
 | Editable vs read-only distinguishable | ✅ | ✅ | ✅ |
-| Validation messages below their field | ✅ (code + `ChangePassword.test.tsx`) | ✅ | ✅ |
+| Validation messages below their field | ✅ | ✅ | ✅ |
+| Focus states visible (token `--focus` outline) | ✅ | ✅ | ✅ |
+| No clipping / overlap / horizontal overflow | ✅ | ✅ | ✅ |
+
+## 2. Change Password (`authentication/change-password-desktop|tablet|mobile.png`)
+
+| Item | D | T | M |
+|---|---|---|---|
+| Tokens match, no ad-hoc colors | ✅ | ✅ | ✅ |
+| Gated shell: no role nav, no logout until saved (FR-02) | ✅ | ✅ | ✅ |
+| Password-rules checklist in green-tinted box with checkmarks, text + state | ✅ | ✅ | ✅ |
+| Editable vs read-only distinguishable | ✅ | ✅ | ✅ |
+| Validation messages below their field | ✅ | ✅ | ✅ |
 | Focus states visible | ✅ | ✅ | ✅ |
 | No clipping / overlap / horizontal overflow | ✅ | ✅ | ✅ |
 
-### 3. Staff Ticket Queue (`staff-queue/queue-populated-desktop|tablet|mobile.png`, `queue-filtered-desktop.png`, `queue-noresults-desktop.png`)
+## 3. Staff Ticket Queue (`staff-queue/*`, incl. filtered, no-results)
 
-| Item | Desktop | Tablet | Mobile |
+| Item | D | T | M |
 |---|---|---|---|
-| Zen Green tokens only | ✅ | ✅ | ✅ |
+| Tokens match; header is exact reference green (`#14532d`) | ✅ | ✅ | ✅ |
 | Role nav shows Ticket Queue only for IT Staff | ✅ | ✅ | ✅ |
-| Priority/Status badges consistent with ui-spec §1 | ✅ (MEDIUM/amber, HIGH/red, NEW/pale-green, OPEN/blue) | ✅ | ✅ |
+| Priority/Status badges use reference pairs (amber MEDIUM, red HIGH, blue OPEN, green NEW) | ✅ | ✅ | ✅ |
+| Table header muted, row borders/padding per mockup | ✅ | ✅ (cards) | ✅ (cards) |
 | Editable (search/filters/sort) vs read-only cells | ✅ | ✅ | ✅ |
-| Validation/empty states in consistent positions | ✅ (no-results panel + `Clear Filters`) | ✅ | ✅ |
+| Validation/empty states in consistent positions | ✅ | ✅ | ✅ |
 | Focus states visible | ✅ | ✅ | ✅ |
-| No clipping / overlap / horizontal overflow | ✅ | ✅ fixed* | ✅ |
+| No clipping / overlap / horizontal overflow | ✅ | ✅ | ✅ |
 
-\* **Tablet fix in this branch (small CSS issue, fixed inline):** the
-9-column queue table clipped the Owner/Last-Updated columns at 834px because
-`.ticket-table-wrap` used `overflow: hidden` with no fallback
-(`queue-populated-tablet.png` before the fix showed `Unassigne`/`Priya Pate`).
-Fix in `client/src/styles/zen-green.css` (`@media (max-width: 991px)`):
-tablet now renders the same stacked ticket cards as mobile, desktop keeps the
-table. Re-captured shot confirms all owners/dates/badges readable; E2E
-`expectNoHorizontalOverflow` still asserts zero page-level overflow at all
-three breakpoints. The shared classes also fix the 8-column My Tickets table
-the same way. The 5-column User Management table already fit at tablet
-(`user-management/list-tablet.png` — no change needed).
+Tablet note: the 9-column table cannot render readably at 834px, so tablet
+uses the stacked cards (same CSS fix as the prior pass, retained through the
+alignment). Desktop keeps the table.
 
-### 4. Staff Ticket Detail (`staff-ticket-detail/detail-desktop|mobile.png`, `detail-comments-desktop.png`, `detail-notes-desktop.png`)
+## 4. Staff Ticket Detail (`staff-ticket-detail/detail-desktop|mobile.png`, `detail-comments-desktop.png`, `detail-notes-desktop.png`)
 
-| Item | Desktop | Mobile |
+| Item | D | M |
 |---|---|---|
-| Zen Green tokens only (amber notes panel per ui-spec §6) | ✅ | ✅ |
+| Tokens match, no ad-hoc colors | ✅ | ✅ |
 | Role nav shows Ticket Queue only for IT Staff | ✅ | ✅ |
-| Resolved-signal warning uses text + icon, not color alone | ✅ (`⚠ Requester flagged…`) | ✅ |
-| Public Comments vs Internal Notes visually unmistakable | ✅ (white thread vs amber `🔒 staff only` panel) | ✅ (stacked) |
-| Editable (owner/priority/status/comment/note) vs read-only context | ✅ (detail grid read-only; operations grouped) | ✅ |
-| Validation/conflict messages in consistent positions | ✅ (`error-panel` above each operation group; code + component tests) | ✅ |
+| Public Comments vs Internal Notes visually distinct (white thread + avatar vs amber `🔒 staff only` panel — safety cue preserved, now token-exact) | ✅ | ✅ |
+| Comment headers carry avatar-circle-with-initials per mockup (green requester, blue staff, `aria-hidden`) | ✅ | ✅ |
+| Read-only context (gray boxes) vs editable operations grouped | ✅ | ✅ |
+| Resolved-signal warning is text + icon, not color alone | ✅ | ✅ |
+| Validation/conflict messages in consistent positions | ✅ | ✅ |
 | Focus states visible | ✅ | ✅ |
 | No clipping / overlap / horizontal overflow | ✅ | ✅ |
 
-### 5. User Management (`user-management/list-desktop|tablet|mobile.png`, `create-form-desktop.png`, `edit-form-desktop.png`)
+Deliberately not adopted: the mockup's Comments/Notes/Attachments **tab
+strip** — hiding safety-relevant threads behind tabs would remove
+functionality and break E2E visibility assertions. The `.tabs` style is
+extracted into the tokens file as a shared piece for future use; Lab 3 keeps
+the stacked sections (code + component tests + E2E unchanged).
 
-| Item | Desktop | Tablet | Mobile |
+## 5. User Management (`user-management/list-desktop|tablet|mobile.png`, `create-form-desktop.png`, `edit-form-desktop.png`)
+
+| Item | D | T | M |
 |---|---|---|---|
-| Zen Green tokens only | ✅ | ✅ | ✅ |
+| Tokens match, no ad-hoc colors | ✅ | ✅ | ✅ |
 | Role nav shows User Management only for Administrators | ✅ | ✅ | ✅ |
-| Role/Status badges consistent (ADMIN solid, staff blue, requester pale, Active green/Inactive gray) | ✅ | ✅ | ✅ |
-| Editable vs read-only distinguishable (self Active box disabled + helper) | ✅ (`edit-form-desktop.png` shows the guard state) | ✅ | ✅ |
-| Validation/conflict messages below fields + dialog-level alert | ✅ (code + `UserManagement.test.tsx`) | ✅ | ✅ |
-| Focus states visible; dialog traps focus (`aria-modal`) | ✅ | ✅ | ✅ |
+| Role/Account badges match mockup (purple admin, blue staff, gray requester, green Active, **red Inactive**) | ✅ | ✅ | ✅ |
+| Self-row Active box disabled + helper (guard state visible) | ✅ | ✅ | ✅ |
+| Validation/conflict messages below fields + dialog-level alert | ✅ | ✅ | ✅ |
+| Focus states visible; dialog `aria-modal` | ✅ | ✅ | ✅ |
 | No clipping / overlap / horizontal overflow | ✅ | ✅ | ✅ |
+
+Deliberately not adopted: the mockup's side-by-side Users/Create panel layout
+and numbered pager — the real screen keeps its modal drawer (focus
+management, E2E `dialog` role) and Prev/Next + range pagination. Only colors,
+badges, table and dialog-panel styling were aligned.
+
+## 6. Requester screens (no dedicated mockup section — same tokens/components)
+
+`MyTicketsPage`, `TicketDetailPage`, `CreateTicketPage` inherit the aligned
+header, badges, tables, cards, labels, buttons, and focus tokens through the
+shared stylesheet; no Requester-specific markup was changed. Covered by the
+E2E requester flows and the responsive assertions.
 
 ## Outcome
 
-No open failures. One small CSS defect (tablet queue clipping) was found
-through this checklist and fixed in this branch as described above; the
-before/after evidence is the tablet queue screenshot plus the E2E responsive
-assertions. Everything else passes per screen per breakpoint.
+No open failures. Intentional deviations from the mockup (no tab-strip
+restructure, no admin side-by-side restructure, no numbered pager, no
+dark-mode, product copy/brand kept) are listed above with rationale: each
+would have removed functionality or changed behavior, which Step 1 forbids.

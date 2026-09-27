@@ -52,11 +52,21 @@
 15. **This integration branch.** Asked: prove the increment works together —
     full regression, three E2E specs, 3-breakpoint screenshots, visual
     checklist, final `tests.md`/`ai-use.md`/`reviewer.md`/DoD updates, PR
-    into `lab3-staging`. Produced: 23 E2E tests + `global-setup` reseed,
+    into `lab3-staging`. Produced: 23 E2E tests + `globalSetup` reseed,
     20 screenshots, `visual-checklist.md`, this file's update, and two
     narrowly-scoped fixes (Playwright `baseURL` → `localhost` for the
     CORS/CSRF origin contract; tablet table→cards CSS). No feature or
     functional logic was changed.
+16. **UI alignment to the reference mockup.** Asked: read
+    `docs/lab-03/ui-reference/toktickit-mockup.html` as canonical, extract
+    its tokens/badges/tabs/avatar pieces into a shared stylesheet, and align
+    every Lab 3 screen (plus Requester screens) without touching logic,
+    routes, or assertions. Produced: `zen-green-tokens.css`, token
+    reconciliation in `zen-green.css` (reference wins), avatar initials on
+    comment/note headers, and a checklist recording the deliberate
+    non-adoptions (tab strip, admin side-by-side layout, numbered pager)
+    with rationale. Client suite still 61/61; screenshots re-captured
+    post-alignment.
 
 ## My Reflection
 
@@ -76,4 +86,9 @@ queries) and desktop screenshots could not catch it, which is why the
 per-breakpoint visual pass exists. The remaining human-owned step is running
 the E2E suite once against a real seeded database and flipping the
 `Not run*` rows in `tests.md` on evidence — this branch deliberately refuses
-to claim Pass results it did not execute.
+to claim Pass results it did not execute. The mockup-alignment pass showed
+the same pattern in miniature: the agent could extract tokens and match
+colors mechanically, but deciding what NOT to adopt (tab restructure, admin
+side-by-side layout) required judging functionality-preservation against
+visual fidelity — a call the prompt constrained explicitly, and the right
+one, since either restructure would have broken E2E and component tests.
