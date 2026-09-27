@@ -7,6 +7,19 @@ import CreateTicketPage from "./pages/CreateTicketPage";
 import TicketDetailPage from "./pages/TicketDetailPage";
 import { TicketQueuePage } from "./pages/staff/TicketQueuePage";
 import { StaffTicketDetailPage } from "./pages/staff/StaffTicketDetailPage";
+import { UserManagementPage } from "./pages/admin/UserManagementPage";
+
+function AdminViews() {
+  const { user, logout } = useAuth();
+
+  if (!user) return null;
+
+  return (
+    <AppShell user={user} activeNav="user-management" onLogout={() => void logout()}>
+      <UserManagementPage />
+    </AppShell>
+  );
+}
 
 function StaffViews({ userId }: { userId: number }) {
   const { user, logout } = useAuth();
@@ -41,23 +54,23 @@ function RequesterViews() {
 
   if (!user) return null;
 
-  // IT Staff shell (staff-workflow branch). The admin shell ships in its
-  // own branch; anything else keeps the explicit placeholder below.
+  // IT Staff shell (staff-workflow). Administrator shell is the minimalist
+  // User Management screen (ui-spec.md §7) — Requester/Staff screens never
+  // leak to it.
   if (user.role === "IT_STAFF") {
     return <StaffViews userId={user.id} />;
   }
 
-  // Admin shell ships in its own branch; anything else keeps the explicit
-  // placeholder instead of leaking Requester screens to it.
+  if (user.role === "ADMINISTRATOR") {
+    return <AdminViews />;
+  }
+
   if (user.role !== "REQUESTER") {
     return (
       <AppShell user={user} activeNav="my-tickets" onLogout={() => void logout()}>
         <div className="page-card">
           <h1 className="page-title">Signed in as {user.name}</h1>
-          <p>
-            The Administrator User Management screen is delivered by its own
-            Lab 3 branch and is not part of this change.
-          </p>
+          <p>Your role is not recognised.</p>
         </div>
       </AppShell>
     );
