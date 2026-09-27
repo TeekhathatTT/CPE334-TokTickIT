@@ -43,9 +43,6 @@ export function LoginPage() {
   return (
     <div className="selection-page">
       <div className="selection-card">
-        <div className="selection-card__icon" aria-hidden="true">
-          🔐
-        </div>
         <h1 className="selection-card__title">Log in to TokTickIT</h1>
         <p className="selection-card__subtitle">Use your TokTickIT account to continue.</p>
 
