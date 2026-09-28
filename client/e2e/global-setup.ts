@@ -31,11 +31,28 @@ async function globalSetup(): Promise<void> {
   const serverDir = path.resolve(here, "..", "..", "server");
   console.log("[e2e] Reseeding the database from", serverDir);
 
+  // The seed assumes tables exist: migrate first so a fresh database works
+  // with a bare `npm run test:e2e` (no manual prisma steps). The Node
+  // processes below do not load server/.env on their own, so pass an
+  // explicit DATABASE_URL (same default as the webServer entry in
+  // playwright.config.ts and server/.env).
+  const env = {
+    ...process.env,
+    DATABASE_URL:
+      process.env.DATABASE_URL ??
+      "postgresql://toktickit:toktickit@127.0.0.1:5434/toktickit?schema=public",
+  };
+
   try {
+    await execFileAsync("npx", ["prisma", "migrate", "deploy"], {
+      cwd: serverDir,
+      timeout: 180000,
+      env,
+    });
     const { stdout, stderr } = await execFileAsync("node", ["prisma/seed.mjs"], {
       cwd: serverDir,
       timeout: 180000,
-      env: process.env,
+      env,
     });
     if (stdout) console.log(stdout);
     if (stderr) console.error(stderr);

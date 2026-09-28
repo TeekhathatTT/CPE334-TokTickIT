@@ -121,10 +121,18 @@ async function runSerializableTransaction<T>(
 ): Promise<T> {
   const candidate = prisma as unknown as Record<string, unknown>;
   if (typeof candidate.$transaction === "function") {
-    const run = candidate.$transaction as (
-      arg: (tx: ReturnType<typeof getPrisma>) => Promise<T>,
-      options?: Record<string, unknown>,
-    ) => Promise<T>;
+    // NOTE: `$transaction` must be invoked bound to the client. Detaching
+    // it (`const run = prisma.$transaction; run(...)`) loses `this` and
+    // Prisma throws `Cannot read properties of undefined (reading
+    // '_engineConfig')`, surfacing as 500 on every PATCH with real Postgres
+    // (mocked unit tests take the fallback path below, so they never caught
+    // this — found via live E2E).
+    const run = (
+      candidate.$transaction as (
+        arg: (tx: ReturnType<typeof getPrisma>) => Promise<T>,
+        options?: Record<string, unknown>,
+      ) => Promise<T>
+    ).bind(candidate);
     return run(fn, { isolationLevel: "Serializable" });
   }
   return fn(prisma);

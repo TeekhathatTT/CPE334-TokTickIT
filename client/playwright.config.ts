@@ -34,6 +34,18 @@ export default defineConfig({
       url: "http://127.0.0.1:3000/api/health",
       reuseExistingServer: !process.env.CI,
       timeout: 120000,
+      // Explicit E2E environment for the API (mirrors server/.env): Node
+      // does not load server/.env on its own, so a server started here
+      // without these would boot with no DATABASE_URL and every Prisma
+      // route would fail its database connection.
+      env: {
+        ...process.env,
+        DATABASE_URL:
+          process.env.DATABASE_URL ??
+          "postgresql://toktickit:toktickit@127.0.0.1:5434/toktickit?schema=public",
+        CLIENT_URL: process.env.CLIENT_URL ?? "http://localhost:5173",
+        PORT: process.env.PORT ?? "3000",
+      },
     },
   ],
 });
