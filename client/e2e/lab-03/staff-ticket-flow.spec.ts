@@ -105,12 +105,16 @@ test("a disallowed status transition is rejected and never offered", async ({ pa
   expect(rejected.status).toBe(409);
 
   // The UI reflects the rejection surface honestly: CLOSED is not offered,
-  // the helper names the constraint, and the status is unchanged on reload.
+  // the helper names the constraint, and the persisted status is unchanged
+  // when the ticket is reopened (the app has no URL router, so a full reload
+  // returns to the role home instead of the detail view — reopening proves
+  // the rejected write never persisted).
   await openSeedTicket(page, "TKT-2026-000002");
   const statusSelect = page.getByLabel("Change status");
   await expect(statusSelect.getByRole("option", { name: "Closed" })).toHaveCount(0);
   await expect(page.getByText("Only the transitions permitted from Open are offered.")).toBeVisible();
-  await page.reload();
+  await page.getByRole("button", { name: "Back to Ticket Queue" }).click();
+  await openSeedTicket(page, "TKT-2026-000002");
   await expect(page.getByLabel("Change status")).toHaveValue("OPEN");
 });
 

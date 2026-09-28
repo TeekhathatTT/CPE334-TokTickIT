@@ -33,11 +33,11 @@ test("valid login rotates the initial password and lands on the requester home",
   const checklist = page.getByRole("list", { name: "Password rules" });
   await expect(checklist).toBeVisible();
   await expect(checklist.getByText("(not met)").first()).toBeVisible();
-  await page.getByLabel("New password", { exact: true }).fill(nextPassword);
+  await page.getByLabel("New password *", { exact: true }).fill(nextPassword);
   await expect(checklist.getByText("(met)").first()).toBeVisible();
 
-  await page.getByLabel("Current password", { exact: true }).fill(passwordFor(REQUESTER));
-  await page.getByLabel("Confirm new password", { exact: true }).fill(nextPassword);
+  await page.getByLabel("Current password *", { exact: true }).fill(passwordFor(REQUESTER));
+  await page.getByLabel("Confirm new password *", { exact: true }).fill(nextPassword);
   await page.getByRole("button", { name: "Save new password" }).click();
   rememberPassword(REQUESTER, nextPassword);
 
@@ -85,7 +85,7 @@ test("initial-password login is gated until the password is changed", async ({ p
 
   // After a valid change the staff member lands in the app normally.
   await expect(page.getByRole("heading", { name: "Ticket Queue" })).toBeVisible();
-  await expect(page.getByText("Tom Nguyen")).toBeVisible();
+  await expect(page.getByLabel("Signed-in user")).toContainText("Tom Nguyen");
 });
 
 test("logout clears the session and the stale session is rejected", async ({ page }) => {
@@ -119,13 +119,15 @@ test("authenticated requester keeps Lab 2 abilities: create, comment, signal res
   await expect(page.getByRole("heading", { name: "My Tickets" })).toBeVisible();
 
   // Create a ticket; ownership comes from the session (BR-03, AC-15).
-  await page.getByRole("button", { name: "Create Ticket" }).click();
+  // Two "Create Ticket" buttons exist (nav tab + page header): navigate via
+  // the nav tab, submit via the page header button.
+  await page.getByRole("navigation").getByRole("button", { name: "Create Ticket" }).click();
   await page.getByLabel("Category").selectOption({ index: 1 });
   await page.getByLabel("Related System").selectOption({ index: 1 });
   await page.getByLabel("Requested Priority").selectOption("MEDIUM");
   await page.getByLabel("Summary").fill(`E2E regression ticket ${token}`);
   await page.getByLabel("Description").fill("Created by the Lab 3 requester-regression flow.");
-  await page.getByRole("button", { name: "Create Ticket" }).click();
+  await page.getByRole("main").getByRole("button", { name: "Create Ticket" }).click();
   await expect(page.getByRole("heading", { name: "Ticket Created" })).toBeVisible();
   await expect(page.locator(".success-panel__number")).toHaveText(/TKT-\d{4}-\d{6}/);
 
@@ -144,11 +146,20 @@ test("authenticated requester keeps Lab 2 abilities: create, comment, signal res
 test("login and password screens are keyboard accessible with visible labels", async ({ page }) => {
   await page.goto("/");
 
-  // Every control is reachable by keyboard in reading order (A11Y-01).
+  // Every control is reachable by keyboard in reading order (A11Y-01). The
+  // first Tab press moves focus out of the document body (standard Chromium
+  // behavior on a freshly loaded page) and can land before the form is
+  // interactive, so Tab until Email receives focus (bounded), then assert
+  // the strict order Email → Password → Log in.
+  const email = page.getByLabel("Email *", { exact: true });
+  await expect(email).toBeVisible();
+  for (let i = 0; i < 8; i++) {
+    if (await email.evaluate((el) => el === document.activeElement)) break;
+    await page.keyboard.press("Tab");
+  }
+  await expect(email).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(page.getByLabel("Email", { exact: true })).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(page.getByLabel("Password", { exact: true })).toBeFocused();
+  await expect(page.getByLabel("Password *", { exact: true })).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.getByRole("button", { name: "Log in", exact: true })).toBeFocused();
 

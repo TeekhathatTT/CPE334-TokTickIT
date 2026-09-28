@@ -1,4 +1,7 @@
 import { expect, type Page } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 /**
  * Shared Lab 3 E2E helpers (Playwright — same tool as `lab-02.spec.ts`).
@@ -24,19 +27,77 @@ import { expect, type Page } from "@playwright/test";
 export const SEED_PASSWORD = "Password123!";
 
 /**
- * Passwords rotated by earlier tests in the same file. Tests in one spec file
- * run sequentially in a single worker, so a rotation performed by test N is
- * visible to test N+1 through this store; a fresh seed always starts from
- * `SEED_PASSWORD`, keeping reruns deterministic.
+ * Cross-test shared state, persisted to disk.
+ *
+ * Playwright may run each test in a fresh worker process (observed: a new
+ * pid per test), so module-level memory (`knownPasswords`, `let` bindings in
+ * spec files) does NOT survive from one test to the next. Anything a later
+ * test needs — rotated passwords, credentials of a user created mid-file —
+ * is written through to one small file per key under
+ * `client/test-results/lab-03-shared/`. `globalSetup` wipes the directory on
+ * every run (the database is reseeded, so previous-run values are invalid).
+ * Keys are disjoint per spec file (see ACCOUNT PARTITIONING above), so
+ * parallel workers never contend on the same key file.
+ */
+const sharedDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "test-results",
+  "lab-03-shared",
+);
+
+function keyFile(key: string): string {
+  return path.join(sharedDir, `${encodeURIComponent(key)}.txt`);
+}
+
+/** Read a shared value written by an earlier test (undefined when absent). */
+export function getShared(key: string): string | undefined {
+  try {
+    return fs.readFileSync(keyFile(key), "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+/** Persist a shared value for later tests (one file per key — no read-modify-write). */
+export function setShared(key: string, value: string): void {
+  fs.mkdirSync(sharedDir, { recursive: true });
+  fs.writeFileSync(keyFile(key), value);
+}
+
+/** Drop all cross-test state (called from `globalSetup` on every run). */
+export function clearSharedState(): void {
+  fs.rmSync(sharedDir, { recursive: true, force: true });
+}
+
+/**
+ * Passwords rotated by earlier tests. Kept in a small memory cache backed by
+ * the on-disk shared state above, so a rotation performed by test N is
+ * visible to test N+1 even when Playwright recycles the worker process; a
+ * fresh seed always starts from `SEED_PASSWORD`, keeping reruns
+ * deterministic.
  */
 const knownPasswords = new Map<string, string>();
 
+function passwordKey(email: string): string {
+  return `pw:${email}`;
+}
+
 export function passwordFor(email: string): string {
-  return knownPasswords.get(email) ?? SEED_PASSWORD;
+  const cached = knownPasswords.get(email);
+  if (cached !== undefined) return cached;
+  const shared = getShared(passwordKey(email));
+  if (shared !== undefined) {
+    knownPasswords.set(email, shared);
+    return shared;
+  }
+  return SEED_PASSWORD;
 }
 
 export function rememberPassword(email: string, password: string): void {
   knownPasswords.set(email, password);
+  setShared(passwordKey(email), password);
 }
 
 /** A password that satisfies the documented policy (8+, upper, lower, digit, special). */
@@ -52,8 +113,8 @@ export function runToken(): string {
 
 export async function login(page: Page, email: string, password: string): Promise<void> {
   await page.goto("/");
-  await page.getByLabel("Email", { exact: true }).fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByLabel("Email *", { exact: true }).fill(email);
+  await page.getByLabel("Password *", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Log in", exact: true }).click();
 }
 
@@ -67,9 +128,9 @@ export async function completeForcedPasswordChange(
   newPassword: string,
 ): Promise<void> {
   await expect(page.getByRole("heading", { name: "Change your password" })).toBeVisible();
-  await page.getByLabel("Current password", { exact: true }).fill(currentPassword);
-  await page.getByLabel("New password", { exact: true }).fill(newPassword);
-  await page.getByLabel("Confirm new password", { exact: true }).fill(newPassword);
+  await page.getByLabel("Current password *", { exact: true }).fill(currentPassword);
+  await page.getByLabel("New password *", { exact: true }).fill(newPassword);
+  await page.getByLabel("Confirm new password *", { exact: true }).fill(newPassword);
   await page.getByRole("button", { name: "Save new password" }).click();
 }
 

@@ -4,11 +4,13 @@ import {
   apiPatch,
   apiStatus,
   expectNoHorizontalOverflow,
+  getShared,
   login,
   loginKnown,
   rotatePassword,
   rotationPassword,
   runToken,
+  setShared,
 } from "./helpers";
 
 /**
@@ -33,9 +35,12 @@ interface AdminListEnvelope {
 }
 
 // Credentials of the user created mid-file; shared by later tests in order.
-let createdEmail = "";
-let createdPassword = "";
-let createdName = "";
+// Playwright may recycle the worker process between tests, so these are
+// backed by the on-disk shared state (see helpers.ts) — plain module memory
+// does not survive. Initialized from disk at import for the same reason.
+let createdEmail = getShared("createdEmail") ?? "";
+let createdPassword = getShared("createdPassword") ?? "";
+let createdName = getShared("createdName") ?? "";
 
 function dialog(page: Page) {
   return page.getByRole("dialog");
@@ -72,22 +77,32 @@ test("administrator creates a user with one role and an initial password", async
   createdName = `E2E User ${token}`;
   createdEmail = `e2e.user.${token}@example.com`;
   createdPassword = rotationPassword("initial");
+  // Persist for later tests in this file: the worker process may be recycled
+  // between tests, so module memory alone does not carry these forward.
+  setShared("createdName", createdName);
+  setShared("createdEmail", createdEmail);
+  setShared("createdPassword", createdPassword);
 
   await loginKnown(page, ADMIN);
   await expect(page.getByRole("heading", { name: "User Management" })).toBeVisible();
 
   await page.getByRole("button", { name: "Create User" }).first().click();
   await expect(dialog(page).getByRole("heading", { name: "Create User" })).toBeVisible();
-  await dialog(page).getByLabel("Name", { exact: true }).fill(createdName);
-  await dialog(page).getByLabel("Email", { exact: true }).fill(createdEmail);
-  await dialog(page).getByLabel("Role", { exact: true }).selectOption("REQUESTER");
-  await dialog(page).getByLabel("Initial password", { exact: true }).fill(createdPassword);
+  await dialog(page).getByLabel("Name *", { exact: true }).fill(createdName);
+  await dialog(page).getByLabel("Email *", { exact: true }).fill(createdEmail);
+  await dialog(page).getByLabel("Role *", { exact: true }).selectOption("REQUESTER");
+  await dialog(page).getByLabel("Initial password *", { exact: true }).fill(createdPassword);
   await dialog(page).getByRole("button", { name: "Create User" }).click();
 
   await expect(page.getByText(/must change their password at next login/)).toBeVisible();
   await page.getByLabel("Search users").fill(createdEmail);
-  await expect(page.getByText(createdName).first()).toBeVisible();
-  await expect(page.getByText("Requester").first()).toBeVisible();
+  // Scope to the Users table: the Role filter <select> also contains a hidden
+  // "Requester" <option>, so an unscoped getByText hits the hidden option.
+  const usersTable = page.getByRole("table", { name: "Users" });
+  await expect(usersTable.getByText(createdName)).toBeVisible();
+  // toHaveCount retries through the 300ms search debounce: once the filter
+  // narrows to the created user, exactly one Requester badge remains.
+  await expect(usersTable.getByText("Requester")).toHaveCount(1);
 });
 
 test("the new user is forced through change password and lands by role", async ({ page }) => {
@@ -95,9 +110,9 @@ test("the new user is forced through change password and lands by role", async (
   await login(page, createdEmail, createdPassword);
 
   await expect(page.getByRole("heading", { name: "Change your password" })).toBeVisible();
-  await page.getByLabel("Current password", { exact: true }).fill(createdPassword);
-  await page.getByLabel("New password", { exact: true }).fill(nextPassword);
-  await page.getByLabel("Confirm new password", { exact: true }).fill(nextPassword);
+  await page.getByLabel("Current password *", { exact: true }).fill(createdPassword);
+  await page.getByLabel("New password *", { exact: true }).fill(nextPassword);
+  await page.getByLabel("Confirm new password *", { exact: true }).fill(nextPassword);
   await page.getByRole("button", { name: "Save new password" }).click();
 
   // A Requester lands on My Tickets …
@@ -117,8 +132,8 @@ test("administrator edits role and activation state", async ({ page }) => {
   await page.getByLabel("Search users").fill(createdEmail);
 
   await page.getByRole("button", { name: `Edit ${createdName}`, exact: true }).click();
-  await dialog(page).getByLabel("Name", { exact: true }).fill(renamed);
-  await dialog(page).getByLabel("Role", { exact: true }).selectOption("IT_STAFF");
+  await dialog(page).getByLabel("Name *", { exact: true }).fill(renamed);
+  await dialog(page).getByLabel("Role *", { exact: true }).selectOption("IT_STAFF");
   await dialog(page).getByRole("button", { name: "Save Changes" }).click();
   await expect(page.getByText(/updated\./)).toBeVisible();
   await expect(page.getByText(renamed).first()).toBeVisible();
@@ -170,7 +185,7 @@ test("the last active administrator cannot be demoted away", async ({ page }) =>
   await page.getByLabel("Search users").fill(ADMIN);
 
   await page.getByRole("button", { name: `Edit ${ADMIN_NAME}`, exact: true }).click();
-  await dialog(page).getByLabel("Role", { exact: true }).selectOption("REQUESTER");
+  await dialog(page).getByLabel("Role *", { exact: true }).selectOption("REQUESTER");
   await dialog(page).getByRole("button", { name: "Save Changes" }).click();
 
   await expect(dialog(page).getByText("Unable to save.")).toBeVisible();

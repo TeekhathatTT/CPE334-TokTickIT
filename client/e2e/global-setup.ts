@@ -16,6 +16,12 @@ const execFileAsync = promisify(execFile);
  * the specs assume an equivalently fresh seed.
  */
 async function globalSetup(): Promise<void> {
+  // Cross-test shared state (rotated passwords, mid-file created users) is
+  // always stale on a new run: the database is reseeded below, so any
+  // previous run's values would authenticate against the wrong passwords.
+  const { clearSharedState } = await import("./lab-03/helpers.js");
+  clearSharedState();
+
   if (process.env.E2E_SEED === "0") {
     console.log("[e2e] E2E_SEED=0 — skipping database reseed.");
     return;
