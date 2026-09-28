@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import App from "../../src/App";
 import * as api from "../../src/api";
 
@@ -7,34 +7,46 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("Requester selection", () => {
-  it("renders the requester selection screen and loads active requesters", async () => {
-    vi.spyOn(api, "getRequesters").mockResolvedValue([
-      { id: 1, name: "Jennifer Anderson", email: "jennifer.anderson@example.com" },
-    ]);
+const requester = {
+  id: 1,
+  name: "Jennifer Anderson",
+  email: "jennifer.anderson@example.com",
+  role: "REQUESTER" as const,
+  isActive: true,
+  mustChangePassword: false,
+};
+
+function unauthenticated() {
+  vi.spyOn(api, "getCurrentUser").mockRejectedValue(
+    new api.ApiError(401, "UNAUTHENTICATED", "Authentication is required."),
+  );
+}
+
+describe("App authentication boot (Lab 3 successor to requester selection)", () => {
+  it("renders the login screen when there is no session", async () => {
+    unauthenticated();
 
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: /select development requester/i })).toBeInTheDocument();
-    expect(await screen.findByRole("option", { name: "Jennifer Anderson" })).toBeInTheDocument();
+    // The Development Requester selector is gone; login is the entry point.
+    expect(await screen.findByRole("heading", { name: /log in to toktickit/i })).toBeInTheDocument();
+    expect(screen.queryByText(/select development requester/i)).not.toBeInTheDocument();
   });
 
-  it("enables continue only after a requester is selected", async () => {
-    vi.spyOn(api, "getRequesters").mockResolvedValue([
-      { id: 1, name: "Jennifer Anderson", email: "jennifer.anderson@example.com" },
-    ]);
+  it("renders the authenticated shell with the user's name and role", async () => {
+    vi.spyOn(api, "getCurrentUser").mockResolvedValue({ user: requester });
+    vi.spyOn(api, "getTickets").mockResolvedValue({
+      data: [],
+      meta: { page: 1, pageSize: 10, totalItems: 0, totalPages: 0, isEmpty: true, isNoResults: false },
+    });
+    vi.spyOn(api, "getCategories").mockResolvedValue([]);
 
     render(<App />);
 
-    const select = await screen.findByRole("combobox");
-    const continueButton = screen.getByRole("button", { name: /continue/i });
-    expect(continueButton).toBeDisabled();
-
-    fireEvent.change(select, {
-      target: { value: "1" },
-    });
-
-    await waitFor(() => expect(continueButton).toBeEnabled());
+    expect(await screen.findByText("Jennifer Anderson")).toBeInTheDocument();
+    expect(screen.getByText("Requester")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /logout/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /my tickets/i })).toBeInTheDocument();
+    expect(screen.queryByText(/change requester/i)).not.toBeInTheDocument();
   });
 });
-

@@ -1,11 +1,16 @@
 export type Priority = "LOW" | "MEDIUM" | "HIGH";
 
+// Lab 3 BR-13: exactly the 8 post-migration values. Legacy Lab 2 PENDING was
+// backfilled to WAITING_FOR_REQUESTER and is rejected with 400 by the API.
 export type TicketStatus =
   | "NEW"
   | "OPEN"
   | "IN_PROGRESS"
+  | "WAITING_FOR_REQUESTER"
   | "RESOLVED"
-  | "PENDING";
+  | "CLOSED"
+  | "REOPENED"
+  | "CANCELLED";
 
 export interface Requester {
   id: number;
