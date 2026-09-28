@@ -134,6 +134,21 @@ Soft-remove an owned active attachment. Body `{ "reason": string (5–200 chars)
 
 ## 3. IT Staff queue and ticket operations
 
+### `GET /api/staff/users`
+
+Assignable-owner directory backing the ui-spec §6 assignment select
+("Assignment selects active IT Staff"), added to close the gap noted in the
+PR #44 review (no staff-scoped user directory existed, forcing the UI to ask
+for a raw user id).
+
+- Related: FR-04, FR-08; BR-11, BR-16.
+- Auth: valid session, role IT Staff (like every other staff operation;
+  Administrators are not eligible owners and do not inherit this route).
+- Success: `200` `{ data: [{ id, name, email }] }` — active IT Staff users
+  only, ordered by name then id; safe fields, no hashes.
+- Errors: `401` no/invalid session (`UNAUTHENTICATED`); `403` non-IT-Staff
+  role; `500` unexpected (`INTERNAL_ERROR`).
+
 ### `GET /api/staff/tickets`
 
 Authentication/role: active IT Staff. Query parameters:
@@ -280,6 +295,7 @@ The authoritative Related FR/BR and error codes for each endpoint are listed dir
 | `GET /api/attachments/:id` | FR-05 | BR-09 |
 | `GET /api/attachments/:id/download` | FR-05 | BR-09 |
 | `PATCH /api/attachments/:id/remove` | FR-05 | BR-09 |
+| `GET /api/staff/users` | FR-04, FR-08 | BR-11, BR-16 |
 | `GET /api/staff/tickets` | FR-04, FR-07 | BR-28 |
 | `GET /api/staff/tickets/:id` | FR-04, FR-08 | BR-11 |
 | `PATCH /api/staff/tickets/:id/assignment` | FR-04, FR-08 | BR-11, BR-16 |

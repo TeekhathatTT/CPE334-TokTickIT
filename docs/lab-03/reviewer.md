@@ -21,7 +21,7 @@ All review evidence below is verifiable from the linked GitHub Pull Requests
 | [PR #42](https://github.com/TeekhathatTT/CPE334-TokTickIT/pull/42)  | `feature/lab3-auth`           | Chessuker | Changes Requested → Approved | Merged |
 | [PR #44](https://github.com/TeekhathatTT/CPE334-TokTickIT/pull/44)  | `feature/lab3-staff-workflow` | Chessuker | Changes Requested → Approved | Merged |
 | [PR #46](https://github.com/TeekhathatTT/CPE334-TokTickIT/pull/46)  | `feature/lab3-admin-users`    | Chessuker | Changes Requested → Approved | Merged |
-| PR TBD (opened Step 9)                                              | `feature/lab3-e2e-integration` | TBD      | Pending                      | Open   |
+| [PR #48](https://github.com/TeekhathatTT/CPE334-TokTickIT/pull/48)   | `feature/lab3-e2e-integration` | Chessuker | Changes Requested → Approved | Merged |
 
 ---
 
@@ -239,16 +239,25 @@ Approved by `Chessuker`, who then merged the PR into `lab3-staging`.
 
 ---
 
-## 8. This Integration Branch (`feature/lab3-e2e-integration` → `lab3-staging`)
+## 8. PR #48 Lab 3 E2E Integration (`feature/lab3-e2e-integration` → `lab3-staging`)
 
-**Status:** Pending — entry to be completed once the PR from Step 10 is
-reviewed (expected title: `Feature: Lab 3 UI alignment, E2E integration, and
-DoD verification`). Maintainer: fill in reviewer identity, review date, at
-least one substantive comment, the author response, and the approval link
-here, following the format of §§3–7 above. The PR must show: full regression
-evidence (§5 of `tests.md`), the UI-alignment token override list, the 20
-post-alignment screenshots, `visual-checklist.md`, and the live E2E run
-flipping the `Not run*` rows on evidence.
+**PR:** [Feature/6 Lab3 e2e integration](https://github.com/TeekhathatTT/CPE334-TokTickIT/pull/48)
+(merge commit `63fd8fd`, merged 2026-09-27 by `Chessuker`)
+
+**Reviewer:** `Chessuker`
+
+**Result:** Changes Requested → Approved → Merged.
+
+The integration PR carried: the UI-alignment to the reference mockup (token
+override list in the PR description), the 20 post-alignment screenshots,
+`visual-checklist.md`, full regression evidence (`tests.md` §5.1:
+server 124/124, client 61/61), and the E2E suite with the `Not run*` rows —
+whose live execution (29/29 pass on 2026-09-28, `tests.md` §5.2) is recorded
+as the follow-up completing this entry. The live pass additionally fixed one
+real server bug the code-reading reviews could not see (unbound
+`prisma.$transaction` → 500 on `PATCH /api/admin/users/:id`; mocked unit
+tests take the fallback path), plus E2E selector/environment hardening —
+all verified by re-running `npm run test:e2e`, never by inspection alone.
 
 ---
 

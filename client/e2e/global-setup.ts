@@ -44,7 +44,10 @@ async function globalSetup(): Promise<void> {
   };
 
   try {
-    await execFileAsync("npx", ["prisma", "migrate", "deploy"], {
+    // Invoke the Prisma CLI through node directly (`npx` is a shell shim
+    // that child_process cannot spawn without a shell on Windows).
+    const prismaBin = path.resolve(serverDir, "node_modules", "prisma", "build", "index.js");
+    await execFileAsync(process.execPath, [prismaBin, "migrate", "deploy"], {
       cwd: serverDir,
       timeout: 180000,
       env,

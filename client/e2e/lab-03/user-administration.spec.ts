@@ -189,7 +189,9 @@ test("the last active administrator cannot be demoted away", async ({ page }) =>
   await dialog(page).getByRole("button", { name: "Save Changes" }).click();
 
   await expect(dialog(page).getByText("Unable to save.")).toBeVisible();
-  await expect(dialog(page).getByText("At least one active Administrator must remain.")).toBeVisible();
+  // The guard message surfaces twice (field error + alert summary); either
+  // proves the BR-21 rejection reached the UI.
+  await expect(dialog(page).getByText("At least one active Administrator must remain.").first()).toBeVisible();
   await dialog(page).getByRole("button", { name: "Cancel" }).click();
 
   // Nothing was mutated: Alice is still an Administrator.

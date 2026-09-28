@@ -8,7 +8,7 @@ This plan is written before Lab 3 implementation. Every row starts as `Planned`;
 |---|---|---|---|---|---|---|
 | API-01 | API | AC-01 | Valid login | Authenticated response; safe user data | server/tests/lab-03/auth.api.test.ts | Pass |
 | API-08 | API | AC-04 | Requester requests Internal Notes | Forbidden; no note data returned | server/tests/lab-03/comments-notes.api.test.ts | Pass |
-| E2E-02 | E2E | AC-02 | Initial password login and change | Normal app opens only after valid change | client/e2e/lab-03/authentication.spec.ts | Not run* |
+| E2E-02 | E2E | AC-02 | Initial password login and change | Normal app opens only after valid change | client/e2e/lab-03/authentication.spec.ts | Pass |
 | API-02 | API | AC-01, AC-16 | Invalid credentials and inactive account | Same safe 401 response; no account enumeration | server/tests/lab-03/auth.api.test.ts | Pass |
 | API-03 | API | AC-05 | Logout | Session invalidated; protected call returns 401 | server/tests/lab-03/auth.api.test.ts | Pass |
 | API-04 | API | AC-17 | Password boundaries | Rules enforced at minimum and invalid values rejected | server/tests/lab-03/auth.api.test.ts | Pass |
@@ -34,11 +34,11 @@ This plan is written before Lab 3 implementation. Every row starts as `Planned`;
 | UNIT-03 | Unit | AC-23 | Authorization guard in isolation | Role/ownership predicate allows permitted roles and denies others | server/tests/lab-03/authorization.api.test.ts | Pass |
 | REG-01 | Migration/regression | AC-15, AC-20 | Lab 2 records and ownership | Existing Tickets/Attachments survive and map to Users correctly | server/tests/lab-03/authorization.api.test.ts; migration verification | Pass |
 | SEC-01 | Security/API | AC-23 | Safe failure matrix | 401/403/400/404/409/500 shapes and no protected leakage | server/tests/lab-03/authorization.api.test.ts | Pass |
-| E2E-01 | E2E | AC-15, AC-18 | Requester regression | Authenticated Requester creates/views/comment/signals own ticket | client/e2e/lab-03/authentication.spec.ts | Not run* |
-| E2E-03 | E2E | AC-06, AC-07, AC-08, AC-09, AC-19 | Staff ticket flow | Queue to detail, assignment, priority/status, comments/notes | client/e2e/lab-03/staff-ticket-flow.spec.ts | Not run* |
-| E2E-04 | E2E | AC-10, AC-11, AC-12, AC-13, AC-14 | User administration | Complete minimalist admin flow | client/e2e/lab-03/user-administration.spec.ts | Not run* |
-| RESP-01 | Responsive | AC-22 | Desktop/tablet/mobile | No clipping, overlap, or unintended horizontal scroll | client/e2e/lab-03/staff-ticket-flow.spec.ts | Not run* |
-| A11Y-01 | Accessibility | AC-22 | Keyboard and focus | All controls reachable; labels and focus states present | client/e2e/lab-03/authentication.spec.ts | Not run* |
+| E2E-01 | E2E | AC-15, AC-18 | Requester regression | Authenticated Requester creates/views/comment/signals own ticket | client/e2e/lab-03/authentication.spec.ts | Pass |
+| E2E-03 | E2E | AC-06, AC-07, AC-08, AC-09, AC-19 | Staff ticket flow | Queue to detail, assignment, priority/status, comments/notes | client/e2e/lab-03/staff-ticket-flow.spec.ts | Pass |
+| E2E-04 | E2E | AC-10, AC-11, AC-12, AC-13, AC-14 | User administration | Complete minimalist admin flow | client/e2e/lab-03/user-administration.spec.ts | Pass |
+| RESP-01 | Responsive | AC-22 | Desktop/tablet/mobile | No clipping, overlap, or unintended horizontal scroll | client/e2e/lab-03/staff-ticket-flow.spec.ts | Pass |
+| A11Y-01 | Accessibility | AC-22 | Keyboard and focus | All controls reachable; labels and focus states present | client/e2e/lab-03/authentication.spec.ts | Pass |
 
 ## 2. Required file plan
 
@@ -116,44 +116,47 @@ The plan covers valid/invalid login, inactive accounts, password boundaries, log
   (Lab 1: health, categories; Lab 2: requesters, tickets, attachments;
   Lab 3: auth, authorization, staff-queue, staff-ticket-detail,
   comments-notes, users-admin). Covers API-01–API-15, AUTHZ-01/02,
-  UNIT-01/02/03, REG-01, SEC-01.
+  UNIT-01/02/03, REG-01, SEC-01. Re-verified 2026-09-28 after the
+  `runSerializableTransaction` bind fix: still 124/124.
 - Client: `npm run test` in `client/` → **12 files, 61 tests, all pass**
   (Lab 1/2 suites plus Lab 3 Login, ChangePassword, StaffTicketQueue,
   StaffTicketDetail, UserManagement). Covers UI-01–UI-05. Re-run **after**
   the Step 1 UI alignment (tokens file, badge/token reconciliation, avatar
   additions): still 61/61 — no test couples to classes or colors, and no
-  assertion about behavior was changed.
+  assertion about behavior was changed. Re-verified 2026-09-28: still 61/61.
 - No integration-only regressions: the merged `lab3-staging` content passes
   every prior suite unchanged, so this branch contains no functional fixes
   except the documented E2E/visual items in §5.3.
 
-### 5.2 E2E (`Not run*` — implemented, not executed live here)
+### 5.2 E2E (executed live 2026-09-28 — all pass)
 
-23 Lab 3 E2E tests are implemented across the three planned files (plus the
-shared `client/e2e/lab-03/helpers.ts` and `client/e2e/global-setup.ts`):
-7 in `authentication.spec.ts` (E2E-01/E2E-02/A11Y-01), 7 in
+29 E2E tests executed live with `npm run test:e2e` in `client/` (default
+workers) against Postgres at `127.0.0.1:5434` (same credentials as
+`server/.env` / `docker-compose.yml`): **29/29 pass** — 6 in
+`client/e2e/lab-02.spec.ts` (Lab 2 regression, migrated to Lab 3 auth, see
+§5.4) and 23 Lab 3 tests across the three planned files (plus the shared
+`client/e2e/lab-03/helpers.ts` and `client/e2e/global-setup.ts`): 7 in
+`authentication.spec.ts` (E2E-01/E2E-02/A11Y-01), 7 in
 `staff-ticket-flow.spec.ts` (E2E-03/RESP-01), 9 in
-`user-administration.spec.ts` (E2E-04). Verified without a database by
-`npx tsc --noEmit` (clean) and `npx playwright test --list` (29 tests
-collected, including the 6 legacy Lab 2 E2E). They were **not executed**
-because this environment has no Postgres (no Docker; nothing on `5434`), and
-per the plan nothing is marked Pass without a run.
-
-To run them with a database:
+`user-administration.spec.ts` (E2E-04). Command and flow:
 
 ```powershell
-docker compose up -d db        # Postgres on 127.0.0.1:5434 (see server/.env)
-cd server; npm run prisma:migrate; cd ../client
-npm run test:e2e                # globalSetup reseeds automatically
+npm run test:e2e                # globalSetup runs prisma migrate deploy + reseed automatically
 # E2E_SEED=0 npm run test:e2e   # skip reseed with hand-managed data
 ```
 
-The specs require a freshly seeded database (all seed users on the local-dev
-initial password with `mustChangePassword=true`); `globalSetup` guarantees it
-unless `E2E_SEED=0`. Created rows use run-unique emails/content so reruns
-after a reseed never collide. Each spec file owns disjoint seed accounts
-(documented in `helpers.ts`) so parallel workers cannot steal each other's
-rotated passwords.
+`globalSetup` now guarantees a migrated + freshly seeded database on every
+run (all seed users on the local-dev initial password with
+`mustChangePassword=true`); the Playwright `webServer` entry passes an
+explicit `DATABASE_URL`/`CLIENT_URL`/`PORT` to the API so the E2E server
+never boots without a database connection. Created rows use run-unique
+emails/content so reruns after a reseed never collide. Each spec file owns
+disjoint seed accounts (documented in `helpers.ts`, extended to
+`lab-02.spec.ts` → emily.davis) so parallel workers cannot steal each
+other's rotated passwords. Cross-test state (rotated passwords, mid-file
+created users) is file-backed under `client/test-results/lab-03-shared/`
+(cleared by `globalSetup`) because Playwright may recycle the worker
+process between tests — module memory alone does not survive.
 
 Re-verified after the Step 1 UI alignment: the alignment changed only CSS
 values (no class renames, no copy changes) plus `aria-hidden` avatar spans,
@@ -185,20 +188,46 @@ alignment (timestamps verified) and now show the aligned UI.
    render the stacked cards; desktop tables are untouched. See
    `docs/lab-03/visual-checklist.md`.
 
-### 5.4 Known gaps (flagged, not deleted)
+### 5.4 Gaps closed by the live E2E pass (2026-09-28)
 
-- E2E live execution is the remaining gap: rerun §5.2 with a database and
-  flip the `Not run*` rows to Pass/Fail on evidence before the final merge
-  to `main`.
-- The `Not run*` footnote: `*` = implemented + typechecked + collected, never
-  executed live in this environment.
+- E2E live execution is done: `npm run test:e2e` → 29/29 pass on evidence
+  (see §5.2). The former `Not run*` footnote (`*` = implemented +
+  typechecked + collected, never executed live) no longer applies — every
+  E2E/RESP/A11Y row in §1 is Pass on a real run.
+- Fixes the live run required (all verified by re-running the suite, never
+  by inspection alone):
+  1. Real server bug: `PATCH /api/admin/users/:id` returned 500
+     (`Unable to update user`) on real Postgres because
+     `runSerializableTransaction` invoked a detached
+     `prisma.$transaction` (lost `this` → `_engineConfig` TypeError). The
+     mocked API suite could not catch it (mocks lack `$transaction` and take
+     the fallback path). Fixed by binding the call; verified live (role
+     edit → 200, last-admin demotion → 409 with the specified message).
+  2. E2E selectors assumed label names without the required-field asterisk
+     (`getByLabel("Email", {exact:true})`), but the rendered accessible name
+     is `"Email *"` (probe-verified). Selectors now match reality; no app
+     markup changed.
+  3. Strict-mode violations fixed by scoping (`Signed-in user`, nav vs
+     `main` Create Ticket, Users-table role badge with debounce-aware
+     `toHaveCount`, `.first()` on duplicated guard text / Clear Filters).
+  4. `page.reload()` on the staff detail view dropped (the app has no URL
+     router — reload returns to the role home); the test reopens the ticket
+     and asserts the persisted value instead.
+  5. A11Y keyboard test tolerates Chromium's body-first Tab entry (bounded
+     Tab-until-focused, order assertion unchanged).
+  6. E2E environment made self-sufficient: explicit `DATABASE_URL` for the
+     API `webServer` entry and `prisma migrate deploy` before seed in
+     `globalSetup`, so a bare `npm run test:e2e` works on a fresh database.
+- `client/e2e/lab-02.spec.ts` (Lab 2 regression) is migrated, not deleted:
+  the anonymous Development Requester selector it drove was removed by
+  BR-03/BR-25, so the file now signs in as seed requester emily.davis
+  (disjoint account, same forced-change handling as E2E-01) and keeps every
+  original assertion (create + ticket number, validation texts,
+  search/clear, 3-viewport overflow via the RESP-01 DOM measurement instead
+  of OS-sensitive pixel snapshots). Its 6 tests are part of the 29/29.
 - `user-administration.spec.ts` documents why deactivating a *different* last
   admin is unreachable by construction (any logged-in admin actor staying
   active means the target is never last); the reachable BR-21 trigger
   (self-demotion of the sole admin → `409 At least one active Administrator
   must remain.`) is asserted in UI, and the race guard at API level is
   covered by `users-admin.api.test.ts` (API-14, Pass).
-- The legacy `client/e2e/lab-02.spec.ts` (Development Requester selector) is
-  superseded by BR-03/BR-25 and no longer passes against authenticated Lab 3
-  code; it is intentionally untouched by this branch (E2E regression scope is
-  Lab 3 specs; Lab 1/2 unit/API/component suites all pass).

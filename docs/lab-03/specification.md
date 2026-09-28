@@ -176,16 +176,17 @@ Every FR-01–FR-14 has ≥1 covering AC; every AC-01–AC-23 traces back to ≥
 cross-references.)
 
 Verified on `feature/lab3-e2e-integration` (2026-09-27, incl. the UI-alignment
-pass). “Met” means passing evidence exists; “Partial” names exactly what is
+pass) and re-verified with the live E2E pass on 2026-09-28 (`npm run
+test:e2e` → 29/29). “Met” means passing evidence exists; “Partial” names exactly what is
 left.
 
 - [x] FR-01–FR-14 and BR-01–BR-28 are implemented and server-enforced.
   → `server/tests/lab-03/*`, 124/124 pass (`docs/lab-03/tests.md` §5.1).
-- [ ] All AC-01–AC-23 map to planned tests and have passing evidence before product completion.
-  → **Partial:** every AC maps to tests and all API/UI evidence passes, but
-  the E2E rows (E2E-01–E2E-04, RESP-01, A11Y-01) are implemented yet
-  `Not run*` — no database in this environment (`docs/lab-03/tests.md` §5.2).
-  Rerun `npm run test:e2e` with Postgres before the final merge to `main`.
+- [x] All AC-01–AC-23 map to planned tests and have passing evidence before product completion.
+  → **Met:** every AC maps to tests and all evidence passes: API/UI suites
+  (server 124/124, client 61/61) plus the live E2E run on 2026-09-28
+  (`npm run test:e2e` → 29/29, covering E2E-01–E2E-04, RESP-01, A11Y-01;
+  see `docs/lab-03/tests.md` §5.2).
 - [x] Authentication secrets and password hashes are absent from frontend responses and source control.
   → safe `toSafeAdminUser`/`CurrentUser` shapes; `auth`/`users-admin` API
   tests assert no hash leakage; seed holds only the documented local-dev
@@ -204,9 +205,10 @@ left.
 - [x] No Development Requester selector or Change Requester action remains.
   → no selector UI, no `x-requester-id` usage in `client/src` (only code
   comments); UI-05 “no selector remnants” passes.
-- [ ] Accessibility, authorization, migration/regression, and E2E tests are automated and passing.
-  → **Partial:** authorization/migration/a11y-component tests automated and
-  passing; E2E automated (23 tests) but awaiting a live run — same gap as above.
+- [x] Accessibility, authorization, migration/regression, and E2E tests are automated and passing.
+  → **Met:** authorization/migration/a11y-component tests automated and
+  passing, and the 29 automated E2E tests pass live (2026-09-28 run, §5.2
+  of `tests.md`).
 - [x] README/run instructions and visual evidence paths are updated by the later implementation branch.
   → `README.md` (migrate/seed/E2E/`E2E_SEED`/origin note); evidence paths in
   `ui-spec.md` §11 populated with 20 PNGs.
