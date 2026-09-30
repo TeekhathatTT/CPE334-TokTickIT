@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TikTockIT — Zen Green UI Reference</title>
+<style>
+:root{
+  --green-900:#0f4c34; --green-800:#14532d; --green-700:#166534; --green-600:#1f7a4d;
+  --green-50:#f0f7f2; --border:#e2e8e4; --ink:#1f2a24; --muted:#6b7a70; --bg:#f6f8f6;
+  --card:#ffffff; --focus:#166534;
+  --amber-bg:#fef3c7; --amber-tx:#92400e;
+  --red-bg:#fee2e2; --red-tx:#991b1b;
+  --green-bg:#dcfce7; --green-tx:#166534;
+  --blue-bg:#dbeafe; --blue-tx:#1e40af;
+  --gray-bg:#e5e7eb; --gray-tx:#374151;
+  --purple-bg:#ede9fe; --purple-tx:#5b21b6;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+:root:not([data-theme="light"]){ }
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --bg:#101512; --card:#182019; --ink:#e7efe9; --muted:#9db3a6; --border:#2a352d; }
+}
+:root[data-theme="dark"]{ --bg:#101512; --card:#182019; --ink:#e7efe9; --muted:#9db3a6; --border:#2a352d; }
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+.picker{display:flex;gap:6px;flex-wrap:wrap;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;}
+.picker button{border:1px solid var(--border);background:transparent;color:var(--ink);padding:8px 14px;border-radius:8px;font-size:13px;cursor:pointer;}
+.picker button.active{background:var(--green-800);color:#fff;border-color:var(--green-800);}
+.stage{max-width:960px;margin:24px auto;padding:0 16px 48px;}
+.view{display:none;}
+.view.active{display:block;}
+
+/* App shell */
+.appbar{background:var(--green-800);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-radius:10px 10px 0 0;}
+.appbar .brand{display:flex;align-items:center;gap:8px;font-weight:600;}
+.appbar nav{display:flex;gap:18px;font-size:14px;}
+.appbar nav span{opacity:.95;}
+.profile{font-size:14px;}
+.shell{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+.shell-body{padding:20px;}
+
+/* Cards / forms */
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:22px;max-width:400px;margin:0 auto 16px;}
+.card h2{font-size:17px;margin:0 0 4px;text-align:center;}
+.card .sub{font-size:13px;color:var(--muted);margin-bottom:16px;}
+label{display:block;font-size:13px;color:var(--muted);margin:12px 0 4px;}
+input[type=text],input[type=email],input[type=password]{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--ink);font-size:14px;}
+input:focus,button:focus,select:focus{outline:2px solid var(--focus);outline-offset:1px;}
+.btn{background:var(--green-800);color:#fff;border:none;border-radius:7px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;width:100%;margin-top:14px;}
+.btn.outline{background:transparent;color:#b91c1c;border:1px solid #b91c1c;}
+.btn.secondary{background:var(--green-700);}
+.errbox{background:var(--red-bg);color:var(--red-tx);border-radius:7px;padding:10px 12px;font-size:13px;margin-top:10px;}
+.rules{background:var(--green-50);border-radius:7px;padding:10px 12px;font-size:13px;margin-top:12px;color:var(--green-tx);}
+.rules div{margin:2px 0;}
+.link{color:var(--green-700);font-size:13px;text-align:center;display:block;margin-top:10px;}
+
+/* Badges */
+.badge{display:inline-block;padding:3px 10px;border-radius:14px;font-size:12px;font-weight:600;}
+.b-med{background:var(--amber-bg);color:var(--amber-tx);}
+.b-high{background:var(--red-bg);color:var(--red-tx);}
+.b-low{background:var(--green-bg);color:var(--green-tx);}
+.b-open{background:var(--blue-bg);color:var(--blue-tx);}
+.b-progress{background:var(--amber-bg);color:var(--amber-tx);}
+.b-resolved{background:var(--green-bg);color:var(--green-tx);}
+.b-closed{background:var(--gray-bg);color:var(--gray-tx);}
+.b-pending{background:#fef9c3;color:#854d0e;}
+.b-active{background:var(--green-bg);color:var(--green-tx);}
+.b-inactive{background:var(--red-bg);color:var(--red-tx);}
+.b-staff{background:var(--blue-bg);color:var(--blue-tx);}
+.b-admin{background:var(--purple-bg);color:var(--purple-tx);}
+.b-req{background:var(--gray-bg);color:var(--gray-tx);}
+
+/* Toolbar / table */
+.toolbar{display:flex;gap:10px;padding:14px 20px;align-items:center;}
+.toolbar input{flex:1;padding:9px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--ink);}
+.toolbar button{border:1px solid var(--border);background:var(--bg);color:var(--ink);border-radius:7px;padding:9px 14px;font-size:13px;cursor:pointer;}
+.meta{padding:0 20px 8px;color:var(--muted);font-size:13px;}
+.tablewrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:700px;}
+th{text-align:left;color:var(--muted);font-weight:600;padding:8px 20px;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:10px 20px;border-bottom:1px solid var(--border);white-space:nowrap;}
+tr:last-child td{border-bottom:none;}
+.pager{display:flex;gap:6px;justify-content:center;padding:16px;flex-wrap:wrap;}
+.pager button{border:1px solid var(--border);background:var(--bg);color:var(--ink);border-radius:6px;padding:6px 10px;font-size:13px;cursor:pointer;}
+.pager button.cur{background:var(--green-800);color:#fff;border-color:var(--green-800);}
+
+/* Ticket detail */
+.crumb{padding:14px 20px 0;font-size:13px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;}
+.back{border:1px solid var(--border);background:var(--bg);color:var(--ink);border-radius:7px;padding:7px 12px;font-size:13px;cursor:pointer;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;padding:16px 20px;}
+.field .lbl{font-size:12px;color:var(--muted);margin-bottom:4px;}
+.field .val,.field select,.field input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);font-size:13px;color:var(--ink);}
+.field .val.readonly{background:var(--gray-bg);color:var(--muted);}
+.stack{padding:0 20px;}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin:14px 20px 0;}
+.tabs button{border:none;background:transparent;padding:10px 14px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;}
+.tabs button.active{color:var(--green-800);border-color:var(--green-800);font-weight:600;}
+.commentbar{display:flex;gap:8px;padding:14px 20px;}
+.commentbar input{flex:1;padding:9px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--ink);}
+.commentbar button{background:var(--green-800);color:#fff;border:none;border-radius:7px;padding:9px 16px;font-size:13px;cursor:pointer;white-space:nowrap;}
+.comment{display:flex;gap:10px;padding:10px 20px;}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--green-700);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;}
+.avatar.staff{background:#2563eb;}
+.cname{font-size:13px;font-weight:600;}
+.ctext{font-size:13px;color:var(--muted);margin-top:2px;}
+.ctime{font-size:11px;color:var(--muted);float:right;}
+
+/* Admin */
+.admin-layout{display:grid;grid-template-columns:1fr 320px;gap:16px;padding:16px 20px;}
+@media (max-width:720px){ .admin-layout{grid-template-columns:1fr;} .grid3{grid-template-columns:1fr;} }
+.panel{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px;}
+.panel h3{margin:0 0 14px;font-size:16px;}
+.toggle{display:inline-flex;align-items:center;gap:8px;}
+.switch{width:38px;height:20px;background:var(--green-700);border-radius:12px;position:relative;}
+.switch::after{content:"";position:absolute;right:2px;top:2px;width:16px;height:16px;background:#fff;border-radius:50%;}
+</style>
+</head>
+<body>
+
+<div class="picker" role="tablist" aria-label="Screen picker">
+  <button class="active" onclick="show('login',this)">1. Login & Password Change</button>
+  <button onclick="show('queue',this)">2. Ticket Queue</button>
+  <button onclick="show('detail',this)">3. Staff Ticket Detail</button>
+  <button onclick="show('admin',this)">4. Admin User Management</button>
+</div>
+
+<div class="stage">
+
+  <!-- 1. LOGIN -->
+  <div class="view active" id="view-login">
+    <div class="card">
+      <h2>Sign in to your account</h2>
+      <label>Email address</label>
+      <input type="email" value="janderson@tiktockit.com">
+      <label>Password</label>
+      <input type="password" value="••••••••••••">
+      <div class="errbox">⚠ Invalid email or password. Please try again.</div>
+      <button class="btn">Sign In</button>
+      <span class="link">Forgot your password?</span>
+    </div>
+    <div class="card">
+      <h2 style="text-align:left">Change Your Password</h2>
+      <div class="sub" style="text-align:left">You must change your password to continue.</div>
+      <label>Current (temporary) password</label>
+      <input type="password" value="•••••••">
+      <label>New password</label>
+      <input type="password" value="•••••••••••">
+      <label>Confirm new password</label>
+      <input type="password" value="•••••••••••">
+      <div class="rules">
+        <div>✓ Be at least 8 characters</div>
+        <div>✓ Include upper and lower case letters</div>
+        <div>✓ Include a number and a special character</div>
+      </div>
+      <button class="btn">Continue</button>
+    </div>
+  </div>
+
+  <!-- 2. QUEUE -->
+  <div class="view" id="view-queue">
+    <div class="shell">
+      <div class="appbar">
+        <div class="brand">🕐 TikTockIT</div>
+        <nav><span>📋 My Queue</span><span>＋ Create Ticket</span></nav>
+        <div class="profile">👤 Profile ⌄</div>
+      </div>
+      <div class="toolbar">
+        <input placeholder="Search by ticket number or summary...">
+        <button>☰ Filters</button>
+      </div>
+      <div class="meta">Showing 1 to 10 of 87 tickets</div>
+      <div class="tablewrap">
+      <table>
+        <tr><th>Ticket No.</th><th>Created</th><th>Summary</th><th>Category</th><th>Req. Priority</th><th>IT Priority</th><th>Status</th><th>Owner</th></tr>
+        <tr><td>TKT-2025-001234</td><td>May 12, 09:14 AM</td><td>Laptop battery drains quickly</td><td>Hardware</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-progress">In Progress</span></td><td>Michael Brown</td></tr>
+        <tr><td>TKT-2025-001233</td><td>May 12, 08:02 AM</td><td>Cannot connect to VPN</td><td>Network</td><td><span class="badge b-high">High</span></td><td><span class="badge b-high">High</span></td><td><span class="badge b-open">Open</span></td><td>Sarah Johnson</td></tr>
+        <tr><td>TKT-2025-001232</td><td>May 11, 08:45 PM</td><td>Email not syncing on mobile</td><td>Software</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-progress">In Progress</span></td><td>David Lee</td></tr>
+        <tr><td>TKT-2025-001231</td><td>May 11, 11:30 AM</td><td>New employee setup request</td><td>Access</td><td><span class="badge b-low">Low</span></td><td><span class="badge b-low">Low</span></td><td><span class="badge b-resolved">Resolved</span></td><td>Jennifer Anderson</td></tr>
+        <tr><td>TKT-2025-001230</td><td>May 10, 02:10 PM</td><td>Printer keeps showing offline</td><td>Hardware</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-low">Low</span></td><td><span class="badge b-open">Open</span></td><td>Michael Brown</td></tr>
+        <tr><td>TKT-2025-001230</td><td>May 10, 10:08 AM</td><td>Request access to SharePoint</td><td>Access</td><td><span class="badge b-low">Low</span></td><td><span class="badge b-low">Low</span></td><td><span class="badge b-pending">Pending</span></td><td>Sarah Johnson</td></tr>
+        <tr><td>TKT-2025-001228</td><td>May 9, 03:22 PM</td><td>Outlook freezing intermittently</td><td>Software</td><td><span class="badge b-high">High</span></td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-progress">In Progress</span></td><td>David Lee</td></tr>
+        <tr><td>TKT-2025-001227</td><td>May 9, 09:15 AM</td><td>Docking station not detected</td><td>Hardware</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-resolved">Resolved</span></td><td>Michael Brown</td></tr>
+        <tr><td>TKT-2025-001226</td><td>May 8, 04:30 PM</td><td>Software installation request</td><td>Software</td><td><span class="badge b-low">Low</span></td><td><span class="badge b-low">Low</span></td><td><span class="badge b-closed">Closed</span></td><td>Kevin Patel</td></tr>
+        <tr><td>TKT-2025-001225</td><td>May 8, 09:02 AM</td><td>Multi-monitor not detected</td><td>Hardware</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-low">Low</span></td><td><span class="badge b-progress">In Progress</span></td><td>Emily Davis</td></tr>
+      </table>
+      </div>
+      <div class="pager">
+        <button>‹ Previous</button>
+        <button class="cur">1</button><button>2</button><button>3</button><button>4</button><button>5</button><span style="padding:6px">…</span><button>9</button>
+        <button>Next ›</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. STAFF TICKET DETAIL -->
+  <div class="view" id="view-detail">
+    <div class="shell">
+      <div class="appbar">
+        <div class="brand">🕐 TikTockIT</div>
+        <nav><span>📋 My Queue</span><span>＋ Create Ticket</span></nav>
+        <div class="profile">👤 Profile ⌄</div>
+      </div>
+      <div class="crumb"><span>My Queue &gt; Ticket Detail</span><button class="back">← Back to Queue</button></div>
+      <div class="grid3">
+        <div class="field"><div class="lbl">Ticket No.</div><div class="val readonly">TKT-2025-001234</div></div>
+        <div class="field"><div class="lbl">Category</div><select><option>Hardware</option></select></div>
+        <div class="field"><div class="lbl">Related System</div><input value="Corporate Laptop"></div>
+        <div class="field"><div class="lbl">Requester</div><div class="val readonly">Jennifer Anderson</div></div>
+        <div class="field"><div class="lbl">Requested Priority</div><div style="padding-top:6px"><span class="badge b-med">Medium</span></div></div>
+        <div class="field"><div class="lbl">Current Status</div><select><option>In Progress</option></select></div>
+        <div class="field"><div class="lbl">Ticket Owner</div><select><option>Michael Brown (IT Support)</option></select></div>
+        <div class="field"><div class="lbl">IT Priority</div><select><option>Medium</option></select></div>
+      </div>
+      <div class="stack">
+        <div class="field" style="margin-bottom:10px"><div class="lbl">Summary</div><input value="Laptop battery drains quickly"></div>
+        <div class="field"><div class="lbl">Description</div>
+          <div class="val readonly" style="height:auto;padding:10px">My laptop battery is draining much faster than usual even when the system is idle. This started happening after last week's Windows update.</div>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="active" onclick="tab(this,'pc')">💬 Public Comments (3)</button>
+        <button onclick="tab(this,'in')">📝 Internal Notes (2)</button>
+        <button onclick="tab(this,'at')">📎 Attachments (2)</button>
+      </div>
+      <div id="tab-pc">
+        <div class="commentbar"><input placeholder="Type your comment here..."><button>➤ Post Comment</button></div>
+        <div class="comment"><div class="avatar">JA</div><div><span class="cname">Jennifer Anderson</span> <span class="badge b-req" style="margin-left:6px">Requester</span><span class="ctime">May 13, 11:45 AM</span><div class="ctext">Thank you for the update. Please let me know if you need any additional information.</div></div></div>
+        <div class="comment"><div class="avatar staff">MB</div><div><span class="cname">Michael Brown</span> <span class="badge b-staff" style="margin-left:6px">IT Support</span><span class="ctime">May 13, 10:30 AM</span><div class="ctext">We are investigating the issue on your device. We'll update you shortly.</div></div></div>
+      </div>
+      <div id="tab-in" style="display:none">
+        <div class="commentbar" style="background:var(--amber-bg)"><input placeholder="Add an internal note (staff only)..."><button>➤ Post Note</button></div>
+        <div class="comment"><div class="avatar staff">MB</div><div><span class="cname">Michael Brown</span> <span class="badge" style="background:var(--amber-bg);color:var(--amber-tx);margin-left:6px">Internal</span><span class="ctime">May 13, 10:31 AM</span><div class="ctext">Checked battery report — cycle count is within range, suspect the driver update. Escalating to hardware vendor.</div></div></div>
+      </div>
+      <div id="tab-at" style="display:none;padding:14px 20px;color:var(--muted);font-size:13px">battery-report.html, screenshot.png</div>
+    </div>
+  </div>
+
+  <!-- 4. ADMIN -->
+  <div class="view" id="view-admin">
+    <div class="shell">
+      <div class="appbar">
+        <div class="brand">🕐 TikTockIT</div>
+        <nav><span>🛡 Admin</span></nav>
+        <div class="profile">👤 Profile ⌄</div>
+      </div>
+      <div class="admin-layout">
+        <div class="panel">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <h3 style="margin:0">Users</h3>
+            <button class="btn" style="width:auto;margin:0;padding:8px 14px">＋ Create User</button>
+          </div>
+          <div class="toolbar" style="padding:0 0 12px">
+            <input placeholder="Search users...">
+            <button>☰ Filters</button>
+          </div>
+          <table>
+            <tr><th>Name</th><th>Role</th><th>Status</th></tr>
+            <tr><td>Jennifer Anderson</td><td><span class="badge b-staff">IT Staff</span></td><td><span class="badge b-active">Active</span></td></tr>
+            <tr><td>Michael Brown</td><td><span class="badge b-staff">IT Staff</span></td><td><span class="badge b-active">Active</span></td></tr>
+            <tr><td>Sarah Johnson</td><td><span class="badge b-staff">IT Staff</span></td><td><span class="badge b-active">Active</span></td></tr>
+            <tr><td>David Lee</td><td><span class="badge b-staff">IT Staff</span></td><td><span class="badge b-active">Active</span></td></tr>
+            <tr><td>Kevin Patel</td><td><span class="badge b-staff">IT Staff</span></td><td><span class="badge b-inactive">Inactive</span></td></tr>
+            <tr><td>Emily Davis</td><td><span class="badge b-req">Requester</span></td><td><span class="badge b-active">Active</span></td></tr>
+            <tr><td>John Smith</td><td><span class="badge b-admin">Administrator</span></td><td><span class="badge b-active">Active</span></td></tr>
+          </table>
+          <div class="pager"><button>‹ Prev</button><button class="cur">1</button><button>2</button><button>3</button><span style="padding:6px">…</span><button>6</button><button>Next ›</button></div>
+        </div>
+        <div class="panel">
+          <h3>Create New User</h3>
+          <label>Full Name *</label><input value="Alex Thompson">
+          <label>Email Address *</label><input value="alex.thompson@tiktockit.com">
+          <label>Role *</label><select><option>IT Staff</option></select>
+          <label style="margin-top:14px">Active</label>
+          <div class="toggle"><div class="switch"></div><span style="font-size:13px">Yes</span></div>
+          <div class="rules" style="background:var(--bg);color:var(--muted);border:1px solid var(--border)">
+            <strong style="color:var(--ink)">Initial Password</strong><br>
+            User must change password at first login.
+          </div>
+          <button class="btn">Save User</button>
+          <button class="btn outline">Deactivate User</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function show(id, el){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+id).classList.add('active');
+  document.querySelectorAll('.picker button').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+function tab(el, id){
+  el.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  ['pc','in','at'].forEach(t=>document.getElementById('tab-'+t).style.display = t===id ? 'block':'none');
+}
+</script>
+</body>
+</html>

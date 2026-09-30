@@ -18,6 +18,8 @@
 
 Retrieve active Categories for the Create Ticket classification controls.
 
+- Related: FR-03; BR-11.
+
 - **Response 200**
   ```json
   { "data": [ { "id": 1, "name": "Hardware" }, { "id": 2, "name": "Software" } ] }
@@ -28,6 +30,8 @@ Retrieve active Categories for the Create Ticket classification controls.
 
 Retrieve active Related Systems.
 
+- Related: FR-03; BR-11.
+
 - **Response 200**
   ```json
   { "data": [ { "id": 1, "name": "Corporate Laptop" }, { "id": 2, "name": "Campus Wi-Fi" } ] }
@@ -36,6 +40,8 @@ Retrieve active Related Systems.
 ## 3. `GET /api/requesters`
 
 Retrieve active Development Requesters for the Selection screen (BR-04).
+
+- Related: FR-01, FR-02; BR-03, BR-04, BR-05.
 
 - **Response 200**
   ```json
@@ -46,6 +52,8 @@ Retrieve active Development Requesters for the Selection screen (BR-04).
 ## 4. `POST /api/tickets`
 
 Create one Ticket for the Requester identified by `x-requester-id`.
+
+- Related: FR-03, FR-04, FR-05, FR-06; BR-01, BR-02, BR-07, BR-08, BR-09, BR-10, BR-11, BR-12, BR-13, BR-16.
 
 - **Request** (`multipart/form-data` to allow attachments in the same call)
   - Fields: `categoryId` (int, required), `relatedSystemId` (int, required), `summary`
@@ -87,6 +95,8 @@ Create one Ticket for the Requester identified by `x-requester-id`.
 
 Retrieve the selected Requester's own tickets — search, filter, sort, paginate.
 
+- Related: FR-07, FR-08, FR-09, FR-10, FR-11; BR-08, BR-24, BR-25, BR-26, BR-27.
+
 - **Query parameters**
 
   | Param | Type | Notes |
@@ -116,6 +126,8 @@ Retrieve the selected Requester's own tickets — search, filter, sort, paginate
 
 Retrieve one owned Ticket with full detail and attachment metadata (active + removed).
 
+- Related: FR-12, FR-13, FR-14; BR-08.
+
 - **Response 200**
   ```json
   {
@@ -139,6 +151,8 @@ Retrieve one owned Ticket with full detail and attachment metadata (active + rem
 
 Add one permitted attachment to an owned Ticket.
 
+- Related: FR-15; BR-08, BR-17, BR-18, BR-19, BR-22, BR-23.
+
 - **Request** `multipart/form-data`, single field `file`.
 - **Response 201**
   ```json
@@ -153,6 +167,8 @@ Add one permitted attachment to an owned Ticket.
 
 Retrieve one attachment's metadata (active or removed).
 
+- Related: FR-12, FR-13; BR-08, BR-22.
+
 - **Response 200**
   ```json
   { "data": { "id": 501, "ticketId": 101, "originalFilename": "screenshot.png", "sizeBytes": 240000, "uploadedAt": "...", "removedAt": null, "removalReason": null } }
@@ -163,6 +179,8 @@ Retrieve one attachment's metadata (active or removed).
 
 Download an **active** attachment's file bytes.
 
+- Related: FR-16; BR-08, BR-20, BR-22.
+
 - **Response 200** — binary stream, `Content-Disposition: attachment; filename="..."`, correct
   `Content-Type`.
 - **404** — not found / not owned.
@@ -171,6 +189,8 @@ Download an **active** attachment's file bytes.
 ## 10. `PATCH /api/attachments/:id/remove`
 
 Soft-remove an owned, currently-active attachment.
+
+- Related: FR-17, FR-18; BR-08, BR-20, BR-21, BR-22.
 
 - **Request**
   ```json

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { addAttachment, downloadAttachment, getTicket, removeAttachment } from "../api";
+import { addAttachment, downloadAttachment, getTicket, markProblemAppearsResolved, removeAttachment } from "../api";
 import { validateAttachment } from "../utils/attachment";
+import { PublicComments } from "../components/tickets/PublicComments";
 
 interface AttachmentItem {
   id: number;
@@ -22,6 +23,7 @@ interface TicketDetailData {
   itPriority?: string | null;
   status: string;
   ticketOwner?: string | null;
+  problemAppearsResolvedAt?: string | null;
   summary: string;
   description: string;
   attachments?: {
@@ -30,7 +32,7 @@ interface TicketDetailData {
   };
 }
 
-export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ticketId: number; requesterId: number; onBack?: () => void }) {
+export default function TicketDetailPage({ ticketId, onBack }: { ticketId: number; onBack?: () => void }) {
   const [ticket, setTicket] = useState<TicketDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showRemoved, setShowRemoved] = useState(false);
@@ -38,6 +40,8 @@ export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ti
   const [reason, setReason] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [resolveBusy, setResolveBusy] = useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const cancelDialogRef = useRef<HTMLButtonElement | null>(null);
@@ -48,7 +52,8 @@ export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ti
 
     async function loadTicket() {
       try {
-        const payload = await getTicket(ticketId, requesterId);
+        // BR-03: the session identifies the requester — no requesterId arg.
+        const payload = await getTicket(ticketId);
         if (!active) return;
         setTicket(payload as unknown as TicketDetailData);
       } catch (detailError) {
@@ -65,7 +70,7 @@ export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ti
 
     void loadTicket();
     return () => { active = false; };
-  }, [ticketId, requesterId, retryToken]);
+  }, [ticketId, retryToken]);
 
   useEffect(() => {
     if (!removeTarget) return;
@@ -85,12 +90,26 @@ export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ti
 
   const activeAttachments = ticket.attachments?.active ?? [];
   const removedAttachments = ticket.attachments?.removed ?? [];
-  const refreshTicket = async () => setTicket(await getTicket(ticketId, requesterId) as unknown as TicketDetailData);
+  const refreshTicket = async () => setTicket(await getTicket(ticketId) as unknown as TicketDetailData);
   const handleDownload = async (attachment: AttachmentItem) => {
-    try { const blob = await downloadAttachment(attachment.id, requesterId); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = attachment.originalFilename; link.click(); URL.revokeObjectURL(url); } catch (downloadError) { setActionError(downloadError instanceof Error ? downloadError.message : "Download failed."); }
+    try { const blob = await downloadAttachment(attachment.id); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = attachment.originalFilename; link.click(); URL.revokeObjectURL(url); } catch (downloadError) { setActionError(downloadError instanceof Error ? downloadError.message : "Download failed."); }
   };
-  const handleAdd = async (file: File) => { const validation = validateAttachment(file); if (!validation.accepted) { setActionError(validation.reason === "oversized" ? "File exceeds the 5MB limit." : "Unsupported file type. Allowed: JPG, PNG, WEBP, PDF."); return; } setActionBusy(true); setActionError(null); try { await addAttachment(ticketId, requesterId, file); await refreshTicket(); } catch (addError) { setActionError(addError instanceof Error ? addError.message : "Unable to add attachment."); } finally { setActionBusy(false); } };
-  const handleRemove = async () => { if (!removeTarget || reason.trim().length < 5 || reason.trim().length > 200) return; setActionBusy(true); setActionError(null); try { await removeAttachment(removeTarget.id, requesterId, reason.trim()); setRemoveTarget(null); setReason(""); await refreshTicket(); } catch (removeError) { setActionError(removeError instanceof Error ? removeError.message : "Unable to remove attachment."); } finally { setActionBusy(false); } };
+  const handleAdd = async (file: File) => { const validation = validateAttachment(file); if (!validation.accepted) { setActionError(validation.reason === "oversized" ? "File exceeds the 5MB limit." : "Unsupported file type. Allowed: JPG, PNG, WEBP, PDF."); return; } setActionBusy(true); setActionError(null); try { await addAttachment(ticketId, file); await refreshTicket(); } catch (addError) { setActionError(addError instanceof Error ? addError.message : "Unable to add attachment."); } finally { setActionBusy(false); } };
+  const handleRemove = async () => { if (!removeTarget || reason.trim().length < 5 || reason.trim().length > 200) return; setActionBusy(true); setActionError(null); try { await removeAttachment(removeTarget.id, reason.trim()); setRemoveTarget(null); setReason(""); await refreshTicket(); } catch (removeError) { setActionError(removeError instanceof Error ? removeError.message : "Unable to remove attachment."); } finally { setActionBusy(false); } };
+  // FR-06/BR-05: records the "problem appears resolved" signal only — the
+  // ticket status stays exactly as the support team left it.
+  const handleMarkResolved = async () => {
+    setResolveBusy(true);
+    setResolveError(null);
+    try {
+      const signal = await markProblemAppearsResolved(ticketId);
+      setTicket((current) => current ? { ...current, problemAppearsResolvedAt: signal.problemAppearsResolvedAt } : current);
+    } catch (resolveFailure) {
+      setResolveError(resolveFailure instanceof Error ? resolveFailure.message : "Unable to record the signal.");
+    } finally {
+      setResolveBusy(false);
+    }
+  };
 
   return (
     <div className="page-card">
@@ -119,6 +138,34 @@ export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ti
       <div className="detail-section">
         <h3>Description</h3>
         <p>{ticket.description}</p>
+      </div>
+
+      <div className="detail-section">
+        <h3>Problem resolution signal</h3>
+        {ticket.problemAppearsResolvedAt ? (
+          <div className="success-panel success-panel--inline" role="status">
+            <strong>✓ You marked this problem as appearing resolved</strong>
+            <p>
+              Signalled on{" "}
+              {new Date(ticket.problemAppearsResolvedAt).toLocaleString("en-GB", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+              . The support team still formally closes the ticket — this signal does not change its status.
+            </p>
+          </div>
+        ) : (
+          <div className="attachment-panel">
+            <p className="helper-text">If the issue looks fixed on your side, let the support team know. This never closes the ticket by itself.</p>
+            {resolveError && <div className="error-panel" role="alert">{resolveError}</div>}
+            <button type="button" className="secondary-button" disabled={resolveBusy} onClick={() => void handleMarkResolved()}>
+              {resolveBusy ? "Recording…" : "Problem appears resolved"}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="detail-section">
@@ -154,6 +201,7 @@ export default function TicketDetailPage({ ticketId, requesterId, onBack }: { ti
           )}
         </div>
       </div>
+      <PublicComments ticketId={ticketId} />
       {removeTarget && <div className="modal-backdrop" role="presentation"><div ref={dialogRef} className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-title"><h2 id="remove-title">Remove attachment?</h2><p>{removeTarget.originalFilename}</p><label className="field-label" htmlFor="removal-reason">Reason (5–200 characters) *</label><textarea id="removal-reason" className="textarea-field" value={reason} onChange={(event) => setReason(event.target.value)} aria-describedby="removal-reason-error" /><div id="removal-reason-error" className="field-error" role="alert">{reason.length > 0 && (reason.trim().length < 5 || reason.trim().length > 200) ? "Reason must be between 5 and 200 characters." : ""}</div><div className="dialog-actions"><button ref={cancelDialogRef} type="button" className="secondary-button" onClick={() => { setRemoveTarget(null); setReason(""); }}>Cancel</button><button type="button" className="destructive-button" disabled={actionBusy || reason.trim().length < 5 || reason.trim().length > 200} onClick={() => void handleRemove()}>Confirm Remove</button></div></div></div>}
     </div>
   );

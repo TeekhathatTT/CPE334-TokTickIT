@@ -3,6 +3,10 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { getPrisma } from "./prisma.js";
+import {
+  ownedTicketFilter,
+  type RequesterSessionRow,
+} from "./middleware/authorize.middleware.js";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
@@ -25,34 +29,51 @@ const UPLOAD_DIR = path.resolve(
   process.env.UPLOAD_DIR ?? "uploads",
 );
 
-function getRequesterId(req: Request): number | null {
-  const raw = req.header("x-requester-id");
-
-  if (!raw) {
+/**
+ * BR-03: attachment ownership always derives from the authenticated session.
+ * Client-supplied `x-requester-id` headers are never trusted.
+ */
+async function loadAttachmentSession(
+  req: Request,
+  res: Response,
+): Promise<RequesterSessionRow | null> {
+  if (!req.user) {
+    res.status(401).json({
+      error: {
+        code: "UNAUTHENTICATED",
+        message: "Authentication is required.",
+      },
+    });
     return null;
   }
 
-  const id = Number(raw);
+  const prisma = getPrisma();
+  const user = (await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { id: true, isActive: true, legacyRequesterId: true },
+  })) as {
+    id: number;
+    isActive: boolean;
+    legacyRequesterId: number | null;
+  } | null;
 
-  return Number.isInteger(id) && id > 0 ? id : null;
+  if (!user || !user.isActive) {
+    res.status(401).json({
+      error: {
+        code: "UNAUTHENTICATED",
+        message: "Authentication is required.",
+      },
+    });
+    return null;
+  }
+
+  return { id: user.id, legacyRequesterId: user.legacyRequesterId };
 }
 
 function getAttachmentId(req: Request): number | null {
   const id = Number(req.params.id);
 
   return Number.isInteger(id) && id > 0 ? id : null;
-}
-
-async function hasActiveRequester(requesterId: number): Promise<boolean> {
-  const prisma = getPrisma();
-  if (!prisma.requester) {
-    return true;
-  }
-  const requester = await prisma.requester.findFirst({
-    where: { id: requesterId, isActive: true },
-    select: { id: true },
-  });
-  return requester !== null;
 }
 
 function isAllowedFile(
@@ -73,16 +94,11 @@ export async function addAttachment(
   req: Request,
   res: Response,
 ) {
-  const requesterId = getRequesterId(req);
+  const sessionUser = await loadAttachmentSession(req, res);
   const ticketId = Number(req.params.id);
 
-  if (!requesterId) {
-    return res.status(401).json({
-      error: {
-        code: "UNAUTHORIZED",
-        message: "Valid x-requester-id is required.",
-      },
-    });
+  if (!sessionUser) {
+    return;
   }
 
   if (!Number.isInteger(ticketId) || ticketId <= 0) {
@@ -97,19 +113,12 @@ export async function addAttachment(
   try {
     const prisma = getPrisma();
 
-    if (!(await hasActiveRequester(requesterId))) {
-      return res.status(401).json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Valid x-requester-id is required.",
-        },
-      });
-    }
-
+    // BR-09: ownership is part of the lookup — another Requester's ticket
+    // yields 404, never their data.
     const ticket = await prisma.ticket.findFirst({
       where: {
         id: ticketId,
-        requesterId,
+        ...ownedTicketFilter(sessionUser),
       },
       select: {
         id: true,
@@ -240,16 +249,11 @@ export async function getAttachment(
   req: Request,
   res: Response,
 ) {
-  const requesterId = getRequesterId(req);
+  const sessionUser = await loadAttachmentSession(req, res);
   const attachmentId = getAttachmentId(req);
 
-  if (!requesterId) {
-    return res.status(401).json({
-      error: {
-        code: "UNAUTHORIZED",
-        message: "Valid x-requester-id is required.",
-      },
-    });
+  if (!sessionUser) {
+    return;
   }
 
   if (!attachmentId) {
@@ -264,21 +268,12 @@ export async function getAttachment(
   try {
     const prisma = getPrisma();
 
-    if (!(await hasActiveRequester(requesterId))) {
-      return res.status(401).json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Valid x-requester-id is required.",
-        },
-      });
-    }
-
     const attachment =
       await prisma.attachment.findFirst({
         where: {
           id: attachmentId,
           ticket: {
-            requesterId,
+            ...ownedTicketFilter(sessionUser),
           },
         },
       });
@@ -326,16 +321,11 @@ export async function downloadAttachment(
   req: Request,
   res: Response,
 ) {
-  const requesterId = getRequesterId(req);
+  const sessionUser = await loadAttachmentSession(req, res);
   const attachmentId = getAttachmentId(req);
 
-  if (!requesterId) {
-    return res.status(401).json({
-      error: {
-        code: "UNAUTHORIZED",
-        message: "Valid x-requester-id is required.",
-      },
-    });
+  if (!sessionUser) {
+    return;
   }
 
   if (!attachmentId) {
@@ -350,21 +340,12 @@ export async function downloadAttachment(
   try {
     const prisma = getPrisma();
 
-    if (!(await hasActiveRequester(requesterId))) {
-      return res.status(401).json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Valid x-requester-id is required.",
-        },
-      });
-    }
-
     const attachment =
       await prisma.attachment.findFirst({
         where: {
           id: attachmentId,
           ticket: {
-            requesterId,
+            ...ownedTicketFilter(sessionUser),
           },
         },
       });
@@ -437,16 +418,11 @@ export async function removeAttachment(
   req: Request,
   res: Response,
 ) {
-  const requesterId = getRequesterId(req);
+  const sessionUser = await loadAttachmentSession(req, res);
   const attachmentId = getAttachmentId(req);
 
-  if (!requesterId) {
-    return res.status(401).json({
-      error: {
-        code: "UNAUTHORIZED",
-        message: "Valid x-requester-id is required.",
-      },
-    });
+  if (!sessionUser) {
+    return;
   }
 
   if (!attachmentId) {
@@ -480,21 +456,12 @@ export async function removeAttachment(
   try {
     const prisma = getPrisma();
 
-    if (!(await hasActiveRequester(requesterId))) {
-      return res.status(401).json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Valid x-requester-id is required.",
-        },
-      });
-    }
-
     const attachment =
       await prisma.attachment.findFirst({
         where: {
           id: attachmentId,
           ticket: {
-            requesterId,
+            ...ownedTicketFilter(sessionUser),
           },
         },
       });

@@ -1,9 +1,13 @@
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { getPrisma } from "../../src/prisma.js";
+import {
+  clearAllSessions,
+  createSession,
+} from "../../src/modules/auth/auth.service.js";
 
 vi.mock("../../src/prisma.js", () => ({
   getPrisma: vi.fn(),
@@ -17,8 +21,34 @@ process.env.UPLOAD_DIR = uploadDir;
 const { default: app } = await import("../../src/app.js");
 
 function mockPrisma(overrides: Record<string, unknown>) {
-  vi.mocked(getPrisma).mockReturnValue(overrides as never);
+  // Lab 3: every request carries an authenticated Requester session (id 1,
+  // linked to legacy requester row 1, password already rotated) instead of
+  // the Lab 2 `x-requester-id` stand-in. The session-user mock below stands
+  // in for the migrated User row; business behavior under test is unchanged.
+  const sessionUser = {
+    id: 1,
+    isActive: true,
+    legacyRequesterId: 1,
+    email: "jennifer.anderson@example.com",
+    role: "REQUESTER",
+    mustChangePassword: false,
+  };
+  vi.mocked(getPrisma).mockReturnValue({
+    user: {
+      findUnique: vi.fn().mockResolvedValue(sessionUser),
+      findFirst: vi.fn().mockResolvedValue(sessionUser),
+    },
+    ...overrides,
+  } as never);
 }
+
+function authCookie(): string {
+  return `toktickit_session=${createSession(1)}`;
+}
+
+beforeEach(() => {
+  clearAllSessions();
+});
 
 const activeRequester = { id: 1, name: "Jennifer Anderson" };
 
@@ -68,7 +98,7 @@ describe("POST /api/tickets", () => {
 
     const response = await request(app)
       .post("/api/tickets")
-      .set("x-requester-id", "1")
+      .set("Cookie", authCookie())
       .field("categoryId", "2")
       .field("relatedSystemId", "3")
       .field("summary", "Laptop battery drains quickly")
@@ -84,7 +114,63 @@ describe("POST /api/tickets", () => {
     expect(response.body.data.attachments).toEqual([]);
   });
 
-  it("returns 401 when x-requester-id is missing", async () => {
+  it("initialises IT Priority from Requested Priority (BR-12)", async () => {
+    const create = vi.fn().mockResolvedValue({
+      id: 102,
+      ticketNumber: "TKT-2026-000002",
+      requesterId: 1,
+      categoryId: 2,
+      relatedSystemId: 3,
+      summary: "Server is down",
+      description: "The production server stopped responding to requests.",
+      requestedPriority: "HIGH",
+      itPriority: "HIGH",
+      status: "NEW",
+      createdAt: new Date("2026-08-19T09:14:00Z"),
+      attachments: [],
+    });
+    mockPrisma({
+      requester: {
+        findFirst: vi.fn().mockResolvedValue(activeRequester),
+      },
+      category: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValue({ id: 2, name: "Hardware", isActive: true }),
+      },
+      relatedSystem: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 3,
+          name: "Corporate Laptop",
+          isActive: true,
+        }),
+      },
+      ticket: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create,
+      },
+    });
+
+    const response = await request(app)
+      .post("/api/tickets")
+      .set("Cookie", authCookie())
+      .field("categoryId", "2")
+      .field("relatedSystemId", "3")
+      .field("summary", "Server is down")
+      .field(
+        "description",
+        "The production server stopped responding to requests.",
+      )
+      .field("requestedPriority", "HIGH");
+
+    expect(response.status).toBe(201);
+    expect(create).toHaveBeenCalledOnce();
+    const data = create.mock.calls[0]![0].data as Record<string, unknown>;
+    expect(data.requestedPriority).toBe("HIGH");
+    expect(data.itPriority).toBe("HIGH");
+  });
+
+  it("returns 401 when unauthenticated (no session cookie)", async () => {
     const response = await request(app)
       .post("/api/tickets")
       .field("categoryId", "2")
@@ -97,6 +183,7 @@ describe("POST /api/tickets", () => {
       .field("requestedPriority", "MEDIUM");
 
     expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe("UNAUTHENTICATED");
   });
 
   it("returns 400 with field errors when summary is too short", async () => {
@@ -108,7 +195,7 @@ describe("POST /api/tickets", () => {
 
     const response = await request(app)
       .post("/api/tickets")
-      .set("x-requester-id", "1")
+      .set("Cookie", authCookie())
       .field("categoryId", "2")
       .field("relatedSystemId", "3")
       .field("summary", "Hi")
@@ -132,7 +219,7 @@ describe("POST /api/tickets", () => {
 
     const response = await request(app)
       .post("/api/tickets")
-      .set("x-requester-id", "1")
+      .set("Cookie", authCookie())
       .field("categoryId", "")
       .field("relatedSystemId", "not-a-number")
       .field("summary", "no")
@@ -169,7 +256,7 @@ describe("POST /api/tickets", () => {
 
     const response = await request(app)
       .post("/api/tickets")
-      .set("x-requester-id", "1")
+      .set("Cookie", authCookie())
       .field("categoryId", "999")
       .field("relatedSystemId", "3")
       .field("summary", "Laptop battery drains quickly")
@@ -184,7 +271,7 @@ describe("POST /api/tickets", () => {
   });
 
   it("creates ticket when one attachment fails validation", async () => {
-    vi.mocked(getPrisma).mockReturnValue({
+    mockPrisma({
       requester: {
         findFirst: vi.fn().mockResolvedValue({
           id: 1,
@@ -229,11 +316,11 @@ describe("POST /api/tickets", () => {
           uploadedAt: new Date("2026-08-19T09:14:00Z"),
         }),
       },
-    } as never);
+    });
 
     const response = await request(app)
       .post("/api/tickets")
-      .set("x-requester-id", "1")
+      .set("Cookie", authCookie())
       .field("categoryId", "1")
       .field("relatedSystemId", "1")
       .field("summary", "Laptop problem")
@@ -308,7 +395,7 @@ describe("GET /api/tickets", () => {
 
     const response = await request(app)
       .get("/api/tickets")
-      .set("x-requester-id", "1");
+      .set("Cookie", authCookie());
 
     expect(response.status).toBe(200);
     expect(response.body.data).toHaveLength(1);
@@ -338,7 +425,7 @@ describe("GET /api/tickets", () => {
 
     const response = await request(app)
       .get("/api/tickets")
-      .set("x-requester-id", "1");
+      .set("Cookie", authCookie());
 
     expect(response.status).toBe(200);
     expect(response.body.meta.isEmpty).toBe(true);
@@ -360,16 +447,17 @@ describe("GET /api/tickets", () => {
 
     const response = await request(app)
       .get("/api/tickets?search=doesnotexist")
-      .set("x-requester-id", "1");
+      .set("Cookie", authCookie());
 
     expect(response.status).toBe(200);
     expect(response.body.meta.isEmpty).toBe(false);
     expect(response.body.meta.isNoResults).toBe(true);
   });
 
-  it("returns 401 when x-requester-id is missing", async () => {
+  it("returns 401 when unauthenticated (no session cookie)", async () => {
     const response = await request(app).get("/api/tickets");
     expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe("UNAUTHENTICATED");
   });
 });
 
@@ -386,7 +474,7 @@ describe("GET /api/tickets/:id", () => {
 
     const response = await request(app)
       .get("/api/tickets/999")
-      .set("x-requester-id", "1");
+      .set("Cookie", authCookie());
 
     expect(response.status).toBe(404);
     expect(response.body.error.code).toBe("NOT_FOUND");
@@ -436,7 +524,7 @@ describe("GET /api/tickets/:id", () => {
 
     const response = await request(app)
       .get("/api/tickets/101")
-      .set("x-requester-id", "1");
+      .set("Cookie", authCookie());
 
     expect(response.status).toBe(200);
     expect(response.body.data.attachments.active).toHaveLength(1);
