@@ -11,7 +11,7 @@ Reuse Lab 3's Zen Green tokens, cards, badges, tabs, buttons, validation placeme
 | Follow-up badge (resolved) | pale-green bg / `--color-secondary` text + "Follow-up resolved" text |
 | Result badge | light-blue bg / `--color-primary` text + result label text (`RESOLVED_STEP` → "Resolved step", etc.) |
 | Resolution-gate banner | amber `warning-panel` (same component as the Lab 3 resolved-signal flag) with blocking copy + pending count |
-| Dashboard metric cards | white cards with large numeric value, label, helper line, and drill-down link; zero-state cards keep layout, show empty copy, and keep the link enabled |
+| Dashboard metric cards | white cards with large numeric value, label, helper line, and drill-down link for roles with queue access; zero-state cards keep layout, show empty copy, and keep the link enabled for those roles. For Administrator viewers (no queue access per Lab 3) the same cards render **without** a link and with an explanatory helper instead (see §2.2) — never a dead link (BR-13) |
 | Dashboards reuse role/queue/status/priority badges unchanged from Lab 3 | no new badge colors |
 
 The three threads on Staff Ticket Detail must never blur together: each keeps its own titled panel, own border/background, own icon, and own confirmation copy ("Posting as public comment…" vs "Saving as internal note — staff only…" vs "Recording staff action…"). Order on the page is fixed: Public Comments, then Internal Notes, then Actions Taken.
@@ -22,22 +22,22 @@ The three threads on Staff Ticket Detail must never blur together: each keeps it
 
 Route/shell: Requester shell gains a "Dashboard" nav item (alongside My Tickets, Create Ticket). Content: four metric cards (`openTickets`, `awaitingMyResponse`, `recentlyResolved`, `totalSubmitted`) in a 4→2→1 responsive grid, each showing label, numeric value, one-line helper (the BR-08 empty copy when zero), and a drill-down link ("View tickets →" to the specified My Tickets filter; "Create a ticket →" for zero `totalSubmitted`). Below: "Recently updated" strip (up to 5 tickets, number + summary + status badge + updated date, linking to Ticket Detail).
 
-### 2.2 IT Staff Dashboard (new; FR-07, Administrator reuses aggregates)
+### 2.2 IT Staff Dashboard (new; FR-07, Administrator reuses aggregates read-only without links)
 
-IT Staff shell gains a "Dashboard" nav item (alongside Ticket Queue). Six metric cards (`unassignedActive`, `assignedToMe`, `waitingForRequester`, `pendingFollowUp`, `resolvedPendingClose`, `newToday`) in a 3→2→1 responsive grid with the same label/value/helper/link anatomy; `pendingFollowUp` cards link into the queue pre-filtered to `pendingFollowUpTicketIds`. Administrators see the same six aggregates via the same layout when granted the dashboard route; no queue/detail/assignment/status controls appear for them (Lab 3 matrix unchanged).
+IT Staff shell gains a "Dashboard" nav item (alongside Ticket Queue). Six metric cards (`unassignedActive`, `assignedToMe`, `waitingForRequester`, `pendingFollowUp`, `resolvedPendingClose`, `newToday`) in a 3→2→1 responsive grid with the same label/value/helper/link anatomy; `pendingFollowUp` cards link to the exact drill-down `?hasPendingFollowUp=true` (not an id list — the 200-id cap never truncates the drill-down); every card's value equals its drill-down's row count (BR-08). Administrators see the same six aggregates via the same layout when granted the dashboard route, but **without drill-down links and without any queue/detail/assignment/status controls** (Lab 3 matrix unchanged — admins have no queue/detail access, so there is no admin surface for Staff Ticket Detail / Actions Taken create-edit-resolve in Lab 4 UI; those powers are API-only). Each admin card renders value + helper + a non-interactive reason line instead of a link, e.g. "Sign in as IT Staff to open the queue — administrators have no queue access." This is a documented disabled state with reason (not dead UI) per BR-13. Rendering a link to the staff queue for an admin would be dead UI and is forbidden.
 
-### 2.3 Actions Taken area of Staff Ticket Detail (extends FR-08/FR-09 screen)
+### 2.3 Actions Taken area of Staff Ticket Detail (extends FR-08/FR-09 screen; IT Staff route only — Administrator powers API-only)
 
-Appended below Internal Notes per §1 ordering. Components:
+Appended below Internal Notes per §1 ordering. This route remains **IT-Staff-only** per Lab 3 (administrators have no queue/detail access, so Lab 4 adds no admin UI surface here; Administrator any-row edit / any-row resolve powers from spec BR-06 are exercised via API only and never render in this UI). Components (all role checks below are therefore IT-Staff-only in practice):
 
-- **List:** chronological entries; each row shows action date (server `actionDate`, locale-formatted), author name + role badge, `description`, `result` badge, `attachmentNotes` line (when present, quoted with a paperclip icon and "attachment reference" helper — never a download button), follow-up badge (pending/resolved with note text and resolver/when line), and row actions: **Edit** (visible only to author-while-active or Administrator; others see no Edit control) and **Mark follow-up resolved** (visible to any IT Staff/Administrator only while the row is pending).
+- **List:** chronological entries; each row shows action date (server `actionDate`, locale-formatted), author name + role badge, `description`, `result` badge, `attachmentNotes` line (when present, quoted with a paperclip icon and "attachment reference" helper — never a download button), follow-up badge (pending/resolved with note text and resolver/when line), and row actions: **Edit** (visible only to the author while still active IT Staff; others see no Edit control — the Administrator any-row-edit case never renders here because admins never open this route) and **Mark follow-up resolved** (visible to any IT Staff only while the row is pending — the Administrator resolve case is API-only).
 - **Create form:** `description` textarea with live 5–2,000 counter, `result` select (5 controlled values), `followUpRequired` checkbox, conditional `followUpNote` textarea (appears and becomes required when checked; hidden and cleared when unchecked — the required-when rule is **visibly enforced**: submit disabled with inline error until satisfied, not just backend-validated), `attachmentNotes` optional input (≤500, helper: "Name a file already attached to this ticket — this does not upload anything"). Submit disables while in-flight ("Recording…"); success appends the row and clears the draft; failure preserves the draft with Retry.
 - **Edit mode:** inline per-row form with the same field rules; shows "Last updated …" audit line; requires `expectedUpdatedAt` under the hood; on `409 VERSION_CONFLICT` shows "Someone else changed this entry — Reload entry / Keep my text" (draft preserved, never discarded).
-- **Resolution-gate banner:** while the ticket is in `OPEN`/`IN_PROGRESS`/`WAITING_FOR_REQUESTER` **and** `pendingFollowUpCount > 0`, an amber banner above the Status control reads: "Resolution blocked — N follow-up action(s) still pending. Resolve each item below before marking Resolved." The Status select still offers Resolved (matrix-legal) but choosing it surfaces the server `RESOLUTION_BLOCKED` message inline if forced.
+- **Resolution-gate banner:** while the ticket is in `OPEN`/`IN_PROGRESS`/`WAITING_FOR_REQUESTER` **and** `pendingFollowUpCount > 0` (sourced from `GET /api/staff/tickets/:id.pendingFollowUpCount` on page load — never derived by counting the list client-side), an amber banner above the Status control reads: "Resolution blocked — N follow-up action(s) still pending. Resolve each item below before marking Resolved." The Status select still offers Resolved (matrix-legal) but choosing it surfaces the server `RESOLUTION_BLOCKED` message inline if forced.
 
 ### 2.4 Requester Ticket Detail — read-only Actions Taken (extends FR-06 screen)
 
-Same list rows as §2.3 **without** create form, Edit, or Resolve controls. A helper line reads "Recorded by IT — read-only." Forced writes are server-`403` (AC-09).
+Same list rows as §2.3 **without** create form, Edit, or Resolve controls (full shape including `followUpNote`/`attachmentNotes` per `api-spec.md` — staff must write requester-safe wording). A helper line reads "Recorded by IT — read-only." Forced writes are server-`403` (AC-09).
 
 ## 3. Modes and feedback
 
@@ -62,12 +62,13 @@ Breakpoints identical to Lab 3 (desktop ≥992px, tablet 768–991px, mobile <76
 
 | Surface | Requester | IT Staff | Administrator |
 |---|---|---|---|
-| Requester Dashboard | Yes (own data) | No | No |
-| IT Staff Dashboard aggregates | No | Yes | Yes (read-only aggregates; no queue powers) |
-| Actions Taken list | Own tickets, read-only | Yes | Yes |
-| Actions Taken create | No | Yes (any ticket) | Yes |
-| Actions Taken edit (fields) | No | Author-while-active only | Yes (any row) |
-| Follow-up resolve | No | Yes (any row) | Yes (any row) |
+| Requester Dashboard | Yes (own data, links enabled) | No | No |
+| IT Staff Dashboard aggregates | No | Yes (cards link to exact drill-downs) | Yes (read-only aggregates; cards render **without** links + reason "Sign in as IT Staff to open the queue"; no queue/detail/assignment/status powers) |
+| Staff Ticket Detail route (incl. Actions Taken area) | No | Yes | No (no UI surface; API-only) |
+| Actions Taken list | Own tickets, read-only (full shape incl. notes; staff must write requester-safe wording) | Yes | API-only (no UI surface) |
+| Actions Taken create | No | Yes (any ticket, UI + API) | Yes (API-only; no UI surface) |
+| Actions Taken edit (fields) | No | Author-while-active only (UI + API) | Yes (any row, API-only; no UI surface) |
+| Follow-up resolve | No | Yes (any row, UI + API) | Yes (any row, API-only; no UI surface) |
 
 ## 6. Visual evidence paths for later implementation
 
