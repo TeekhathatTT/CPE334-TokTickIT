@@ -10,9 +10,12 @@
 // existence check (findFirst by ticketId + content) and created only when missing,
 // never deleted, so reruns converge without erasing authored history.
 // Lab 4 Actions Taken rows follow the same existence-check pattern (findFirst by
-// ticketId + description): reruns never duplicate rows and never overwrite
+// the BR-06 immutable triple ticketId + performedById + actionDate):
+// reruns never duplicate rows and never overwrite
 // follow-up resolution state changed by tests or API exercise (a seeded pending
-// item that was explicitly resolved stays resolved).
+// item that was explicitly resolved stays resolved). description is NOT part of
+// the match key because BR-06 lets authors and admins edit it — matching on it
+// would re-insert a duplicate after any edit of a seeded row.
 // Spec: docs/lab-03/specification.md §8 + BR-26 (4 active + 1 inactive Requester,
 // 3 active + 1 inactive IT Staff, 1 active Administrator, distributed tickets,
 // safe example comments/notes). Strategy is reference (not merge): Requester rows
@@ -150,6 +153,10 @@ const seedUsers = [
 // Realistic tickets spanning all 8 statuses, requested + IT priorities, and
 // assigned/unassigned ownership. Owners (when set) are active IT Staff only
 // (BR-11/BR-16); Administrators and inactive users are never owners.
+// createdAt is set explicitly (fixed September dates, all before the earliest
+// seeded actionDate of 2026-09-19) so the timeline never shows actions dated
+// before their ticket existed; the seed writes it on both create and update so
+// re-seeding repairs the wall-clock now() timestamps of earlier seed runs.
 const seedTickets = [
   {
     ticketNumber: "TKT-2026-000001",
@@ -163,6 +170,7 @@ const seedTickets = [
     status: "NEW",
     ownerEmail: null,
     problemAppearsResolvedAt: null,
+    createdAt: new Date("2026-09-15T08:00:00Z"),
   },
   {
     ticketNumber: "TKT-2026-000002",
@@ -176,6 +184,7 @@ const seedTickets = [
     status: "OPEN",
     ownerEmail: "priya.patel@example.com",
     problemAppearsResolvedAt: null,
+    createdAt: new Date("2026-09-16T08:00:00Z"),
   },
   {
     ticketNumber: "TKT-2026-000003",
@@ -189,6 +198,7 @@ const seedTickets = [
     status: "IN_PROGRESS",
     ownerEmail: "tom.nguyen@example.com",
     problemAppearsResolvedAt: null,
+    createdAt: new Date("2026-09-17T08:00:00Z"),
   },
   {
     ticketNumber: "TKT-2026-000004",
@@ -202,6 +212,7 @@ const seedTickets = [
     status: "WAITING_FOR_REQUESTER",
     ownerEmail: "lisa.garcia@example.com",
     problemAppearsResolvedAt: null,
+    createdAt: new Date("2026-09-17T09:00:00Z"),
   },
   {
     ticketNumber: "TKT-2026-000005",
@@ -215,6 +226,7 @@ const seedTickets = [
     status: "RESOLVED",
     ownerEmail: "priya.patel@example.com",
     problemAppearsResolvedAt: new Date("2026-09-20T10:00:00Z"),
+    createdAt: new Date("2026-09-18T08:00:00Z"),
   },
   {
     ticketNumber: "TKT-2026-000006",
@@ -228,6 +240,7 @@ const seedTickets = [
     status: "CLOSED",
     ownerEmail: "tom.nguyen@example.com",
     problemAppearsResolvedAt: new Date("2026-09-18T14:30:00Z"),
+    createdAt: new Date("2026-09-15T09:00:00Z"),
   },
   {
     ticketNumber: "TKT-2026-000007",
@@ -241,6 +254,7 @@ const seedTickets = [
     status: "REOPENED",
     ownerEmail: "lisa.garcia@example.com",
     problemAppearsResolvedAt: null,
+    createdAt: new Date("2026-09-18T09:00:00Z"),
   },
   {
     ticketNumber: "TKT-2026-000008",
@@ -254,6 +268,7 @@ const seedTickets = [
     status: "CANCELLED",
     ownerEmail: null,
     problemAppearsResolvedAt: null,
+    createdAt: new Date("2026-09-18T10:00:00Z"),
   },
 ];
 
@@ -366,6 +381,7 @@ async function main() {
         status: t.status,
         ticketOwnerId: owner ? owner.id : null,
         problemAppearsResolvedAt: t.problemAppearsResolvedAt,
+        createdAt: t.createdAt,
       },
       create: {
         ticketNumber: t.ticketNumber,
@@ -380,6 +396,7 @@ async function main() {
         status: t.status,
         ticketOwnerId: owner ? owner.id : null,
         problemAppearsResolvedAt: t.problemAppearsResolvedAt,
+        createdAt: t.createdAt,
       },
     });
   }
@@ -446,9 +463,11 @@ async function main() {
   // ActionStatus enum, so there is no "assigned/cancelled action" state to seed;
   // the closest seeded case is the NO_FURTHER_ACTION entry on the CANCELLED
   // ticket 000008 (flagged in the PR).
-  // Idempotency: existence check by (ticketId + description); rows are created
+  // Idempotency: existence check by the BR-06 immutable triple
+  // (ticketId + performedById + actionDate); rows are created
   // only when missing and never updated or deleted, so reruns neither duplicate
-  // nor clobber follow-up state changed after seeding.
+  // nor clobber follow-up state changed after seeding. description is editable
+  // per BR-06, so it must not be part of the match key.
   const SEED_ACTIONS_TAKEN = [
     {
       ticketNumber: "TKT-2026-000002",
@@ -567,7 +586,7 @@ async function main() {
       throw new Error(`Seed action lookup failed for ticket ${a.ticketNumber}`);
     }
     const existing = await prisma.actionTaken.findFirst({
-      where: { ticketId: ticket.id, description: a.description },
+      where: { ticketId: ticket.id, performedById: performer.id, actionDate: a.actionDate },
       select: { id: true },
     });
     if (existing) continue;

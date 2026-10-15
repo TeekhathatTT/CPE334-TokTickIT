@@ -47,8 +47,16 @@ Record a baseline fingerprint (counts + checksums) before migrating:
 
 ```sh
 cd server
-node prisma/seed.mjs   # Lab 3 baseline seed (before this branch's seed runs)
-# counts + md5(string_agg(...)) per table; see §5 for the real numbers
+# IMPORTANT: run the baseline seed from the lab4-staging base commit
+# (d3a457c), NOT from this branch. This branch's seed upserts Kevin
+# Thompson and then touches prisma.actionTaken, so on a pre-Lab-4 database
+# (ActionTaken table not yet migrated) it fails part-way and leaves a dirty,
+# half-seeded baseline (Kevin upserted, then crash at actionTaken).
+git stash -u  # if needed to get a clean tree
+git checkout lab4-staging  # or: git checkout d3a457c
+node prisma/seed.mjs   # Lab 3 baseline seed (10 users, 8 tickets, 16 public comments, 6 internal notes)
+# counts + md5(string_agg(... ORDER BY id)) per table; see §5 for the real numbers
+git checkout feature/lab4-db-migration  # return to this branch afterwards
 ```
 
 ## 3. Manual rollback SQL (dependency-safe order)
@@ -62,10 +70,10 @@ safe to re-run (`IF EXISTS` guards):
 -- (CHECK + FKs, then indexes, then table, then the migration-history row).
 -- Lab 1–3 objects are NOT touched.
 BEGIN;
-ALTER TABLE "ActionTaken" DROP CONSTRAINT IF EXISTS "ActionTaken_result_check";
-ALTER TABLE "ActionTaken" DROP CONSTRAINT IF EXISTS "ActionTaken_followUpResolvedById_fkey";
-ALTER TABLE "ActionTaken" DROP CONSTRAINT IF EXISTS "ActionTaken_performedById_fkey";
-ALTER TABLE "ActionTaken" DROP CONSTRAINT IF EXISTS "ActionTaken_ticketId_fkey";
+ALTER TABLE IF EXISTS "ActionTaken" DROP CONSTRAINT IF EXISTS "ActionTaken_result_check";
+ALTER TABLE IF EXISTS "ActionTaken" DROP CONSTRAINT IF EXISTS "ActionTaken_followUpResolvedById_fkey";
+ALTER TABLE IF EXISTS "ActionTaken" DROP CONSTRAINT IF EXISTS "ActionTaken_performedById_fkey";
+ALTER TABLE IF EXISTS "ActionTaken" DROP CONSTRAINT IF EXISTS "ActionTaken_ticketId_fkey";
 DROP INDEX IF EXISTS "ActionTaken_ticketId_actionDate_idx";
 DROP INDEX IF EXISTS "ActionTaken_ticketId_idx";
 DROP INDEX IF EXISTS "ActionTaken_performedById_idx";
@@ -74,11 +82,11 @@ DELETE FROM "_prisma_migrations" WHERE migration_name = '20261014063908_lab4_act
 COMMIT;
 ```
 
-Apply with:
+Apply with the versioned script (the exact file tested in §5):
 
 ```sh
-docker cp ./rollback_lab4.sql toktickit-db:/tmp/rollback_lab4.sql
-docker exec toktickit-db psql -U toktickit -d toktickit -f /tmp/rollback_lab4.sql
+docker cp ./server/prisma/rollback/20261014063908_lab4_actions_taken.down.sql toktickit-db:/tmp/rollback_lab4.sql
+docker exec toktickit-db psql -U toktickit -d toktickit -v ON_ERROR_STOP=1 --single-transaction -f /tmp/rollback_lab4.sql
 ```
 
 After rollback, `npx prisma migrate status` reports the database at
@@ -93,14 +101,22 @@ matches the pre-Lab-4 state. Re-applying Lab 4 later is a normal
 
 ## 4. Restore path (from the §2 dump)
 
+In-place restore of the pre-migration dump into the same database (what §5
+actually ran — not a side database):
+
 ```sh
-# Recreate the database and reload the pre-migration dump:
-docker exec toktickit-db psql -U toktickit -d toktickit -c 'CREATE DATABASE toktickit_restore;'
+# Connect to the maintenance `postgres` database: Postgres cannot DROP the
+# database you are currently connected to.
+docker exec toktickit-db psql -U toktickit -d postgres -c 'DROP DATABASE IF EXISTS toktickit WITH (FORCE);'
+docker exec toktickit-db psql -U toktickit -d postgres -c 'CREATE DATABASE toktickit;'
 docker cp ./backups/lab4_before.sql toktickit-db:/tmp/lab4_before.sql
-docker exec toktickit-db psql -U toktickit -d toktickit_restore -f /tmp/lab4_before.sql
-# Verify counts + checksums equal the §5 baseline, then point DATABASE_URL at
-# the restored DB and run `npx prisma migrate deploy` to re-apply Lab 4.
+docker exec toktickit-db psql -U toktickit -d toktickit -v ON_ERROR_STOP=1 --single-transaction -f /tmp/lab4_before.sql
+# Verify counts + checksums equal the §5 baseline, then run
+# `npx prisma migrate deploy` to re-apply Lab 4.
 ```
+
+(`-v ON_ERROR_STOP=1 --single-transaction` makes any restore error abort the
+whole reload instead of letting a partial restore silently pass.)
 
 ## 5. Test evidence (real run, 2026-10-14, local Postgres 16 via compose `db`)
 
@@ -109,15 +125,30 @@ Scratch database `toktickit_recovery` on `127.0.0.1:5434`:
 1. Applied the 5 Lab 3 migrations (`npx prisma migrate deploy`) + ran the Lab 3
    seed (`node prisma/seed.mjs` → 10 users, 8 tickets, 16 public comments,
    6 internal notes).
-2. Recorded baseline counts + `md5(string_agg(t::text, ','))` checksums per table.
+2. Recorded baseline counts + checksums per table with the exact query below
+   (`ORDER BY id` makes row order deterministic — without it a restore with
+   identical data can yield a different checksum).
+
+   Exact fingerprint query (run once per table; substitute the table name for
+   `"User"` — `"User"`, `"Requester"`, `"Category"`, `"RelatedSystem"`,
+   `"Ticket"`, `"Attachment"`, `"PublicComment"`, `"InternalNote"`):
+
+   ```sql
+   SELECT count(*) AS n,
+          md5(coalesce(string_agg(t::text, ',' ORDER BY id), '')) AS checksum
+   FROM "User" t;
+   ```
+
+   (`coalesce(..., '')` keeps the empty-table case (`Attachment`, 0 rows)
+   at `md5('') = d41d8cd98f00b204e9800998ecf8427e` instead of `NULL`.)
 3. `pg_dump -Fp` to `/tmp/lab4_before.sql` (32,198 bytes).
 4. Applied the Lab 4 migration (`npx prisma migrate deploy` → 6 migrations).
    Verified: `ActionTaken_result_check` exists, 3 custom indexes exist,
    invalid `result = 'BOGUS_VALUE'` is rejected with
    `violates check constraint "ActionTaken_result_check"`.
 5. Ran the §3 rollback SQL → `ALTER TABLE ×4, DROP INDEX ×3, DROP TABLE, DELETE 1`.
-6. Drop + recreate + `psql -f /tmp/lab4_before.sql` restore → checksums match
-   baseline again.
+6. Drop + recreate + `psql -v ON_ERROR_STOP=1 --single-transaction -f /tmp/lab4_before.sql`
+   restore (in-place, per §4) → checksums match baseline again.
 
 ### Before Lab 4 (baseline) vs after rollback — identical
 
