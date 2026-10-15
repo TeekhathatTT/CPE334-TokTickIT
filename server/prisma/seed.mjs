@@ -155,8 +155,13 @@ const seedUsers = [
 // (BR-11/BR-16); Administrators and inactive users are never owners.
 // createdAt is set explicitly (fixed September dates, all before the earliest
 // seeded actionDate of 2026-09-19) so the timeline never shows actions dated
-// before their ticket existed; the seed writes it on both create and update so
-// re-seeding repairs the wall-clock now() timestamps of earlier seed runs.
+// before their ticket existed on a fresh database. It is written on create
+// only (never on update) so re-seeding is zero-touch on Lab 1–3 rows per
+// Lab 4 BR-12 / AC-12: existing tickets keep their original createdAt.
+// On an existing database seeded before these fixed dates, seeded actionDates
+// may therefore appear before the ticket's original wall-clock createdAt
+// (demo data only). For a clean demo timeline, run a fresh database
+// (`npx prisma migrate reset`) then re-seed.
 const seedTickets = [
   {
     ticketNumber: "TKT-2026-000001",
@@ -381,7 +386,8 @@ async function main() {
         status: t.status,
         ticketOwnerId: owner ? owner.id : null,
         problemAppearsResolvedAt: t.problemAppearsResolvedAt,
-        createdAt: t.createdAt,
+        // NOTE: no createdAt here — zero-touch on Lab 1–3 rows (BR-12/AC-12).
+        // createdAt is create-only; re-seeding must not rewrite it.
       },
       create: {
         ticketNumber: t.ticketNumber,
