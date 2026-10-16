@@ -32,3 +32,8 @@ server/dist/
 .env.*.local
 
 server/uploads/
+
+# Lab 4 migration backups: pg_dump output includes User password hashes
+# (scrypt). Never commit dumps.
+backups/
+*.sql.dump
