@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  ApiError,
   assignStaffTicket,
   getStaffTicket,
   getStaffUsers,
@@ -11,6 +12,7 @@ import {
 import type { Priority, TicketStatus } from "../../types/ticket";
 import { PublicComments } from "../../components/tickets/PublicComments";
 import { InternalNotes } from "../../components/tickets/InternalNotes";
+import { ActionsTaken } from "../../components/tickets/ActionsTaken";
 
 interface StaffTicketDetailPageProps {
   ticketId: number;
@@ -19,6 +21,11 @@ interface StaffTicketDetailPageProps {
 }
 
 const PRIORITIES: Priority[] = ["LOW", "MEDIUM", "HIGH"];
+
+// BR-07: the resolution gate only guards these three edges.
+const RESOLUTION_GATE_EDGES = new Set<TicketStatus>(["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER"]);
+
+type MutateOperation = (expectedUpdatedAt: string) => Promise<StaffTicketDetail>;
 
 function fieldError(message: string | null) {
   return message ? (
@@ -60,6 +67,11 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
   const [statusBusy, setStatusBusy] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
+
+  // BR-09 stale-write recovery shared by status/assignment/priority.
+  const [conflict, setConflict] = useState(false);
+  const [conflictNotice, setConflictNotice] = useState<string | null>(null);
+  const [pendingOp, setPendingOp] = useState<MutateOperation | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -109,8 +121,22 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
     return () => { active = false; };
   }, [staffRetryToken]);
 
-  const mutate = async (
-    operation: () => Promise<StaffTicketDetail>,
+  // Keep the on-screen ticket in sync after an Actions Taken write (resolving a
+  // follow-up clears the gate / changes pendingFollowUpCount) without toggling
+  // the page's full-screen loading state.
+  const refreshTicket = async () => {
+    try {
+      const fresh = await getStaffTicket(ticketId);
+      setTicket(fresh);
+    } catch {
+      // The Actions Taken thread owns its own data; a quiet refresh failure must
+      // never blank the ticket already on screen.
+    }
+  };
+
+  const attempt = async (
+    operation: MutateOperation,
+    expectedUpdatedAt: string,
     setBusy: (busy: boolean) => void,
     setOk: (message: string | null) => void,
     setFail: (message: string | null) => void,
@@ -120,22 +146,67 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
     setBusy(true);
     setOk(null);
     setFail(null);
+    setConflict(false);
+    setConflictNotice(null);
     try {
-      const updated = await operation();
+      const updated = await operation(expectedUpdatedAt);
       setTicket(updated);
       setOk(okCopy);
       onSuccess?.();
     } catch (failure) {
-      setFail(failure instanceof Error ? failure.message : "Unable to save changes.");
+      if (failure instanceof ApiError && failure.code === "VERSION_CONFLICT") {
+        setPendingOp(() => operation);
+        setConflict(true);
+      } else {
+        setFail(failure instanceof Error ? failure.message : "Unable to save changes.");
+      }
     } finally {
       setBusy(false);
     }
   };
 
+  const mutate = (
+    operation: MutateOperation,
+    setBusy: (busy: boolean) => void,
+    setOk: (message: string | null) => void,
+    setFail: (message: string | null) => void,
+    okCopy: string,
+    onSuccess?: () => void,
+  ) => {
+    if (!ticket) return;
+    void attempt(operation, ticket.updatedAt, setBusy, setOk, setFail, okCopy, onSuccess);
+  };
+
+  // "Reload ticket": refresh updatedAt, then one-click retry the intended write.
+  const handleReloadConflict = async () => {
+    const operation = pendingOp;
+    setConflict(false);
+    try {
+      const fresh = await getStaffTicket(ticketId);
+      setTicket(fresh);
+      if (!operation) {
+        setConflictNotice("Ticket reloaded.");
+        return;
+      }
+      const updated = await operation(fresh.updatedAt);
+      setTicket(updated);
+      setPendingOp(null);
+      setConflictNotice("Ticket reloaded — your change was applied.");
+    } catch (failure) {
+      if (failure instanceof ApiError && failure.code === "VERSION_CONFLICT") {
+        setPendingOp(() => operation);
+        setConflict(true);
+      } else {
+        setConflictNotice(null);
+        setStatusError(failure instanceof Error ? failure.message : "Unable to reload the ticket.");
+      }
+    }
+  };
+
   const handleClaim = () =>
-    void mutate(() => assignStaffTicket(ticketId, currentUserId), setAssignBusy, setAssignMessage, setAssignError, "Ticket claimed.");
+    mutate((expected) => assignStaffTicket(ticketId, currentUserId, expected), setAssignBusy, setAssignMessage, setAssignError, "Ticket claimed.");
   const handleUnassign = () =>
-    void mutate(() => assignStaffTicket(ticketId, null), setAssignBusy, setAssignMessage, setAssignError, "Ticket unassigned.");
+    mutate((expected) => assignStaffTicket(ticketId, null, expected), setAssignBusy, setAssignMessage, setAssignError, "Ticket unassigned.");
   const handleReassign = () => {
     const parsed = Number(reassignId);
     if (!Number.isInteger(parsed) || parsed <= 0) {
@@ -143,7 +214,7 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
       return;
     }
     void mutate(
-      () => assignStaffTicket(ticketId, parsed),
+      (expected) => assignStaffTicket(ticketId, parsed, expected),
       setAssignBusy, setAssignMessage, setAssignError, "Ticket reassigned.",
       () => setReassignId(String(parsed)),
     );
@@ -151,16 +222,16 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
 
   const handlePriority = (value: string) => {
     if (!PRIORITIES.includes(value as Priority)) return;
-    void mutate(
-      () => updateStaffPriority(ticketId, value as Priority),
+    mutate(
+      (expected) => updateStaffPriority(ticketId, value as Priority, expected),
       setPriorityBusy, setPriorityMessage, setPriorityError, "IT Priority updated.",
     );
   };
 
   const handleStatus = (value: string) => {
     if (value === "" || !ticket || value === ticket.status) return;
-    void mutate(
-      () => updateStaffStatus(ticketId, value as TicketStatus),
+    mutate(
+      (expected) => updateStaffStatus(ticketId, value as TicketStatus, expected),
       setStatusBusy, setStatusMessage, setStatusError, "Status updated.",
     );
   };
@@ -185,6 +256,8 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
   }
 
   const allowedStatuses = ticket.permittedActions.allowedStatuses;
+  const gateBlocksResolution =
+    RESOLUTION_GATE_EDGES.has(ticket.status) && ticket.pendingFollowUpCount > 0;
 
   return (
     <div className="page-card">
@@ -207,6 +280,21 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
             })}
             . Review and drive the formal status yourself — this flag never changes status on its own.
           </p>
+        </div>
+      ) : null}
+
+      {conflict ? (
+        <div className="warning-panel" role="alert">
+          <strong>Someone else changed this ticket.</strong>
+          <p>Your change was not saved. Reload to retry it against the current version.</p>
+          <button type="button" className="secondary-button" onClick={() => void handleReloadConflict()}>
+            Reload ticket
+          </button>
+        </div>
+      ) : null}
+      {conflictNotice ? (
+        <div className="success-panel success-panel--inline" role="status">
+          {conflictNotice}
         </div>
       ) : null}
 
@@ -305,6 +393,16 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
           Only the transitions permitted from {ticket.status.replaceAll("_", " ")} are offered.
           Anything else is rejected server-side.
         </p>
+        {gateBlocksResolution ? (
+          <div className="warning-panel" role="status">
+            <strong>Resolution is blocked</strong>
+            <p>
+              {ticket.pendingFollowUpCount} follow-up {ticket.pendingFollowUpCount === 1 ? "action is" : "actions are"} still
+              pending. Resolve every follow-up in Actions Taken before moving this ticket to Resolved — the
+              server rejects it with RESOLUTION_BLOCKED until then.
+            </p>
+          </div>
+        ) : null}
         {fieldError(statusError)}
         {statusMessage ? <div className="success-panel success-panel--inline" role="status">{statusMessage}</div> : null}
         <label className="field-label" htmlFor={`status-${ticketId}`}>Change status</label>
@@ -341,6 +439,12 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
         </div>
       </div>
 
+      <ActionsTaken
+        ticketId={ticketId}
+        mode="staff"
+        currentUserId={currentUserId}
+        onChanged={() => void refreshTicket()}
+      />
       <PublicComments ticketId={ticketId} />
       <InternalNotes ticketId={ticketId} />
     </div>
