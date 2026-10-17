@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { addAttachment, downloadAttachment, getTicket, markProblemAppearsResolved, removeAttachment } from "../api";
 import { validateAttachment } from "../utils/attachment";
 import { PublicComments } from "../components/tickets/PublicComments";
+import { ActionsTaken } from "../components/tickets/ActionsTaken";
 
 interface AttachmentItem {
   id: number;
@@ -201,6 +202,7 @@ export default function TicketDetailPage({ ticketId, onBack }: { ticketId: numbe
           )}
         </div>
       </div>
+      <ActionsTaken ticketId={ticketId} mode="requester" />
       <PublicComments ticketId={ticketId} />
       {removeTarget && <div className="modal-backdrop" role="presentation"><div ref={dialogRef} className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-title"><h2 id="remove-title">Remove attachment?</h2><p>{removeTarget.originalFilename}</p><label className="field-label" htmlFor="removal-reason">Reason (5–200 characters) *</label><textarea id="removal-reason" className="textarea-field" value={reason} onChange={(event) => setReason(event.target.value)} aria-describedby="removal-reason-error" /><div id="removal-reason-error" className="field-error" role="alert">{reason.length > 0 && (reason.trim().length < 5 || reason.trim().length > 200) ? "Reason must be between 5 and 200 characters." : ""}</div><div className="dialog-actions"><button ref={cancelDialogRef} type="button" className="secondary-button" onClick={() => { setRemoveTarget(null); setReason(""); }}>Cancel</button><button type="button" className="destructive-button" disabled={actionBusy || reason.trim().length < 5 || reason.trim().length > 200} onClick={() => void handleRemove()}>Confirm Remove</button></div></div></div>}
     </div>

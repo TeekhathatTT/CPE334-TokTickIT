@@ -26,6 +26,12 @@ import {
   postNote,
 } from "./modules/notes/notes.controller.js";
 import {
+  createAction,
+  getRequesterActions,
+  getStaffActions,
+  patchAction,
+} from "./modules/actions-taken/actions-taken.controller.js";
+import {
   getStaffTicketDetail,
   getStaffTickets,
   listAssignableStaff,
@@ -325,6 +331,34 @@ app.post(
   "/api/staff/tickets/:id/notes",
   authorize(["IT_STAFF", "ADMINISTRATOR"]),
   postNote,
+);
+
+// Actions Taken (api-spec.md §1): create/list/edit/resolve are IT Staff or
+// Administrator (Administrator powers are API-only per ui-spec.md §2). The
+// Requester read-only list is scoped to the session owner's own tickets
+// (another user's ticket is hidden as 404).
+app.get(
+  "/api/staff/tickets/:id/actions-taken",
+  authorize(["IT_STAFF", "ADMINISTRATOR"]),
+  getStaffActions,
+);
+
+app.post(
+  "/api/staff/tickets/:id/actions-taken",
+  authorize(["IT_STAFF", "ADMINISTRATOR"]),
+  createAction,
+);
+
+app.patch(
+  "/api/staff/tickets/:id/actions-taken/:actionId",
+  authorize(["IT_STAFF", "ADMINISTRATOR"]),
+  patchAction,
+);
+
+app.get(
+  "/api/tickets/:id/actions-taken",
+  authorize(["REQUESTER"]),
+  getRequesterActions,
 );
 
 // Administrator user management (api-spec.md §5, FR-10/FR-11/FR-12).

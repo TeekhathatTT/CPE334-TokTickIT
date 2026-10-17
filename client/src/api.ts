@@ -321,6 +321,8 @@ export interface StaffTicketDetail {
   publicComments: PublicComment[];
   internalNotes: InternalNote[];
   permittedActions: { allowedStatuses: TicketStatus[] };
+  /** BR-07 (Lab 4 additive): authoritative pending-follow-up count. */
+  pendingFollowUpCount: number;
 }
 
 export interface InternalNote {
@@ -380,33 +382,36 @@ export async function getStaffTicket(ticketId: number): Promise<StaffTicketDetai
 export async function assignStaffTicket(
   ticketId: number,
   ownerId: number | null,
+  expectedUpdatedAt?: string,
 ): Promise<StaffTicketDetail> {
   return requestJson<StaffTicketDetail>(`/api/staff/tickets/${ticketId}/assignment`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ownerId }),
+    body: JSON.stringify({ ownerId, ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}) }),
   });
 }
 
 export async function updateStaffPriority(
   ticketId: number,
   itPriority: Priority,
+  expectedUpdatedAt?: string,
 ): Promise<StaffTicketDetail> {
   return requestJson<StaffTicketDetail>(`/api/staff/tickets/${ticketId}/priority`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ itPriority }),
+    body: JSON.stringify({ itPriority, ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}) }),
   });
 }
 
 export async function updateStaffStatus(
   ticketId: number,
   status: TicketStatus,
+  expectedUpdatedAt?: string,
 ): Promise<StaffTicketDetail> {
   return requestJson<StaffTicketDetail>(`/api/staff/tickets/${ticketId}/status`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}) }),
   });
 }
 
@@ -419,6 +424,91 @@ export async function postInternalNote(ticketId: number, content: string): Promi
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Actions Taken (api-spec.md §1, FR-01/FR-02/FR-03). Staff create/edit/resolve
+// live under /api/staff; the Requester read-only list under /api/tickets.
+// ---------------------------------------------------------------------------
+
+export type ActionResult =
+  | "RESOLVED_STEP"
+  | "WORKAROUND"
+  | "INFO_REQUESTED"
+  | "ESCALATED"
+  | "NO_FURTHER_ACTION";
+
+export const ACTION_RESULTS: ActionResult[] = [
+  "RESOLVED_STEP",
+  "WORKAROUND",
+  "INFO_REQUESTED",
+  "ESCALATED",
+  "NO_FURTHER_ACTION",
+];
+
+export interface ActionTaken {
+  id: number;
+  ticketId: number;
+  actionDate: string;
+  description: string;
+  result: ActionResult;
+  followUpRequired: boolean;
+  followUpNote: string | null;
+  followUpResolvedAt: string | null;
+  resolvedBy: { id: number; name: string; role: string } | null;
+  attachmentNotes: string | null;
+  performedBy: { id: number; name: string; role: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateActionInput {
+  description: string;
+  result: ActionResult;
+  followUpRequired?: boolean;
+  followUpNote?: string | null;
+  attachmentNotes?: string | null;
+}
+
+export interface PatchActionInput {
+  description?: string;
+  result?: ActionResult;
+  followUpRequired?: boolean;
+  followUpNote?: string | null;
+  attachmentNotes?: string | null;
+  markFollowUpResolved?: true;
+  expectedUpdatedAt?: string;
+}
+
+export async function getStaffActions(ticketId: number): Promise<ActionTaken[]> {
+  return requestJson<ActionTaken[]>(`/api/staff/tickets/${ticketId}/actions-taken`);
+}
+
+export async function getRequesterActions(ticketId: number): Promise<ActionTaken[]> {
+  return requestJson<ActionTaken[]>(`/api/tickets/${ticketId}/actions-taken`);
+}
+
+export async function createStaffAction(
+  ticketId: number,
+  input: CreateActionInput,
+): Promise<ActionTaken> {
+  return requestJson<ActionTaken>(`/api/staff/tickets/${ticketId}/actions-taken`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function patchStaffAction(
+  ticketId: number,
+  actionId: number,
+  input: PatchActionInput,
+): Promise<ActionTaken> {
+  return requestJson<ActionTaken>(`/api/staff/tickets/${ticketId}/actions-taken/${actionId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
   });
 }
 

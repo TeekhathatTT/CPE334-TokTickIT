@@ -8,6 +8,11 @@
 
 import type { Request, Response } from "express";
 import { getPrisma } from "../../prisma.js";
+import { withTicketLock } from "../../utils/tx.js";
+import {
+  checkExpectedUpdatedAt,
+  countPendingFollowUps,
+} from "../actions-taken/actions-taken.service.js";
 import {
   allowedNextStatuses,
   buildStaffQueueOrderBy,
@@ -35,6 +40,34 @@ function ticketNotFound(res: Response) {
     },
   });
 }
+
+function versionConflict(res: Response, currentUpdatedAt: string) {
+  return res.status(409).json({
+    error: {
+      code: "VERSION_CONFLICT",
+      message: "This ticket changed since you loaded it. Reload and try again.",
+    },
+    data: { currentUpdatedAt },
+  });
+}
+
+function malformedVersion(res: Response) {
+  return validationError(res, "Please correct the invalid fields.", {
+    expectedUpdatedAt: "expectedUpdatedAt must be a valid ISO-8601 timestamp.",
+  });
+}
+
+interface PrismaLike {
+  ticket: {
+    findUnique: (args: unknown) => Promise<unknown>;
+    findFirst: (args: unknown) => Promise<unknown>;
+    update: (args: unknown) => Promise<unknown>;
+  };
+  user: { findUnique: (args: unknown) => Promise<unknown> };
+}
+
+/** BR-07 gate applies only to these edges into RESOLVED. */
+const RESOLUTION_GATE_EDGES = new Set(["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER"]);
 
 /**
  * GET /api/staff/users — assignable-owner directory (ui-spec.md §6:
@@ -143,7 +176,7 @@ interface DetailRow extends QueueRow {
  * and the permitted next statuses (the UI mirrors this list; enforcement
  * stays server-side in updateTicketStatus).
  */
-export function toStaffDetail(ticket: DetailRow) {
+export function toStaffDetail(ticket: DetailRow, pendingFollowUpCount = 0) {
   return {
     id: ticket.id,
     ticketNumber: ticket.ticketNumber,
@@ -166,6 +199,9 @@ export function toStaffDetail(ticket: DetailRow) {
     problemAppearsResolvedAt: ticket.problemAppearsResolvedAt
       ? toIso(ticket.problemAppearsResolvedAt)
       : null,
+    // BR-07 (Lab 4 additive): authoritative pending-follow-up count — the
+    // gate banner's page-load source (never derived client-side from the list).
+    pendingFollowUpCount,
     createdAt: toIso(ticket.createdAt),
     updatedAt: toIso(ticket.updatedAt),
     attachments: ticket.attachments.map((attachment) => ({
@@ -290,7 +326,8 @@ export async function getStaffTicketDetail(req: Request, res: Response) {
     })) as DetailRow | null;
 
     if (!ticket) return ticketNotFound(res);
-    return res.status(200).json({ data: toStaffDetail(ticket) });
+    const pendingFollowUpCount = await countPendingFollowUps(prisma, ticketId);
+    return res.status(200).json({ data: toStaffDetail(ticket, pendingFollowUpCount) });
   } catch (error) {
     console.error("Failed to load staff ticket", error);
     return res.status(500).json({
@@ -314,7 +351,7 @@ export async function updateTicketAssignment(req: Request, res: Response) {
   const ticketId = staffTicketId(req);
   if (!ticketId) return ticketNotFound(res);
 
-  const { ownerId } = req.body ?? {};
+  const { ownerId, expectedUpdatedAt } = req.body ?? {};
   if (ownerId !== null && !Number.isInteger(ownerId)) {
     return validationError(res, "Please correct the invalid fields.", {
       ownerId: "Owner must be a user id or null to unassign.",
@@ -327,36 +364,67 @@ export async function updateTicketAssignment(req: Request, res: Response) {
   }
 
   try {
-    const prisma = getPrisma();
-    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
-    if (!ticket) return ticketNotFound(res);
+    const prisma = getPrisma() as unknown as PrismaLike;
 
-    if (ownerId !== null) {
-      const owner = (await prisma.user.findUnique({
-        where: { id: ownerId },
-        select: { id: true, isActive: true, role: true },
-      })) as { id: number; isActive: boolean; role: string } | null;
-      if (!owner) {
-        return res.status(404).json({
-          error: {
-            code: "NOT_FOUND",
-            message: "Owner user not found.",
-          },
-        });
+    // BR-07: the write runs in a transaction that first locks the parent
+    // Ticket row, then re-reads before target validation and the BR-09
+    // version compare (a lock-free read-compare-write is forbidden).
+    const outcome = await withTicketLock(prisma, ticketId, async (tx) => {
+      const client = tx as PrismaLike;
+      const ticket = (await client.ticket.findUnique({
+        where: { id: ticketId },
+        select: { id: true, updatedAt: true },
+      })) as { id: number; updatedAt: Date } | null;
+      if (!ticket) return { kind: "not_found" } as const;
+
+      if (ownerId !== null) {
+        const owner = (await client.user.findUnique({
+          where: { id: ownerId },
+          select: { id: true, isActive: true, role: true },
+        })) as { id: number; isActive: boolean; role: string } | null;
+        if (!owner) return { kind: "owner_not_found" } as const;
+        if (!owner.isActive || owner.role !== "IT_STAFF") {
+          return { kind: "invalid_owner" } as const;
+        }
       }
-      if (!owner.isActive || owner.role !== "IT_STAFF") {
+
+      const version = checkExpectedUpdatedAt(expectedUpdatedAt, ticket.updatedAt);
+      if (!version.ok) {
+        return version.kind === "malformed"
+          ? ({ kind: "malformed_version" } as const)
+          : ({ kind: "version_conflict", currentUpdatedAt: version.currentUpdatedAt } as const);
+      }
+
+      const applied = (await client.ticket.update({
+        where: { id: ticketId },
+        data: { ticketOwnerId: ownerId },
+        include: detailInclude,
+      })) as DetailRow;
+
+      const pendingFollowUpCount = await countPendingFollowUps(client, ticketId);
+      return { kind: "ok", applied, pendingFollowUpCount } as const;
+    });
+
+    switch (outcome.kind) {
+      case "not_found":
+        return ticketNotFound(res);
+      case "owner_not_found":
+        return res.status(404).json({
+          error: { code: "NOT_FOUND", message: "Owner user not found." },
+        });
+      case "invalid_owner":
         return validationError(res, "Please correct the invalid fields.", {
           ownerId: "Owner must be an active IT Staff user.",
         });
-      }
+      case "malformed_version":
+        return malformedVersion(res);
+      case "version_conflict":
+        return versionConflict(res, outcome.currentUpdatedAt);
+      case "ok":
+        return res
+          .status(200)
+          .json({ data: toStaffDetail(outcome.applied, outcome.pendingFollowUpCount) });
     }
-
-    const updated = (await prisma.ticket.update({
-      where: { id: ticketId },
-      data: { ticketOwnerId: ownerId },
-      include: detailInclude,
-    })) as DetailRow;
-    return res.status(200).json({ data: toStaffDetail(updated) });
   } catch (error) {
     console.error("Failed to update ticket assignment", error);
     return res.status(500).json({
@@ -376,7 +444,7 @@ export async function updateTicketPriority(req: Request, res: Response) {
   const ticketId = staffTicketId(req);
   if (!ticketId) return ticketNotFound(res);
 
-  const { itPriority } = req.body ?? {};
+  const { itPriority, expectedUpdatedAt } = req.body ?? {};
   if (!isStaffPriority(itPriority)) {
     return validationError(res, "Please correct the invalid fields.", {
       itPriority: "IT Priority must be LOW, MEDIUM, or HIGH.",
@@ -384,16 +452,45 @@ export async function updateTicketPriority(req: Request, res: Response) {
   }
 
   try {
-    const prisma = getPrisma();
-    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
-    if (!ticket) return ticketNotFound(res);
+    const prisma = getPrisma() as unknown as PrismaLike;
 
-    const updated = (await prisma.ticket.update({
-      where: { id: ticketId },
-      data: { itPriority },
-      include: detailInclude,
-    })) as DetailRow;
-    return res.status(200).json({ data: toStaffDetail(updated) });
+    const outcome = await withTicketLock(prisma, ticketId, async (tx) => {
+      const client = tx as PrismaLike;
+      const ticket = (await client.ticket.findUnique({
+        where: { id: ticketId },
+        select: { id: true, updatedAt: true },
+      })) as { id: number; updatedAt: Date } | null;
+      if (!ticket) return { kind: "not_found" } as const;
+
+      const version = checkExpectedUpdatedAt(expectedUpdatedAt, ticket.updatedAt);
+      if (!version.ok) {
+        return version.kind === "malformed"
+          ? ({ kind: "malformed_version" } as const)
+          : ({ kind: "version_conflict", currentUpdatedAt: version.currentUpdatedAt } as const);
+      }
+
+      const applied = (await client.ticket.update({
+        where: { id: ticketId },
+        data: { itPriority },
+        include: detailInclude,
+      })) as DetailRow;
+
+      const pendingFollowUpCount = await countPendingFollowUps(client, ticketId);
+      return { kind: "ok", applied, pendingFollowUpCount } as const;
+    });
+
+    switch (outcome.kind) {
+      case "not_found":
+        return ticketNotFound(res);
+      case "malformed_version":
+        return malformedVersion(res);
+      case "version_conflict":
+        return versionConflict(res, outcome.currentUpdatedAt);
+      case "ok":
+        return res
+          .status(200)
+          .json({ data: toStaffDetail(outcome.applied, outcome.pendingFollowUpCount) });
+    }
   } catch (error) {
     console.error("Failed to update ticket priority", error);
     return res.status(500).json({
@@ -414,7 +511,7 @@ export async function updateTicketStatus(req: Request, res: Response) {
   const ticketId = staffTicketId(req);
   if (!ticketId) return ticketNotFound(res);
 
-  const { status } = req.body ?? {};
+  const { status, expectedUpdatedAt } = req.body ?? {};
   if (!isStaffStatus(status)) {
     return validationError(
       res,
@@ -429,28 +526,76 @@ export async function updateTicketStatus(req: Request, res: Response) {
   }
 
   try {
-    const prisma = getPrisma();
-    const ticket = (await prisma.ticket.findUnique({
-      where: { id: ticketId },
-      select: { id: true, status: true },
-    })) as { id: number; status: string } | null;
-    if (!ticket) return ticketNotFound(res);
+    const prisma = getPrisma() as unknown as PrismaLike;
 
-    if (!allowedNextStatuses(ticket.status).includes(status)) {
-      return res.status(409).json({
-        error: {
-          code: "INVALID_STATUS_TRANSITION",
-          message: `Cannot change status from ${String(ticket.status).replaceAll("_", " ")} to ${String(status).replaceAll("_", " ")}.`,
-        },
-      });
+    // BR-07: every edge runs in a FOR UPDATE transaction so the gate `EXISTS`
+    // and the BR-09 version compare are both evaluated against the post-lock
+    // re-read (never a lock-free read-compare-write). Normative order:
+    // enum(400) → ticket(404) → matrix → gate → version → write.
+    const outcome = await withTicketLock(prisma, ticketId, async (tx) => {
+      const client = tx as PrismaLike;
+      const ticket = (await client.ticket.findUnique({
+        where: { id: ticketId },
+        select: { id: true, status: true, updatedAt: true },
+      })) as { id: number; status: string; updatedAt: Date } | null;
+      if (!ticket) return { kind: "not_found" } as const;
+
+      if (!allowedNextStatuses(ticket.status).includes(status)) {
+        return { kind: "invalid_transition", from: ticket.status } as const;
+      }
+
+      if (status === "RESOLVED" && RESOLUTION_GATE_EDGES.has(ticket.status)) {
+        const pendingFollowUpCount = await countPendingFollowUps(client, ticketId);
+        if (pendingFollowUpCount > 0) {
+          return { kind: "resolution_blocked", pendingFollowUpCount } as const;
+        }
+      }
+
+      const version = checkExpectedUpdatedAt(expectedUpdatedAt, ticket.updatedAt);
+      if (!version.ok) {
+        return version.kind === "malformed"
+          ? ({ kind: "malformed_version" } as const)
+          : ({ kind: "version_conflict", currentUpdatedAt: version.currentUpdatedAt } as const);
+      }
+
+      const applied = (await client.ticket.update({
+        where: { id: ticketId },
+        data: { status },
+        include: detailInclude,
+      })) as DetailRow;
+
+      const pendingFollowUpCount = await countPendingFollowUps(client, ticketId);
+      return { kind: "ok", applied, pendingFollowUpCount } as const;
+    });
+
+    switch (outcome.kind) {
+      case "not_found":
+        return ticketNotFound(res);
+      case "invalid_transition":
+        return res.status(409).json({
+          error: {
+            code: "INVALID_STATUS_TRANSITION",
+            message: `Cannot change status from ${String(outcome.from).replaceAll("_", " ")} to ${String(status).replaceAll("_", " ")}.`,
+          },
+        });
+      case "resolution_blocked":
+        return res.status(409).json({
+          error: {
+            code: "RESOLUTION_BLOCKED",
+            message:
+              "Ticket has unresolved follow-up actions and cannot be marked Resolved.",
+            fields: { pendingFollowUpCount: outcome.pendingFollowUpCount },
+          },
+        });
+      case "malformed_version":
+        return malformedVersion(res);
+      case "version_conflict":
+        return versionConflict(res, outcome.currentUpdatedAt);
+      case "ok":
+        return res
+          .status(200)
+          .json({ data: toStaffDetail(outcome.applied, outcome.pendingFollowUpCount) });
     }
-
-    const updated = (await prisma.ticket.update({
-      where: { id: ticketId },
-      data: { status },
-      include: detailInclude,
-    })) as DetailRow;
-    return res.status(200).json({ data: toStaffDetail(updated) });
   } catch (error) {
     console.error("Failed to update ticket status", error);
     return res.status(500).json({
