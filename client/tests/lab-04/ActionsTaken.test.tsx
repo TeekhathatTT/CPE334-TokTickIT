@@ -170,7 +170,184 @@ describe("Lab 4 ActionsTaken (staff)", () => {
     expect(screen.getByRole("button", { name: /reload entry/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /keep my text/i }));
     // The user's in-progress wording is never discarded.
+    expect(await screen.findByText(/your wording was kept/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue("Replaced the battery (my wording)")).toBeInTheDocument();
+  });
+
+  it("shows the current entry on Reload entry without discarding the draft", async () => {
+    const stale = action({ id: 1, updatedAt: "2026-09-04T10:00:00.000Z" });
+    const fresh = action({
+      id: 1,
+      description: "Replaced the battery (server wording)",
+      updatedAt: "2026-09-05T11:00:00.000Z",
+    });
+    vi.spyOn(api, "getStaffActions")
+      .mockResolvedValueOnce([stale])
+      .mockResolvedValue([fresh]);
+    vi.spyOn(api, "patchStaffAction").mockRejectedValue(
+      new api.ApiError(409, "VERSION_CONFLICT", "Stale.", undefined, { currentUpdatedAt: "2026-09-05T11:00:00.000Z" }),
+    );
+
+    renderStaff();
+    fireEvent.click(await screen.findByRole("button", { name: /^edit$/i }));
+    fireEvent.change(screen.getByDisplayValue("Replaced the battery under warranty"), {
+      target: { value: "Replaced the battery (my wording)" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(await screen.findByText(/someone else changed this entry/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /reload entry/i }));
+
+    // The current entry is shown for comparison; the draft is untouched.
+    expect(await screen.findByText(/current entry \(from the server\)/i)).toBeInTheDocument();
+    expect(screen.getByText("Replaced the battery (server wording)")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Replaced the battery (my wording)")).toBeInTheDocument();
+  });
+
+  it("re-targets the current version after Keep my text so the retry succeeds", async () => {
+    const stale = action({ id: 1, updatedAt: "2026-09-04T10:00:00.000Z" });
+    const fresh = action({
+      id: 1,
+      description: "Replaced the battery (server wording)",
+      updatedAt: "2026-09-05T11:00:00.000Z",
+    });
+    vi.spyOn(api, "getStaffActions")
+      .mockResolvedValueOnce([stale])
+      .mockResolvedValue([fresh]);
+    const patch = vi
+      .spyOn(api, "patchStaffAction")
+      .mockRejectedValueOnce(
+        new api.ApiError(409, "VERSION_CONFLICT", "Stale.", undefined, { currentUpdatedAt: "2026-09-05T11:00:00.000Z" }),
+      )
+      .mockResolvedValueOnce(fresh);
+
+    renderStaff();
+    fireEvent.click(await screen.findByRole("button", { name: /^edit$/i }));
+    fireEvent.change(screen.getByDisplayValue("Replaced the battery under warranty"), {
+      target: { value: "Replaced the battery (my wording)" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(await screen.findByText(/someone else changed this entry/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /keep my text/i }));
+    expect(await screen.findByText(/your wording was kept/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Replaced the battery (my wording)")).toBeInTheDocument();
+
+    // The retry is sent against the current version, so it can succeed.
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() =>
+      expect(patch).toHaveBeenLastCalledWith(
+        101,
+        1,
+        expect.objectContaining({ expectedUpdatedAt: "2026-09-05T11:00:00.000Z" }),
+      ),
+    );
+    expect(await screen.findByText("Replaced the battery (server wording)")).toBeInTheDocument();
+  });
+
+  it("does not load the preserved follow-up note into the draft when follow-up is off", async () => {
+    const row = action({
+      id: 3,
+      followUpRequired: false,
+      followUpNote: "Old note kept as history",
+      updatedAt: "2026-09-04T10:00:00.000Z",
+    });
+    vi.spyOn(api, "getStaffActions").mockResolvedValue([row]);
+    const patch = vi.spyOn(api, "patchStaffAction").mockResolvedValue(row);
+
+    renderStaff();
+    fireEvent.click(await screen.findByRole("button", { name: /^edit$/i }));
+
+    const editForm = document.querySelector(".action-edit") as HTMLElement;
+    // The history note is not a pending note: the draft stays empty and the
+    // form stays saveable.
+    expect(within(editForm).queryByLabelText(/follow-up note/i)).toBeNull();
+    expect(within(editForm).getByRole("button", { name: /save changes/i })).toBeEnabled();
+
+    fireEvent.click(within(editForm).getByRole("button", { name: /save changes/i }));
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith(
+        101,
+        3,
+        expect.objectContaining({ followUpRequired: false, followUpNote: null }),
+      ),
+    );
+  });
+
+  it("lets the author correct the attachment reference from the edit form", async () => {
+    const row = action({ id: 4, attachmentNotes: "wrong-file.png" });
+    vi.spyOn(api, "getStaffActions").mockResolvedValue([row]);
+    const patch = vi
+      .spyOn(api, "patchStaffAction")
+      .mockResolvedValue({ ...row, attachmentNotes: "right-file.png" });
+
+    renderStaff();
+    fireEvent.click(await screen.findByRole("button", { name: /^edit$/i }));
+
+    const editForm = document.querySelector(".action-edit") as HTMLElement;
+    const attachment = within(editForm).getByLabelText(/attachment reference/i) as HTMLInputElement;
+    expect(attachment).toHaveValue("wrong-file.png");
+
+    fireEvent.change(attachment, { target: { value: "right-file.png" } });
+    fireEvent.click(within(editForm).getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith(
+        101,
+        4,
+        expect.objectContaining({ attachmentNotes: "right-file.png" }),
+      ),
+    );
+  });
+
+  it("explains why Record action is disabled", async () => {
+    vi.spyOn(api, "getStaffActions").mockResolvedValue([]);
+    renderStaff();
+    await screen.findByText(/no actions recorded yet/i);
+
+    const createButton = screen.getByRole("button", { name: /record action/i });
+    expect(createButton).toBeDisabled();
+    const hint = document.getElementById("action-submit-hint-101");
+    expect(hint).toHaveTextContent(/description must be between 5 and 2000 characters/i);
+  });
+
+  it("shows the required-when rule inline while the follow-up note is missing", async () => {
+    vi.spyOn(api, "getStaffActions").mockResolvedValue([]);
+    renderStaff();
+    await screen.findByText(/no actions recorded yet/i);
+
+    fireEvent.change(screen.getByLabelText(/^description$/i), { target: { value: "Swap the docking station" } });
+    fireEvent.click(screen.getByLabelText(/follow-up required/i));
+
+    const noteError = document.getElementById("action-note-error-101");
+    expect(noteError).toHaveTextContent(/follow-up note is required/i);
+    expect(document.getElementById("action-submit-hint-101")).toHaveTextContent(/follow-up note is required/i);
+    expect(screen.getByRole("button", { name: /record action/i })).toBeDisabled();
+  });
+
+  it("re-reads the list when someone else resolved the follow-up first", async () => {
+    const pending = action({ id: 5, followUpRequired: true, updatedAt: "2026-09-04T10:00:00.000Z" });
+    const resolved = action({
+      id: 5,
+      followUpRequired: true,
+      followUpResolvedAt: "2026-09-05T10:00:00.000Z",
+      updatedAt: "2026-09-05T10:00:00.000Z",
+    });
+    vi.spyOn(api, "getStaffActions")
+      .mockResolvedValueOnce([pending])
+      .mockResolvedValue([resolved]);
+    vi.spyOn(api, "patchStaffAction").mockRejectedValue(
+      new api.ApiError(409, "FOLLOW_UP_ALREADY_RESOLVED", "This follow-up has already been resolved."),
+    );
+
+    renderStaff();
+    fireEvent.click(await screen.findByRole("button", { name: /mark follow-up resolved/i }));
+
+    expect(await screen.findByText(/already been resolved/i)).toBeInTheDocument();
+    // The stale control disappears because the list was re-read.
+    await waitFor(() => expect(screen.queryByRole("button", { name: /mark follow-up resolved/i })).toBeNull());
   });
 });
 

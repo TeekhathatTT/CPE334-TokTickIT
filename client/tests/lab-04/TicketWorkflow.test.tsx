@@ -104,10 +104,30 @@ describe("Lab 4 TicketWorkflow (resolution gate)", () => {
 
     await waitFor(() => expect(screen.queryByText(/resolution is blocked/i)).toBeNull());
   });
+
+  it("orders the threads Public Comments → Internal Notes → Actions Taken", async () => {
+    vi.spyOn(api, "getStaffTicket").mockResolvedValue(detail());
+    vi.spyOn(api, "getStaffActions").mockResolvedValue([]);
+    renderWorkflow();
+
+    await screen.findByText("TKT-2026-000101");
+    const headings = Array.from(document.querySelectorAll(".detail-section h3")).map(
+      (node) => node.textContent?.trim() ?? "",
+    );
+    const publicIndex = headings.findIndex((text) => /public comments/i.test(text));
+    const notesIndex = headings.findIndex((text) => /internal notes/i.test(text));
+    const actionsIndex = headings.findIndex((text) => /actions taken/i.test(text));
+
+    expect(publicIndex).toBeGreaterThanOrEqual(0);
+    expect(notesIndex).toBeGreaterThanOrEqual(0);
+    expect(actionsIndex).toBeGreaterThanOrEqual(0);
+    expect(publicIndex).toBeLessThan(notesIndex);
+    expect(notesIndex).toBeLessThan(actionsIndex);
+  });
 });
 
 describe("Lab 4 TicketWorkflow (stale write)", () => {
-  it("surfaces VERSION_CONFLICT and retries after Reload ticket", async () => {
+  it("surfaces VERSION_CONFLICT, reloads, and replays only on an explicit retry", async () => {
     vi.spyOn(api, "getStaffTicket")
       .mockResolvedValueOnce(detail({ updatedAt: "2026-09-02T09:00:00.000Z" }))
       .mockResolvedValueOnce(detail({ updatedAt: "2026-09-03T09:00:00.000Z" }));
@@ -125,6 +145,13 @@ describe("Lab 4 TicketWorkflow (stale write)", () => {
     expect(status).toHaveBeenCalledWith(101, "IN_PROGRESS", "2026-09-02T09:00:00.000Z");
 
     fireEvent.click(screen.getByRole("button", { name: /reload ticket/i }));
+
+    // The reload only refreshes the ticket: the stale write is never replayed
+    // silently, so the user sees what changed before overwriting it.
+    expect(await screen.findByText(/ticket reloaded/i)).toBeInTheDocument();
+    expect(status).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /retry my change/i }));
 
     await waitFor(() =>
       expect(status).toHaveBeenLastCalledWith(101, "IN_PROGRESS", "2026-09-03T09:00:00.000Z"),

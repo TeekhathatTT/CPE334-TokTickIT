@@ -60,18 +60,32 @@ export class ApiError extends Error {
   status: number;
   code: string;
   fields?: Record<string, string>;
+  /**
+   * Safe response payload that accompanies the error. BR-09 `VERSION_CONFLICT`
+   * replies with `{ currentUpdatedAt }` so a client can re-target a stale
+   * write without reloading the whole record first.
+   */
+  data?: Record<string, unknown>;
 
-  constructor(status: number, code: string, message: string, fields?: Record<string, string>) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    fields?: Record<string, string>,
+    data?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.fields = fields;
+    this.data = data;
   }
 }
 
 interface ErrorEnvelope {
   error?: { code?: string; message?: string; fields?: Record<string, string> };
+  data?: Record<string, unknown>;
 }
 
 async function requestJson<T>(path: string, init?: RequestInit, unwrapData = true): Promise<T> {
@@ -87,17 +101,19 @@ async function requestJson<T>(path: string, init?: RequestInit, unwrapData = tru
     let message = `Request failed: ${response.status}`;
     let code = "REQUEST_FAILED";
     let fields: Record<string, string> | undefined;
+    let data: Record<string, unknown> | undefined;
 
     try {
       const payload = (await response.json()) as ErrorEnvelope;
       if (payload?.error?.message) message = payload.error.message;
       if (payload?.error?.code) code = payload.error.code;
       if (payload?.error?.fields) fields = payload.error.fields;
+      if (payload?.data && typeof payload.data === "object") data = payload.data;
     } catch {
       // Ignore JSON parse failures and fall back to the status message.
     }
 
-    throw new ApiError(response.status, code, message, fields);
+    throw new ApiError(response.status, code, message, fields, data);
   }
 
   const payload = (await response.json()) as T | { data?: T };

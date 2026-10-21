@@ -71,7 +71,10 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
   // BR-09 stale-write recovery shared by status/assignment/priority.
   const [conflict, setConflict] = useState(false);
   const [conflictNotice, setConflictNotice] = useState<string | null>(null);
+  const [conflictError, setConflictError] = useState<string | null>(null);
   const [pendingOp, setPendingOp] = useState<MutateOperation | null>(null);
+  const [pendingLabel, setPendingLabel] = useState<string | null>(null);
+  const [conflictBusy, setConflictBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -141,6 +144,7 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
     setOk: (message: string | null) => void,
     setFail: (message: string | null) => void,
     okCopy: string,
+    label: string,
     onSuccess?: () => void,
   ) => {
     setBusy(true);
@@ -148,14 +152,18 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
     setFail(null);
     setConflict(false);
     setConflictNotice(null);
+    setConflictError(null);
     try {
       const updated = await operation(expectedUpdatedAt);
       setTicket(updated);
       setOk(okCopy);
+      setPendingOp(null);
+      setPendingLabel(null);
       onSuccess?.();
     } catch (failure) {
       if (failure instanceof ApiError && failure.code === "VERSION_CONFLICT") {
         setPendingOp(() => operation);
+        setPendingLabel(label);
         setConflict(true);
       } else {
         setFail(failure instanceof Error ? failure.message : "Unable to save changes.");
@@ -171,42 +179,77 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
     setOk: (message: string | null) => void,
     setFail: (message: string | null) => void,
     okCopy: string,
+    label: string,
     onSuccess?: () => void,
   ) => {
     if (!ticket) return;
-    void attempt(operation, ticket.updatedAt, setBusy, setOk, setFail, okCopy, onSuccess);
+    void attempt(operation, ticket.updatedAt, setBusy, setOk, setFail, okCopy, label, onSuccess);
   };
 
-  // "Reload ticket": refresh updatedAt, then one-click retry the intended write.
+  /**
+   * "Reload ticket": refresh the ticket and show the current state. The
+   * intended change is kept but never silently replayed — it is offered again
+   * as an explicit "Retry my change" action, so the user sees what changed
+   * before overwriting it (BR-09).
+   */
   const handleReloadConflict = async () => {
-    const operation = pendingOp;
-    setConflict(false);
+    setConflictBusy(true);
     try {
       const fresh = await getStaffTicket(ticketId);
       setTicket(fresh);
-      if (!operation) {
-        setConflictNotice("Ticket reloaded.");
-        return;
-      }
-      const updated = await operation(fresh.updatedAt);
+      setConflict(false);
+      setConflictError(null);
+      setConflictNotice(
+        pendingLabel
+          ? `Ticket reloaded. Your change (${pendingLabel}) was not applied — review the current values, then retry.`
+          : "Ticket reloaded.",
+      );
+    } catch (failure) {
+      setConflictNotice(null);
+      setConflictError(failure instanceof Error ? failure.message : "Unable to reload the ticket.");
+    } finally {
+      setConflictBusy(false);
+    }
+  };
+
+  /** "Retry my change": replay the intended write against the current version. */
+  const handleRetryConflict = async () => {
+    const operation = pendingOp;
+    if (!operation || !ticket) return;
+    setConflictBusy(true);
+    setConflictNotice(null);
+    setConflictError(null);
+    try {
+      const updated = await operation(ticket.updatedAt);
       setTicket(updated);
       setPendingOp(null);
-      setConflictNotice("Ticket reloaded — your change was applied.");
+      setPendingLabel(null);
+      setConflictNotice("Your change was applied to the current version.");
     } catch (failure) {
       if (failure instanceof ApiError && failure.code === "VERSION_CONFLICT") {
-        setPendingOp(() => operation);
         setConflict(true);
       } else {
-        setConflictNotice(null);
-        setStatusError(failure instanceof Error ? failure.message : "Unable to reload the ticket.");
+        setConflictError(failure instanceof Error ? failure.message : "Unable to apply your change.");
       }
+    } finally {
+      setConflictBusy(false);
     }
   };
 
   const handleClaim = () =>
-    mutate((expected) => assignStaffTicket(ticketId, currentUserId, expected), setAssignBusy, setAssignMessage, setAssignError, "Ticket claimed.");
+    mutate(
+      (expected) => assignStaffTicket(ticketId, currentUserId, expected),
+      setAssignBusy, setAssignMessage, setAssignError,
+      "Ticket claimed.",
+      "Claim (assign to me)",
+    );
   const handleUnassign = () =>
-    mutate((expected) => assignStaffTicket(ticketId, null, expected), setAssignBusy, setAssignMessage, setAssignError, "Ticket unassigned.");
+    mutate(
+      (expected) => assignStaffTicket(ticketId, null, expected),
+      setAssignBusy, setAssignMessage, setAssignError,
+      "Ticket unassigned.",
+      "Unassign",
+    );
   const handleReassign = () => {
     const parsed = Number(reassignId);
     if (!Number.isInteger(parsed) || parsed <= 0) {
@@ -215,7 +258,9 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
     }
     void mutate(
       (expected) => assignStaffTicket(ticketId, parsed, expected),
-      setAssignBusy, setAssignMessage, setAssignError, "Ticket reassigned.",
+      setAssignBusy, setAssignMessage, setAssignError,
+      "Ticket reassigned.",
+      `Reassign to ${staffUsers.find((member) => member.id === parsed)?.name ?? "another IT Staff member"}`,
       () => setReassignId(String(parsed)),
     );
   };
@@ -224,7 +269,9 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
     if (!PRIORITIES.includes(value as Priority)) return;
     mutate(
       (expected) => updateStaffPriority(ticketId, value as Priority, expected),
-      setPriorityBusy, setPriorityMessage, setPriorityError, "IT Priority updated.",
+      setPriorityBusy, setPriorityMessage, setPriorityError,
+      "IT Priority updated.",
+      `IT Priority → ${value}`,
     );
   };
 
@@ -232,7 +279,9 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
     if (value === "" || !ticket || value === ticket.status) return;
     mutate(
       (expected) => updateStaffStatus(ticketId, value as TicketStatus, expected),
-      setStatusBusy, setStatusMessage, setStatusError, "Status updated.",
+      setStatusBusy, setStatusMessage, setStatusError,
+      "Status updated.",
+      `Status → ${value.replaceAll("_", " ")}`,
     );
   };
 
@@ -286,15 +335,35 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
       {conflict ? (
         <div className="warning-panel" role="alert">
           <strong>Someone else changed this ticket.</strong>
-          <p>Your change was not saved. Reload to retry it against the current version.</p>
-          <button type="button" className="secondary-button" onClick={() => void handleReloadConflict()}>
-            Reload ticket
-          </button>
+          <p>Your change was not saved. Reload to see the current version before retrying it.</p>
+          {conflictError ? <p>{conflictError}</p> : null}
+          <div className="ticket-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={conflictBusy}
+              onClick={() => void handleReloadConflict()}
+            >
+              {conflictBusy ? "Reloading…" : "Reload ticket"}
+            </button>
+          </div>
         </div>
       ) : null}
       {conflictNotice ? (
         <div className="success-panel success-panel--inline" role="status">
           {conflictNotice}
+        </div>
+      ) : null}
+      {pendingOp && !conflict ? (
+        <div className="ticket-actions">
+          <button
+            type="button"
+            className="primary-button"
+            disabled={conflictBusy}
+            onClick={() => void handleRetryConflict()}
+          >
+            {conflictBusy ? "Applying…" : `Retry my change${pendingLabel ? ` (${pendingLabel})` : ""}`}
+          </button>
         </div>
       ) : null}
 
@@ -439,14 +508,16 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
         </div>
       </div>
 
+      {/* Thread order is fixed (ui-spec.md §1): Public Comments, then Internal
+          Notes, then Actions Taken. */}
+      <PublicComments ticketId={ticketId} />
+      <InternalNotes ticketId={ticketId} />
       <ActionsTaken
         ticketId={ticketId}
         mode="staff"
         currentUserId={currentUserId}
         onChanged={() => void refreshTicket()}
       />
-      <PublicComments ticketId={ticketId} />
-      <InternalNotes ticketId={ticketId} />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ACTION_RESULTS,
   ApiError,
@@ -92,6 +92,23 @@ function validateDraft(draft: Draft): Record<string, string> {
   return fields;
 }
 
+/**
+ * Live (client-side) field errors. An untouched field is not shown as broken,
+ * but the required-when rule for the follow-up note is enforced from the
+ * moment the checkbox is ticked (ui-spec.md §2.3).
+ */
+function liveFieldErrors(draft: Draft, errors: Record<string, string>): Record<string, string> {
+  const live: Record<string, string> = {};
+  if (draft.description.trim().length > 0 && errors.description) live.description = errors.description;
+  if (draft.followUpRequired && errors.followUpNote) live.followUpNote = errors.followUpNote;
+  if (draft.attachmentNotes.trim().length > 0 && errors.attachmentNotes) live.attachmentNotes = errors.attachmentNotes;
+  return live;
+}
+
+function firstError(errors: Record<string, string>): string | undefined {
+  return Object.values(errors)[0];
+}
+
 function toPayload(draft: Draft) {
   return {
     description: draft.description.trim(),
@@ -120,6 +137,16 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
     return loader(ticketId);
   }, [mode, ticketId]);
 
+  /**
+   * Re-read the list without touching the loading state, so a background
+   * refresh never blanks the thread that is already on screen.
+   */
+  const refreshActions = useCallback(async () => {
+    const data = await load();
+    setActions(data);
+    return data;
+  }, [load]);
+
   useEffect(() => {
     let active = true;
     async function run() {
@@ -140,11 +167,40 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
     };
   }, [load, retryToken]);
 
+  // ---- accessibility: focus the first invalid control (ui-spec §3) -------
+  const [focusRequest, setFocusRequest] = useState<{ target: "create" | "edit"; token: number } | null>(null);
+  const createFormRef = useRef<HTMLDivElement | null>(null);
+  const editFormRef = useRef<HTMLDivElement | null>(null);
+
+  const requestFocus = (target: "create" | "edit") => {
+    setFocusRequest((current) => ({ target, token: (current?.token ?? 0) + 1 }));
+  };
+
+  useEffect(() => {
+    if (!focusRequest) return;
+    const container = focusRequest.target === "create" ? createFormRef.current : editFormRef.current;
+    const invalid = container?.querySelector<HTMLElement>(".field-invalid");
+    invalid?.focus();
+  }, [focusRequest]);
+
   // ---- create form (staff only) -------------------------------------------
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createFields, setCreateFields] = useState<Record<string, string>>({});
+
+  const draftErrors = validateDraft(draft);
+  const shownCreateFields = { ...liveFieldErrors(draft, draftErrors), ...createFields };
+  const createBlockedBy = firstError(draftErrors);
+
+  const clearCreateFieldError = (field: string) => {
+    setCreateFields((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
 
   const handleCreate = async () => {
     const fields = validateDraft(draft);
@@ -159,7 +215,10 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
       setCreateFields({});
       onChanged?.();
     } catch (failure) {
-      if (failure instanceof ApiError && failure.fields) setCreateFields(failure.fields);
+      if (failure instanceof ApiError && failure.fields) {
+        setCreateFields(failure.fields);
+        requestFocus("create");
+      }
       setCreateError(failure instanceof Error ? failure.message : "Unable to record the action.");
     } finally {
       setCreating(false);
@@ -174,6 +233,27 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
   const [editError, setEditError] = useState<string | null>(null);
   const [editFields, setEditFields] = useState<Record<string, string>>({});
   const [editConflict, setEditConflict] = useState<string | null>(null);
+  /** BR-09: the server reports the current version in the conflict payload. */
+  const [editConflictUpdatedAt, setEditConflictUpdatedAt] = useState<string | null>(null);
+  /** The server's current entry, shown so the user can see what changed. */
+  const [editServerRow, setEditServerRow] = useState<ActionTaken | null>(null);
+  const [editNotice, setEditNotice] = useState<string | null>(null);
+  const [editRefreshing, setEditRefreshing] = useState(false);
+
+  const editDraftErrors = validateDraft(editDraft);
+  const shownEditFields = { ...liveFieldErrors(editDraft, editDraftErrors), ...editFields };
+  const editBlockedBy =
+    firstError(editDraftErrors) ??
+    (editConflict ? "Reload the entry or keep your text before saving again." : undefined);
+
+  const clearEditFieldError = (field: string) => {
+    setEditFields((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
 
   const beginEdit = (row: ActionTaken) => {
     setEditingId(row.id);
@@ -181,13 +261,19 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
       description: row.description,
       result: row.result,
       followUpRequired: row.followUpRequired,
-      followUpNote: row.followUpNote ?? "",
+      // BR-05 keeps the old note on the row after a resolved → off flip. It is
+      // history, not a pending note: loading it into the draft would make the
+      // form un-saveable (the note must be empty while the flag is off).
+      followUpNote: row.followUpRequired ? row.followUpNote ?? "" : "",
       attachmentNotes: row.attachmentNotes ?? "",
     });
     setEditExpected(row.updatedAt);
     setEditError(null);
     setEditFields({});
     setEditConflict(null);
+    setEditConflictUpdatedAt(null);
+    setEditServerRow(null);
+    setEditNotice(null);
   };
 
   const cancelEdit = () => {
@@ -195,6 +281,9 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
     setEditError(null);
     setEditFields({});
     setEditConflict(null);
+    setEditConflictUpdatedAt(null);
+    setEditServerRow(null);
+    setEditNotice(null);
   };
 
   const saveEdit = async () => {
@@ -205,6 +294,7 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
     setEditSaving(true);
     setEditError(null);
     setEditConflict(null);
+    setEditNotice(null);
     try {
       const updated = await patchStaffAction(ticketId, editingId, {
         ...toPayload(editDraft),
@@ -215,16 +305,65 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
       onChanged?.();
     } catch (failure) {
       if (failure instanceof ApiError && failure.code === "VERSION_CONFLICT") {
-        setEditConflict("Someone else changed this entry. Reload the entry or keep your text and retry.");
+        setEditConflict("Someone else changed this entry. Reload the entry to see the current version, or keep your text and retry.");
+        const current = failure.data?.currentUpdatedAt;
+        setEditConflictUpdatedAt(typeof current === "string" ? current : null);
       } else if (failure instanceof ApiError && failure.fields) {
         setEditFields(failure.fields);
         setEditError(failure.message);
+        requestFocus("edit");
       } else {
         setEditError(failure instanceof Error ? failure.message : "Unable to save the entry.");
       }
     } finally {
       setEditSaving(false);
     }
+  };
+
+  /**
+   * "Reload entry": re-read the entry so the user can see what changed. The
+   * draft is never discarded and the next save is re-targeted at the current
+   * version, so the conflict is recoverable.
+   */
+  const reloadEntry = async () => {
+    setEditRefreshing(true);
+    try {
+      const fresh = await refreshActions();
+      const row = fresh.find((entry) => entry.id === editingId) ?? null;
+      setEditServerRow(row);
+      const expected = row?.updatedAt ?? editConflictUpdatedAt;
+      if (expected) setEditExpected(expected);
+      setEditConflict(null);
+      setEditNotice(
+        row
+          ? "The entry was reloaded. Your wording is still here — compare it with the current entry, then save."
+          : "The entry was reloaded. Your wording is still here — save again to apply it.",
+      );
+    } catch {
+      if (editConflictUpdatedAt) setEditExpected(editConflictUpdatedAt);
+      setEditNotice("The entry could not be reloaded. Your wording is still here — try again or cancel the edit.");
+    } finally {
+      setEditRefreshing(false);
+    }
+  };
+
+  /**
+   * "Keep my text": keep the draft and re-target the next save at the
+   * version the server reported, so the retry can actually succeed.
+   */
+  const keepMyText = async () => {
+    setEditConflict(null);
+    setEditServerRow(null);
+    let expected = editConflictUpdatedAt;
+    try {
+      const fresh = await refreshActions();
+      const row = fresh.find((entry) => entry.id === editingId);
+      if (row) expected = row.updatedAt;
+    } catch {
+      // A failed refresh still leaves the server-reported version usable.
+    }
+    if (expected) setEditExpected(expected);
+    setEditNotice("Your wording was kept. Save again to apply it to the current entry.");
   };
 
   // ---- resolve (staff, any, pending row) ----------------------------------
@@ -243,6 +382,18 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
       onChanged?.();
     } catch (failure) {
       setResolveError(failure instanceof Error ? failure.message : "Unable to resolve the follow-up.");
+      if (
+        failure instanceof ApiError &&
+        (failure.code === "VERSION_CONFLICT" || failure.code === "FOLLOW_UP_ALREADY_RESOLVED")
+      ) {
+        // The row changed underneath us (someone else resolved it first) — re-read
+        // the list so the stale "Mark follow-up resolved" control disappears.
+        try {
+          await refreshActions();
+        } catch {
+          // The error message above stays on screen; the list keeps its rows.
+        }
+      }
     } finally {
       setResolveBusyId(null);
     }
@@ -290,7 +441,7 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
                 <li key={row.id} className="comment-card comment-card--action">
                   <div className="comment-card__header">
                     <span className="comment-card__author">
-                      <span aria-hidden="true" className="avatar action">
+                      <span aria-hidden="true" className="avatar staff">
                         {avatarInitials(row.performedBy.name)}
                       </span>
                       <strong>{row.performedBy.name}</strong>
@@ -300,26 +451,43 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
                   </div>
 
                   {isEditing ? (
-                    <div className="action-edit">
+                    <div className="action-edit" ref={editFormRef}>
                       <label className="field-label" htmlFor={`action-edit-description-${row.id}`}>
                         Description
                       </label>
                       <textarea
                         id={`action-edit-description-${row.id}`}
-                        className={`textarea-field ${editFields.description ? "field-invalid" : ""}`}
+                        className={`textarea-field ${shownEditFields.description ? "field-invalid" : ""}`}
                         value={editDraft.description}
-                        onChange={(event) => setEditDraft({ ...editDraft, description: event.target.value })}
+                        maxLength={MAX_DESCRIPTION + 100}
+                        aria-invalid={Boolean(shownEditFields.description)}
+                        aria-describedby={shownEditFields.description ? `action-edit-description-error-${row.id}` : undefined}
+                        onChange={(event) => {
+                          setEditDraft({ ...editDraft, description: event.target.value });
+                          clearEditFieldError("description");
+                        }}
                       />
-                      {fieldError(editFields.description)}
+                      {shownEditFields.description ? (
+                        <div id={`action-edit-description-error-${row.id}`} className="field-error" role="alert">
+                          {shownEditFields.description}
+                        </div>
+                      ) : null}
+                      <span className="helper-text">
+                        {editDraft.description.trim().length}/{MAX_DESCRIPTION}
+                      </span>
 
                       <label className="field-label" htmlFor={`action-edit-result-${row.id}`}>
                         Result
                       </label>
                       <select
                         id={`action-edit-result-${row.id}`}
-                        className="select-field"
+                        className={`select-field ${shownEditFields.result ? "field-invalid" : ""}`}
                         value={editDraft.result}
-                        onChange={(event) => setEditDraft({ ...editDraft, result: event.target.value as ActionResult })}
+                        aria-invalid={Boolean(shownEditFields.result)}
+                        onChange={(event) => {
+                          setEditDraft({ ...editDraft, result: event.target.value as ActionResult });
+                          clearEditFieldError("result");
+                        }}
                       >
                         {ACTION_RESULTS.map((value) => (
                           <option key={value} value={value}>
@@ -327,6 +495,7 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
                           </option>
                         ))}
                       </select>
+                      {shownEditFields.result ? fieldError(shownEditFields.result) : null}
 
                       <label className="checkbox-field">
                         <input
@@ -350,15 +519,63 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
                           </label>
                           <textarea
                             id={`action-edit-note-${row.id}`}
-                            className={`textarea-field ${editFields.followUpNote ? "field-invalid" : ""}`}
+                            className={`textarea-field ${shownEditFields.followUpNote ? "field-invalid" : ""}`}
                             value={editDraft.followUpNote}
-                            onChange={(event) => setEditDraft({ ...editDraft, followUpNote: event.target.value })}
+                            maxLength={MAX_NOTE + 100}
+                            aria-invalid={Boolean(shownEditFields.followUpNote)}
+                            aria-describedby={
+                              shownEditFields.followUpNote ? `action-edit-note-error-${row.id}` : undefined
+                            }
+                            onChange={(event) => {
+                              setEditDraft({ ...editDraft, followUpNote: event.target.value });
+                              clearEditFieldError("followUpNote");
+                            }}
+                            placeholder="What needs to be checked, and when?"
                           />
-                          {fieldError(editFields.followUpNote)}
+                          <span className="helper-text">
+                            {editDraft.followUpNote.trim().length}/{MAX_NOTE}
+                          </span>
                         </>
+                      ) : null}
+                      {shownEditFields.followUpNote ? (
+                        <div id={`action-edit-note-error-${row.id}`} className="field-error" role="alert">
+                          {shownEditFields.followUpNote}
+                        </div>
+                      ) : null}
+
+                      <label className="field-label" htmlFor={`action-edit-attachment-${row.id}`}>
+                        Attachment reference (optional)
+                      </label>
+                      <input
+                        id={`action-edit-attachment-${row.id}`}
+                        className={`input-field ${shownEditFields.attachmentNotes ? "field-invalid" : ""}`}
+                        value={editDraft.attachmentNotes}
+                        maxLength={MAX_ATTACHMENT_NOTES + 100}
+                        aria-invalid={Boolean(shownEditFields.attachmentNotes)}
+                        aria-describedby={
+                          shownEditFields.attachmentNotes ? `action-edit-attachment-error-${row.id}` : undefined
+                        }
+                        onChange={(event) => {
+                          setEditDraft({ ...editDraft, attachmentNotes: event.target.value });
+                          clearEditFieldError("attachmentNotes");
+                        }}
+                        placeholder="Name a file already attached to this ticket"
+                      />
+                      <span className="helper-text">
+                        Name a file already attached to this ticket — this does not upload anything.
+                      </span>
+                      {shownEditFields.attachmentNotes ? (
+                        <div id={`action-edit-attachment-error-${row.id}`} className="field-error" role="alert">
+                          {shownEditFields.attachmentNotes}
+                        </div>
                       ) : null}
 
                       <p className="helper-text">Last updated {formatWhen(row.updatedAt)}.</p>
+                      {editNotice ? (
+                        <div className="success-panel success-panel--inline" role="status">
+                          {editNotice}
+                        </div>
+                      ) : null}
                       {editConflict ? (
                         <div className="warning-panel" role="alert">
                           <p>{editConflict}</p>
@@ -366,25 +583,45 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
                             <button
                               type="button"
                               className="secondary-button"
-                              onClick={() => {
-                                setRetryToken((token) => token + 1);
-                                cancelEdit();
-                              }}
+                              disabled={editRefreshing}
+                              onClick={() => void reloadEntry()}
                             >
-                              Reload entry
+                              {editRefreshing ? "Reloading…" : "Reload entry"}
                             </button>
-                            <button type="button" className="tertiary-button" onClick={() => setEditConflict(null)}>
+                            <button type="button" className="primary-button" onClick={() => void keepMyText()}>
                               Keep my text
                             </button>
                           </div>
                         </div>
                       ) : null}
+                      {editServerRow ? (
+                        <div className="comment-card comment-card--action">
+                          <div className="comment-card__header">
+                            <span className="comment-card__author">
+                              <strong>Current entry (from the server)</strong>
+                            </span>
+                            <span className="comment-card__meta">Last updated {formatWhen(editServerRow.updatedAt)}</span>
+                          </div>
+                          <p className="comment-card__body">{editServerRow.description}</p>
+                        </div>
+                      ) : null}
                       {fieldError(editError ?? undefined)}
+                      {editBlockedBy ? (
+                        <p className="helper-text" id={`action-edit-submit-hint-${row.id}`}>
+                          {editBlockedBy}
+                        </p>
+                      ) : null}
                       <div className="ticket-actions">
                         <button type="button" className="secondary-button" onClick={cancelEdit}>
                           Cancel
                         </button>
-                        <button type="button" className="primary-button" disabled={editSaving} onClick={() => void saveEdit()}>
+                        <button
+                          type="button"
+                          className="primary-button"
+                          disabled={editSaving || Boolean(editBlockedBy)}
+                          aria-describedby={editBlockedBy ? `action-edit-submit-hint-${row.id}` : undefined}
+                          onClick={() => void saveEdit()}
+                        >
                           {editSaving ? "Saving…" : "Save changes"}
                         </button>
                       </div>
@@ -449,23 +686,26 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
         ) : null}
 
         {mode === "staff" ? (
-          <div className="comment-form action-form">
+          <div className="comment-form action-form" ref={createFormRef}>
             <label className="field-label" htmlFor={`action-description-${ticketId}`}>
               Description
             </label>
             <textarea
               id={`action-description-${ticketId}`}
-              className={`textarea-field ${createFields.description ? "field-invalid" : ""}`}
+              className={`textarea-field ${shownCreateFields.description ? "field-invalid" : ""}`}
               value={draft.description}
               maxLength={MAX_DESCRIPTION + 100}
-              aria-invalid={Boolean(createFields.description)}
-              aria-describedby={createFields.description ? `action-description-error-${ticketId}` : undefined}
-              onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+              aria-invalid={Boolean(shownCreateFields.description)}
+              aria-describedby={shownCreateFields.description ? `action-description-error-${ticketId}` : undefined}
+              onChange={(event) => {
+                setDraft({ ...draft, description: event.target.value });
+                clearCreateFieldError("description");
+              }}
               placeholder="Describe the action performed…"
             />
-            {createFields.description ? (
+            {shownCreateFields.description ? (
               <div id={`action-description-error-${ticketId}`} className="field-error" role="alert">
-                {createFields.description}
+                {shownCreateFields.description}
               </div>
             ) : null}
             <span className="helper-text">
@@ -477,9 +717,13 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
             </label>
             <select
               id={`action-result-${ticketId}`}
-              className="select-field"
+              className={`select-field ${shownCreateFields.result ? "field-invalid" : ""}`}
               value={draft.result}
-              onChange={(event) => setDraft({ ...draft, result: event.target.value as ActionResult })}
+              aria-invalid={Boolean(shownCreateFields.result)}
+              onChange={(event) => {
+                setDraft({ ...draft, result: event.target.value as ActionResult });
+                clearCreateFieldError("result");
+              }}
             >
               {ACTION_RESULTS.map((value) => (
                 <option key={value} value={value}>
@@ -487,6 +731,7 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
                 </option>
               ))}
             </select>
+            {shownCreateFields.result ? fieldError(shownCreateFields.result) : null}
 
             <label className="checkbox-field">
               <input
@@ -510,19 +755,25 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
                 </label>
                 <textarea
                   id={`action-note-${ticketId}`}
-                  className={`textarea-field ${createFields.followUpNote ? "field-invalid" : ""}`}
+                  className={`textarea-field ${shownCreateFields.followUpNote ? "field-invalid" : ""}`}
                   value={draft.followUpNote}
                   maxLength={MAX_NOTE + 100}
-                  aria-invalid={Boolean(createFields.followUpNote)}
-                  aria-describedby={createFields.followUpNote ? `action-note-error-${ticketId}` : undefined}
-                  onChange={(event) => setDraft({ ...draft, followUpNote: event.target.value })}
+                  aria-invalid={Boolean(shownCreateFields.followUpNote)}
+                  aria-describedby={shownCreateFields.followUpNote ? `action-note-error-${ticketId}` : undefined}
+                  onChange={(event) => {
+                    setDraft({ ...draft, followUpNote: event.target.value });
+                    clearCreateFieldError("followUpNote");
+                  }}
                   placeholder="What needs to be checked, and when?"
                 />
-                {createFields.followUpNote ? (
+                {shownCreateFields.followUpNote ? (
                   <div id={`action-note-error-${ticketId}`} className="field-error" role="alert">
-                    {createFields.followUpNote}
+                    {shownCreateFields.followUpNote}
                   </div>
                 ) : null}
+                <span className="helper-text">
+                  {draft.followUpNote.trim().length}/{MAX_NOTE}
+                </span>
               </>
             ) : null}
 
@@ -531,18 +782,25 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
             </label>
             <input
               id={`action-attachment-${ticketId}`}
-              className={`input-field ${createFields.attachmentNotes ? "field-invalid" : ""}`}
+              className={`input-field ${shownCreateFields.attachmentNotes ? "field-invalid" : ""}`}
               value={draft.attachmentNotes}
               maxLength={MAX_ATTACHMENT_NOTES + 100}
-              onChange={(event) => setDraft({ ...draft, attachmentNotes: event.target.value })}
+              aria-invalid={Boolean(shownCreateFields.attachmentNotes)}
+              aria-describedby={
+                shownCreateFields.attachmentNotes ? `action-attachment-error-${ticketId}` : undefined
+              }
+              onChange={(event) => {
+                setDraft({ ...draft, attachmentNotes: event.target.value });
+                clearCreateFieldError("attachmentNotes");
+              }}
               placeholder="Name a file already attached to this ticket"
             />
             <span className="helper-text">
               Name a file already attached to this ticket — this does not upload anything.
             </span>
-            {createFields.attachmentNotes ? (
-              <div className="field-error" role="alert">
-                {createFields.attachmentNotes}
+            {shownCreateFields.attachmentNotes ? (
+              <div id={`action-attachment-error-${ticketId}`} className="field-error" role="alert">
+                {shownCreateFields.attachmentNotes}
               </div>
             ) : null}
 
@@ -552,11 +810,17 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
               </div>
             ) : null}
 
+            {createBlockedBy ? (
+              <p className="helper-text" id={`action-submit-hint-${ticketId}`}>
+                {createBlockedBy}
+              </p>
+            ) : null}
             <div className="ticket-actions">
               <button
                 type="button"
                 className="primary-button"
-                disabled={creating || Object.keys(validateDraft(draft)).length > 0}
+                disabled={creating || Boolean(createBlockedBy)}
+                aria-describedby={createBlockedBy ? `action-submit-hint-${ticketId}` : undefined}
                 onClick={() => void handleCreate()}
               >
                 {creating ? "Recording…" : "Record action"}

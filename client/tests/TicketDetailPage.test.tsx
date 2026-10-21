@@ -19,6 +19,7 @@ describe("TicketDetailPage", () => {
     // Lab 3: session identity — no requesterId argument; comments load too.
     const getTicket = vi.spyOn(api, "getTicket").mockResolvedValue(ticket as never);
     vi.spyOn(api, "getComments").mockResolvedValue(comments as never);
+    vi.spyOn(api, "getRequesterActions").mockResolvedValue([]);
     render(<TicketDetailPage ticketId={101} />);
     expect(await screen.findByText("TKT-2026-000101")).toBeInTheDocument();
     expect(getTicket).toHaveBeenCalledWith(101);
@@ -35,6 +36,7 @@ describe("TicketDetailPage", () => {
   it("renders the public comments thread and the resolved-signal action", async () => {
     vi.spyOn(api, "getTicket").mockResolvedValue(ticket as never);
     vi.spyOn(api, "getComments").mockResolvedValue(comments as never);
+    vi.spyOn(api, "getRequesterActions").mockResolvedValue([]);
     const markResolved = vi.spyOn(api, "markProblemAppearsResolved").mockResolvedValue({
       ticketId: 101,
       problemAppearsResolvedAt: "2026-09-26T02:00:00Z",
@@ -51,7 +53,24 @@ describe("TicketDetailPage", () => {
   it("shows not found when loading fails", async () => {
     vi.spyOn(api, "getTicket").mockRejectedValue(new Error("Not found"));
     vi.spyOn(api, "getComments").mockResolvedValue([]);
+    vi.spyOn(api, "getRequesterActions").mockResolvedValue([]);
     render(<TicketDetailPage ticketId={999} />);
     await waitFor(() => expect(screen.getByText("Ticket not found.")).toBeInTheDocument());
+  });
+
+  it("keeps the fixed thread order: Public Comments then Actions Taken", async () => {
+    vi.spyOn(api, "getTicket").mockResolvedValue(ticket as never);
+    vi.spyOn(api, "getComments").mockResolvedValue(comments as never);
+    vi.spyOn(api, "getRequesterActions").mockResolvedValue([]);
+    render(<TicketDetailPage ticketId={101} />);
+
+    await screen.findByText("Thanks for looking into this.");
+    const headings = Array.from(document.querySelectorAll(".detail-section h3")).map(
+      (node) => node.textContent?.trim() ?? "",
+    );
+    const publicIndex = headings.findIndex((text) => /public comments/i.test(text));
+    const actionsIndex = headings.findIndex((text) => /actions taken/i.test(text));
+    expect(publicIndex).toBeGreaterThanOrEqual(0);
+    expect(actionsIndex).toBeGreaterThan(publicIndex);
   });
 });
