@@ -229,7 +229,12 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
       if (failure instanceof ApiError && failure.code === "VERSION_CONFLICT") {
         setConflict(true);
       } else {
+        // The change can no longer be applied as-is (invalid transition,
+        // resolution blocked, inactive owner, …): surface it and drop the
+        // retry so the stale intent is not offered again.
         setConflictError(failure instanceof Error ? failure.message : "Unable to apply your change.");
+        setPendingOp(null);
+        setPendingLabel(null);
       }
     } finally {
       setConflictBusy(false);
@@ -366,6 +371,10 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
           </button>
         </div>
       ) : null}
+      {/* A retry that fails for a non-conflict reason (e.g. the transition is
+          no longer permitted) has no pending op left to retry, so surface the
+          failure here rather than inside the conflict-only panel. */}
+      {!conflict ? fieldError(conflictError) : null}
 
       <div className="detail-grid">
         <div><strong>Ticket No.</strong><div>{ticket.ticketNumber}</div></div>

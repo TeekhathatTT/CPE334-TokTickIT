@@ -158,4 +158,31 @@ describe("Lab 4 TicketWorkflow (stale write)", () => {
     );
     expect(await screen.findByText(/your change was applied/i)).toBeInTheDocument();
   });
+
+  it("surfaces a non-conflict retry failure and drops the stale retry", async () => {
+    vi.spyOn(api, "getStaffTicket")
+      .mockResolvedValueOnce(detail({ updatedAt: "2026-09-02T09:00:00.000Z" }))
+      .mockResolvedValueOnce(detail({ status: "CANCELLED", updatedAt: "2026-09-03T09:00:00.000Z" }));
+    vi.spyOn(api, "getStaffActions").mockResolvedValue([]);
+    const status = vi
+      .spyOn(api, "updateStaffStatus")
+      .mockRejectedValueOnce(new api.ApiError(409, "VERSION_CONFLICT", "Stale."))
+      .mockRejectedValueOnce(
+        new api.ApiError(409, "INVALID_STATUS_TRANSITION", "That status change is not permitted."),
+      );
+
+    renderWorkflow();
+    const select = (await screen.findByLabelText(/change status/i)) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: "IN_PROGRESS" } });
+
+    expect(await screen.findByText(/someone else changed this ticket/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /reload ticket/i }));
+    expect(await screen.findByText(/ticket reloaded/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /retry my change/i }));
+
+    expect(await screen.findByText("That status change is not permitted.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("button", { name: /retry my change/i })).toBeNull());
+    expect(status).toHaveBeenCalledTimes(2);
+  });
 });
