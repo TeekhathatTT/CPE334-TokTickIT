@@ -393,10 +393,11 @@ button:disabled {
 .password-checklist__item--met { color: var(--color-secondary); font-weight: 600; }
 .password-checklist__state { font-weight: 400; }
 /* Public Comments thread (ui-spec.md §4): visually distinct from attachments
-   and (in later branches) from Internal Notes. */
+   and (in later branches) from Internal Notes. The card itself is neutral —
+   the Lab 4 Actions Taken thread owns the green left-border accent. */
 .comment-panel { border: 1px solid var(--color-border); border-radius: 10px; background: white; padding: 16px; }
 .comment-list { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 12px; }
-.comment-card { border: 1px solid var(--color-border); border-left: 4px solid var(--color-secondary); border-radius: 8px; padding: 12px; background: var(--color-surface); }
+.comment-card { border: 1px solid var(--color-border); border-radius: 8px; padding: 12px; background: var(--color-surface); }
 .comment-card__header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .comment-card__author { display: inline-flex; align-items: center; gap: 10px; }
 .comment-card__meta { color: var(--color-muted); font-size: 0.8rem; }
@@ -406,7 +407,23 @@ button:disabled {
    staff can never mistake it for the public thread. Tokens only — no new
    palette (amber surfaces already used by in-progress/waiting badges). */
 .internal-notes-panel { border: 2px solid var(--color-warning); border-radius: 10px; background: var(--amber-bg); padding: 16px; }
-.comment-card--internal { border-left-color: var(--color-warning); background: #fffdf5; }
+.comment-card--internal { border-left: 4px solid var(--color-warning); background: #fffdf5; }
+/* Lab 4 — Actions Taken thread (ui-spec.md §1). The three threads must never
+   blur together, so each keeps its own border treatment: Public Comments =
+   neutral card, Internal Notes = amber panel + amber accent, Actions Taken =
+   white card with a green left-border accent + wrench icon. Tokens only. */
+.actions-taken-panel { border: 1px solid var(--color-border); border-left: 4px solid var(--color-secondary); border-radius: 10px; background: var(--color-surface); padding: 16px; }
+.comment-card--action { border-left: 4px solid var(--color-secondary); }
+.action-badges { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
+.result-badge { display: inline-block; border-radius: 999px; padding: 4px 10px; font-size: 0.8rem; font-weight: 600; background: #dbeafe; color: var(--color-primary); }
+.followup-badge { display: inline-block; border-radius: 999px; padding: 4px 10px; font-size: 0.8rem; font-weight: 600; }
+.followup-badge--pending { background: #fef3c7; color: #92400e; }
+.followup-badge--resolved { background: #dcfce7; color: var(--color-secondary); }
+.role-badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 0.75rem; font-weight: 600; background: #e5e7eb; color: #374151; }
+.checkbox-field { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; margin: 12px 0 4px; font-weight: 600; }
+.checkbox-field input { width: 20px; height: 20px; accent-color: var(--color-secondary); }
+.action-edit { margin-top: 8px; }
+.action-form { margin-top: 8px; }
 .warning-panel { border: 1px solid var(--color-warning); border-left: 4px solid var(--color-warning); border-radius: 8px; background: var(--amber-bg); padding: 16px; margin-bottom: 16px; }
 .warning-panel p { margin: 8px 0 0; }
 .success-panel--inline { text-align: left; padding: 16px; }
@@ -534,6 +551,11 @@ button:disabled {
   .ticket-card__summary { margin: 12px 0; font-weight: 600; overflow-wrap: anywhere; }
   .ticket-card__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; font-size: 0.8rem; color: rgba(31, 42, 36, 0.75); }
   .ticket-card__grid strong { display: block; margin-top: 4px; color: var(--color-text); font-size: 0.9rem; overflow-wrap: anywhere; }
+
+  /* Lab 4: Actions Taken rows stack at tablet width with author/date first
+     (ui-spec.md §4). */
+  .comment-card--action .comment-card__header { flex-direction: column; align-items: flex-start; }
+  .action-badges { width: 100%; }
 }
 
 @media (max-width: 767px) {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  ApiError,
   assignStaffTicket,
   getStaffTicket,
   getStaffUsers,
@@ -11,6 +12,7 @@ import {
 import type { Priority, TicketStatus } from "../../types/ticket";
 import { PublicComments } from "../../components/tickets/PublicComments";
 import { InternalNotes } from "../../components/tickets/InternalNotes";
+import { ActionsTaken } from "../../components/tickets/ActionsTaken";
 
 interface StaffTicketDetailPageProps {
   ticketId: number;
@@ -19,6 +21,11 @@ interface StaffTicketDetailPageProps {
 }
 
 const PRIORITIES: Priority[] = ["LOW", "MEDIUM", "HIGH"];
+
+// BR-07: the resolution gate only guards these three edges.
+const RESOLUTION_GATE_EDGES = new Set<TicketStatus>(["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER"]);
+
+type MutateOperation = (expectedUpdatedAt: string) => Promise<StaffTicketDetail>;
 
 function fieldError(message: string | null) {
   return message ? (
@@ -60,6 +67,14 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
   const [statusBusy, setStatusBusy] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
+
+  // BR-09 stale-write recovery shared by status/assignment/priority.
+  const [conflict, setConflict] = useState(false);
+  const [conflictNotice, setConflictNotice] = useState<string | null>(null);
+  const [conflictError, setConflictError] = useState<string | null>(null);
+  const [pendingOp, setPendingOp] = useState<MutateOperation | null>(null);
+  const [pendingLabel, setPendingLabel] = useState<string | null>(null);
+  const [conflictBusy, setConflictBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -109,33 +124,137 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
     return () => { active = false; };
   }, [staffRetryToken]);
 
-  const mutate = async (
-    operation: () => Promise<StaffTicketDetail>,
+  // Keep the on-screen ticket in sync after an Actions Taken write (resolving a
+  // follow-up clears the gate / changes pendingFollowUpCount) without toggling
+  // the page's full-screen loading state.
+  const refreshTicket = async () => {
+    try {
+      const fresh = await getStaffTicket(ticketId);
+      setTicket(fresh);
+    } catch {
+      // The Actions Taken thread owns its own data; a quiet refresh failure must
+      // never blank the ticket already on screen.
+    }
+  };
+
+  const attempt = async (
+    operation: MutateOperation,
+    expectedUpdatedAt: string,
     setBusy: (busy: boolean) => void,
     setOk: (message: string | null) => void,
     setFail: (message: string | null) => void,
     okCopy: string,
+    label: string,
     onSuccess?: () => void,
   ) => {
     setBusy(true);
     setOk(null);
     setFail(null);
+    setConflict(false);
+    setConflictNotice(null);
+    setConflictError(null);
     try {
-      const updated = await operation();
+      const updated = await operation(expectedUpdatedAt);
       setTicket(updated);
       setOk(okCopy);
+      setPendingOp(null);
+      setPendingLabel(null);
       onSuccess?.();
     } catch (failure) {
-      setFail(failure instanceof Error ? failure.message : "Unable to save changes.");
+      if (failure instanceof ApiError && failure.code === "VERSION_CONFLICT") {
+        setPendingOp(() => operation);
+        setPendingLabel(label);
+        setConflict(true);
+      } else {
+        setFail(failure instanceof Error ? failure.message : "Unable to save changes.");
+      }
     } finally {
       setBusy(false);
     }
   };
 
+  const mutate = (
+    operation: MutateOperation,
+    setBusy: (busy: boolean) => void,
+    setOk: (message: string | null) => void,
+    setFail: (message: string | null) => void,
+    okCopy: string,
+    label: string,
+    onSuccess?: () => void,
+  ) => {
+    if (!ticket) return;
+    void attempt(operation, ticket.updatedAt, setBusy, setOk, setFail, okCopy, label, onSuccess);
+  };
+
+  /**
+   * "Reload ticket": refresh the ticket and show the current state. The
+   * intended change is kept but never silently replayed — it is offered again
+   * as an explicit "Retry my change" action, so the user sees what changed
+   * before overwriting it (BR-09).
+   */
+  const handleReloadConflict = async () => {
+    setConflictBusy(true);
+    try {
+      const fresh = await getStaffTicket(ticketId);
+      setTicket(fresh);
+      setConflict(false);
+      setConflictError(null);
+      setConflictNotice(
+        pendingLabel
+          ? `Ticket reloaded. Your change (${pendingLabel}) was not applied — review the current values, then retry.`
+          : "Ticket reloaded.",
+      );
+    } catch (failure) {
+      setConflictNotice(null);
+      setConflictError(failure instanceof Error ? failure.message : "Unable to reload the ticket.");
+    } finally {
+      setConflictBusy(false);
+    }
+  };
+
+  /** "Retry my change": replay the intended write against the current version. */
+  const handleRetryConflict = async () => {
+    const operation = pendingOp;
+    if (!operation || !ticket) return;
+    setConflictBusy(true);
+    setConflictNotice(null);
+    setConflictError(null);
+    try {
+      const updated = await operation(ticket.updatedAt);
+      setTicket(updated);
+      setPendingOp(null);
+      setPendingLabel(null);
+      setConflictNotice("Your change was applied to the current version.");
+    } catch (failure) {
+      if (failure instanceof ApiError && failure.code === "VERSION_CONFLICT") {
+        setConflict(true);
+      } else {
+        // The change can no longer be applied as-is (invalid transition,
+        // resolution blocked, inactive owner, …): surface it and drop the
+        // retry so the stale intent is not offered again.
+        setConflictError(failure instanceof Error ? failure.message : "Unable to apply your change.");
+        setPendingOp(null);
+        setPendingLabel(null);
+      }
+    } finally {
+      setConflictBusy(false);
+    }
+  };
+
   const handleClaim = () =>
-    void mutate(() => assignStaffTicket(ticketId, currentUserId), setAssignBusy, setAssignMessage, setAssignError, "Ticket claimed.");
+    mutate(
+      (expected) => assignStaffTicket(ticketId, currentUserId, expected),
+      setAssignBusy, setAssignMessage, setAssignError,
+      "Ticket claimed.",
+      "Claim (assign to me)",
+    );
   const handleUnassign = () =>
-    void mutate(() => assignStaffTicket(ticketId, null), setAssignBusy, setAssignMessage, setAssignError, "Ticket unassigned.");
+    mutate(
+      (expected) => assignStaffTicket(ticketId, null, expected),
+      setAssignBusy, setAssignMessage, setAssignError,
+      "Ticket unassigned.",
+      "Unassign",
+    );
   const handleReassign = () => {
     const parsed = Number(reassignId);
     if (!Number.isInteger(parsed) || parsed <= 0) {
@@ -143,25 +262,31 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
       return;
     }
     void mutate(
-      () => assignStaffTicket(ticketId, parsed),
-      setAssignBusy, setAssignMessage, setAssignError, "Ticket reassigned.",
+      (expected) => assignStaffTicket(ticketId, parsed, expected),
+      setAssignBusy, setAssignMessage, setAssignError,
+      "Ticket reassigned.",
+      `Reassign to ${staffUsers.find((member) => member.id === parsed)?.name ?? "another IT Staff member"}`,
       () => setReassignId(String(parsed)),
     );
   };
 
   const handlePriority = (value: string) => {
     if (!PRIORITIES.includes(value as Priority)) return;
-    void mutate(
-      () => updateStaffPriority(ticketId, value as Priority),
-      setPriorityBusy, setPriorityMessage, setPriorityError, "IT Priority updated.",
+    mutate(
+      (expected) => updateStaffPriority(ticketId, value as Priority, expected),
+      setPriorityBusy, setPriorityMessage, setPriorityError,
+      "IT Priority updated.",
+      `IT Priority → ${value}`,
     );
   };
 
   const handleStatus = (value: string) => {
     if (value === "" || !ticket || value === ticket.status) return;
-    void mutate(
-      () => updateStaffStatus(ticketId, value as TicketStatus),
-      setStatusBusy, setStatusMessage, setStatusError, "Status updated.",
+    mutate(
+      (expected) => updateStaffStatus(ticketId, value as TicketStatus, expected),
+      setStatusBusy, setStatusMessage, setStatusError,
+      "Status updated.",
+      `Status → ${value.replaceAll("_", " ")}`,
     );
   };
 
@@ -185,6 +310,8 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
   }
 
   const allowedStatuses = ticket.permittedActions.allowedStatuses;
+  const gateBlocksResolution =
+    RESOLUTION_GATE_EDGES.has(ticket.status) && ticket.pendingFollowUpCount > 0;
 
   return (
     <div className="page-card">
@@ -209,6 +336,45 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
           </p>
         </div>
       ) : null}
+
+      {conflict ? (
+        <div className="warning-panel" role="alert">
+          <strong>Someone else changed this ticket.</strong>
+          <p>Your change was not saved. Reload to see the current version before retrying it.</p>
+          {conflictError ? <p>{conflictError}</p> : null}
+          <div className="ticket-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={conflictBusy}
+              onClick={() => void handleReloadConflict()}
+            >
+              {conflictBusy ? "Reloading…" : "Reload ticket"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {conflictNotice ? (
+        <div className="success-panel success-panel--inline" role="status">
+          {conflictNotice}
+        </div>
+      ) : null}
+      {pendingOp && !conflict ? (
+        <div className="ticket-actions">
+          <button
+            type="button"
+            className="primary-button"
+            disabled={conflictBusy}
+            onClick={() => void handleRetryConflict()}
+          >
+            {conflictBusy ? "Applying…" : `Retry my change${pendingLabel ? ` (${pendingLabel})` : ""}`}
+          </button>
+        </div>
+      ) : null}
+      {/* A retry that fails for a non-conflict reason (e.g. the transition is
+          no longer permitted) has no pending op left to retry, so surface the
+          failure here rather than inside the conflict-only panel. */}
+      {!conflict ? fieldError(conflictError) : null}
 
       <div className="detail-grid">
         <div><strong>Ticket No.</strong><div>{ticket.ticketNumber}</div></div>
@@ -305,6 +471,16 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
           Only the transitions permitted from {ticket.status.replaceAll("_", " ")} are offered.
           Anything else is rejected server-side.
         </p>
+        {gateBlocksResolution ? (
+          <div className="warning-panel" role="status">
+            <strong>Resolution is blocked</strong>
+            <p>
+              {ticket.pendingFollowUpCount} follow-up {ticket.pendingFollowUpCount === 1 ? "action is" : "actions are"} still
+              pending. Resolve every follow-up in Actions Taken before moving this ticket to Resolved — the
+              server rejects it with RESOLUTION_BLOCKED until then.
+            </p>
+          </div>
+        ) : null}
         {fieldError(statusError)}
         {statusMessage ? <div className="success-panel success-panel--inline" role="status">{statusMessage}</div> : null}
         <label className="field-label" htmlFor={`status-${ticketId}`}>Change status</label>
@@ -341,8 +517,16 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
         </div>
       </div>
 
+      {/* Thread order is fixed (ui-spec.md §1): Public Comments, then Internal
+          Notes, then Actions Taken. */}
       <PublicComments ticketId={ticketId} />
       <InternalNotes ticketId={ticketId} />
+      <ActionsTaken
+        ticketId={ticketId}
+        mode="staff"
+        currentUserId={currentUserId}
+        onChanged={() => void refreshTicket()}
+      />
     </div>
   );
 }
