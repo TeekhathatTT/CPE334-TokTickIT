@@ -115,7 +115,7 @@ export default function RequesterDashboardPage({ onNavigateMyTickets, onCreateTi
               <li key={t.id} className="recent-list__item">
                 <button type="button" className="link-button" onClick={() => onNavigateMyTickets?.({})}>{t.ticketNumber}</button>
                 <span className="recent-list__summary">{t.summary}</span>
-                <span className={adge badge--}>{t.status?.replaceAll("_", " ")}</span>
+                <span className={`badge badge--${((t.status as string)||"none").toLowerCase()}`}>{((t.status as string) || '').replaceAll('_', ' ')}</span>
                 <span className="recent-list__date">{formatDate(t.updatedAt)}</span>
               </li>
             ))}

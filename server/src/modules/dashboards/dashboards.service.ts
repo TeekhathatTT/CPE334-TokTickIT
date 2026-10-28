@@ -140,7 +140,7 @@ export async function getStaffDashboard(userId: number) {
     assignedToMe,
     waitingForRequester,
     pendingFollowUp,
-    pendingFollowUpTicketIds: pendingFollowUpTickets.slice(0, 200).map((t) => t.id),
+    pendingFollowUpTicketIds: pendingFollowUpTickets.map((t) => t.id),
     resolvedPendingClose,
     newToday,
     newTodaySince: toIso(newTodaySince),

@@ -14,10 +14,10 @@ const badge = (value: string | null | undefined) => (
 const STATUSES = ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "RESOLVED", "CLOSED", "REOPENED", "CANCELLED"];
 
 /**
- * IT Staff Ticket Queue (ui-spec.md §5, FR-07): searchable, filterable,
+ * IT Staff Ticket Queue (ui-spec.md Â§5, FR-07): searchable, filterable,
  * sortable, paginated table with stacked-card representation on small
  * screens (same responsive pattern as My Tickets). Columns follow ui-spec
- * §5 exactly; no description mega-column.
+ * Â§5 exactly; no description mega-column.
  */
 export function TicketQueuePage({ onSelectTicket, initialFilters }: TicketQueuePageProps & { initialFilters?: Record<string, string | string[]> }) {
   const [rows, setRows] = useState<StaffQueueRow[]>([]);
@@ -46,8 +46,8 @@ export function TicketQueuePage({ onSelectTicket, initialFilters }: TicketQueueP
       setLoading(true);
       setError(null);
       try {
-        const result = await getStaffTickets({
-          search, status, requestedPriority, itPriority, categoryId, ownerId, sort, order, page, pageSize,
+        const ef: any = { ...extraFilters }; if (extraFilters.status && Array.isArray((initialFilters as any)?.status) && typeof extraFilters.status === "string" && extraFilters.status.includes(",")) { ef.status = (initialFilters as any).status; delete ef.status; /* will override below */ } const statusQ: any = Array.isArray((initialFilters as any)?.status) ? (initialFilters as any).status : (status || undefined); const result = await getStaffTickets({
+          search, status: statusQ, requestedPriority, itPriority, categoryId, ownerId: (ownerId === "me" && (initialFilters as any)?.ownerId === "me") ? (initialFilters as any)?.ownerId /* not possible */ : ownerId, sort, order, page, pageSize, hasPendingFollowUp: extraFilters.hasPendingFollowUp, createdSince: extraFilters.createdSince, updatedSince: extraFilters.updatedSince,
         });
         if (!active) return;
         setRows(result.data);
@@ -80,7 +80,7 @@ export function TicketQueuePage({ onSelectTicket, initialFilters }: TicketQueueP
     return (
       <div className="page-card">
         <h1 className="page-title">Ticket Queue</h1>
-        <div className="loading-state" role="status">Loading ticket queue…</div>
+        <div className="loading-state" role="status">Loading ticket queueâ€¦</div>
       </div>
     );
   }
@@ -155,7 +155,7 @@ export function TicketQueuePage({ onSelectTicket, initialFilters }: TicketQueueP
         </div>
       ) : meta.isEmpty ? (
         <div className="empty-state">
-          <div aria-hidden="true">□</div>
+          <div aria-hidden="true">â–¡</div>
           <p>No tickets in the queue yet.</p>
         </div>
       ) : meta.isNoResults ? (
@@ -168,15 +168,15 @@ export function TicketQueuePage({ onSelectTicket, initialFilters }: TicketQueueP
           <table className="ticket-table">
             <thead>
               <tr>
-                <th><button type="button" className="sort-button" aria-label={`Sort by ticket number${sortLabel("ticketNumber")}`} onClick={() => toggleSort("ticketNumber")}>Ticket No. {sort === "ticketNumber" && (order === "asc" ? "↑" : "↓")}</button></th>
-                <th><button type="button" className="sort-button" aria-label={`Sort by created date${sortLabel("createdAt")}`} onClick={() => toggleSort("createdAt")}>Created Date {sort === "createdAt" && (order === "asc" ? "↑" : "↓")}</button></th>
+                <th><button type="button" className="sort-button" aria-label={`Sort by ticket number${sortLabel("ticketNumber")}`} onClick={() => toggleSort("ticketNumber")}>Ticket No. {sort === "ticketNumber" && (order === "asc" ? "â†‘" : "â†“")}</button></th>
+                <th><button type="button" className="sort-button" aria-label={`Sort by created date${sortLabel("createdAt")}`} onClick={() => toggleSort("createdAt")}>Created Date {sort === "createdAt" && (order === "asc" ? "â†‘" : "â†“")}</button></th>
                 <th>Summary</th>
                 <th>Category</th>
-                <th><button type="button" className="sort-button" aria-label={`Sort by requested priority${sortLabel("requestedPriority")}`} onClick={() => toggleSort("requestedPriority")}>Requested Priority {sort === "requestedPriority" && (order === "asc" ? "↑" : "↓")}</button></th>
-                <th><button type="button" className="sort-button" aria-label={`Sort by IT priority${sortLabel("itPriority")}`} onClick={() => toggleSort("itPriority")}>IT Priority {sort === "itPriority" && (order === "asc" ? "↑" : "↓")}</button></th>
-                <th><button type="button" className="sort-button" aria-label={`Sort by status${sortLabel("status")}`} onClick={() => toggleSort("status")}>Current Status {sort === "status" && (order === "asc" ? "↑" : "↓")}</button></th>
-                <th><button type="button" className="sort-button" aria-label={`Sort by owner${sortLabel("owner")}`} onClick={() => toggleSort("owner")}>Ticket Owner {sort === "owner" && (order === "asc" ? "↑" : "↓")}</button></th>
-                <th><button type="button" className="sort-button" aria-label={`Sort by last updated${sortLabel("updatedAt")}`} onClick={() => toggleSort("updatedAt")}>Last Updated {sort === "updatedAt" && (order === "asc" ? "↑" : "↓")}</button></th>
+                <th><button type="button" className="sort-button" aria-label={`Sort by requested priority${sortLabel("requestedPriority")}`} onClick={() => toggleSort("requestedPriority")}>Requested Priority {sort === "requestedPriority" && (order === "asc" ? "â†‘" : "â†“")}</button></th>
+                <th><button type="button" className="sort-button" aria-label={`Sort by IT priority${sortLabel("itPriority")}`} onClick={() => toggleSort("itPriority")}>IT Priority {sort === "itPriority" && (order === "asc" ? "â†‘" : "â†“")}</button></th>
+                <th><button type="button" className="sort-button" aria-label={`Sort by status${sortLabel("status")}`} onClick={() => toggleSort("status")}>Current Status {sort === "status" && (order === "asc" ? "â†‘" : "â†“")}</button></th>
+                <th><button type="button" className="sort-button" aria-label={`Sort by owner${sortLabel("owner")}`} onClick={() => toggleSort("owner")}>Ticket Owner {sort === "owner" && (order === "asc" ? "â†‘" : "â†“")}</button></th>
+                <th><button type="button" className="sort-button" aria-label={`Sort by last updated${sortLabel("updatedAt")}`} onClick={() => toggleSort("updatedAt")}>Last Updated {sort === "updatedAt" && (order === "asc" ? "â†‘" : "â†“")}</button></th>
               </tr>
             </thead>
             <tbody>
@@ -222,7 +222,7 @@ export function TicketQueuePage({ onSelectTicket, initialFilters }: TicketQueueP
         <button type="button" className="secondary-button" disabled={page === 1} onClick={() => setPage((previous) => Math.max(1, previous - 1))}>
           Previous
         </button>
-        <span>Showing {meta.totalItems === 0 ? 0 : (meta.page - 1) * meta.pageSize + 1} to {Math.min(meta.page * meta.pageSize, meta.totalItems)} of {meta.totalItems} tickets · Page {meta.page} of {meta.totalPages}</span>
+        <span>Showing {meta.totalItems === 0 ? 0 : (meta.page - 1) * meta.pageSize + 1} to {Math.min(meta.page * meta.pageSize, meta.totalItems)} of {meta.totalItems} tickets Â· Page {meta.page} of {meta.totalPages}</span>
         <button type="button" className="secondary-button" disabled={page >= meta.totalPages} onClick={() => setPage((previous) => Math.min(meta.totalPages, previous + 1))}>
           Next
         </button>
