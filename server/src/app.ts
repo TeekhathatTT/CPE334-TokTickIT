@@ -26,6 +26,12 @@ import {
   postNote,
 } from "./modules/notes/notes.controller.js";
 import {
+  createAction,
+  getRequesterActions,
+  getStaffActions,
+  patchAction,
+} from "./modules/actions-taken/actions-taken.controller.js";
+import {
   getStaffTicketDetail,
   getStaffTickets,
   listAssignableStaff,
