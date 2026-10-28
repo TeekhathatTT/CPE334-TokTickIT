@@ -490,3 +490,32 @@ export async function setAdminInitialPassword(
     body: JSON.stringify({ initialPassword }),
   });
 }
+
+export interface RequesterDashboardData {
+  openTickets: number;
+  awaitingMyResponse: number;
+  recentlyResolved: number;
+  recentlyResolvedSince: string;
+  totalSubmitted: number;
+  recentTickets: Array<{ id: number; ticketNumber: string; summary: string; status: string; updatedAt: string }>;
+}
+
+export interface StaffDashboardData {
+  unassignedActive: number;
+  assignedToMe: number;
+  waitingForRequester: number;
+  pendingFollowUp: number;
+  pendingFollowUpTicketIds: number[];
+  resolvedPendingClose: number;
+  newToday: number;
+  newTodaySince: string;
+}
+
+export async function getRequesterDashboard(): Promise<RequesterDashboardData> {
+  return requestJson<RequesterDashboardData>("/api/dashboard/requester");
+}
+
+export async function getStaffDashboard(): Promise<StaffDashboardData> {
+  return requestJson<StaffDashboardData>("/api/dashboard/staff");
+}
+

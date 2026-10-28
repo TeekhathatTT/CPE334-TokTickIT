@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
-import { AppShell, type RequesterNavKey } from "./components/AppShell";
+import { AppShell, type NavKey, type RequesterNavKey } from "./components/AppShell";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import MyTicketsPage from "./pages/MyTicketsPage";
 import CreateTicketPage from "./pages/CreateTicketPage";
 import TicketDetailPage from "./pages/TicketDetailPage";
-import { TicketQueuePage } from "./pages/staff/TicketQueuePage";
+import { TicketQueuePage } from "./pages/staff/TicketQueuePage";\nimport RequesterDashboardPage from "./pages/RequesterDashboardPage";\nimport StaffDashboardPage from "./pages/staff/StaffDashboardPage";
 import { StaffTicketDetailPage } from "./pages/staff/StaffTicketDetailPage";
 import { UserManagementPage } from "./pages/admin/UserManagementPage";
 
@@ -23,7 +23,7 @@ function AdminViews() {
 
 function StaffViews({ userId }: { userId: number }) {
   const { user, logout } = useAuth();
-  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);\n  const [currentView, setCurrentView] = useState<NavKey>("dashboard");\n  const [queueFilters, setQueueFilters] = useState<Record<string, string | string[]> | undefined>(undefined);
 
   if (!user) return null;
 
@@ -49,8 +49,8 @@ function StaffViews({ userId }: { userId: number }) {
 
 function RequesterViews() {
   const { user, logout } = useAuth();
-  const [currentView, setCurrentView] = useState<RequesterNavKey>("my-tickets");
-  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+  const [currentView, setCurrentView] = useState<RequesterNavKey>("dashboard");\n  const [myTicketsFilters, setMyTicketsFilters] = useState<Record<string, string | string[]> | undefined>(undefined);
+  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);\n  const [currentView, setCurrentView] = useState<NavKey>("dashboard");\n  const [queueFilters, setQueueFilters] = useState<Record<string, string | string[]> | undefined>(undefined);
 
   if (!user) return null;
 
@@ -112,3 +112,8 @@ export default function App() {
     </AuthProvider>
   );
 }
+
+
+
+
+

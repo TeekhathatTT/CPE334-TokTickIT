@@ -19,7 +19,7 @@ const STATUSES = ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "RESOLV
  * screens (same responsive pattern as My Tickets). Columns follow ui-spec
  * §5 exactly; no description mega-column.
  */
-export function TicketQueuePage({ onSelectTicket }: TicketQueuePageProps) {
+export function TicketQueuePage({ onSelectTicket, initialFilters }: TicketQueuePageProps & { initialFilters?: Record<string, string | string[]> }) {
   const [rows, setRows] = useState<StaffQueueRow[]>([]);
   const [meta, setMeta] = useState<StaffQueueMeta>({
     page: 1, pageSize: 20, totalItems: 0, totalPages: 0, queueTotal: 0, isEmpty: true, isNoResults: false,
@@ -31,7 +31,7 @@ export function TicketQueuePage({ onSelectTicket }: TicketQueuePageProps) {
   const [requestedPriority, setRequestedPriority] = useState("");
   const [itPriority, setItPriority] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [ownerId, setOwnerId] = useState("");
+  const [ownerId, setOwnerId] = useState(initialFilters?.ownerId === "me" ? "" : ((initialFilters?.ownerId as string) || ""));
   const [sort, setSort] = useState("updatedAt");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
@@ -235,3 +235,5 @@ export function TicketQueuePage({ onSelectTicket }: TicketQueuePageProps) {
     </div>
   );
 }
+
+

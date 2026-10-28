@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from "react";
 import type { CurrentUser } from "../api";
 
-export type RequesterNavKey = "my-tickets" | "create-ticket";
-export type StaffNavKey = "ticket-queue";
+export type RequesterNavKey = "dashboard" | "my-tickets" | "create-ticket";
+export type StaffNavKey = "dashboard" | "ticket-queue";
 export type AdminNavKey = "user-management";
 export type NavKey = RequesterNavKey | StaffNavKey | AdminNavKey;
 
@@ -32,9 +32,9 @@ export function AppShell({ children, user, activeNav = "my-tickets", onNavigate,
   // Role navigation (ui-spec.md §2): Requester items, the staff-workflow
   // Ticket Queue entry for IT Staff, and User Management for Administrators.
   const navItems: Array<{ key: NavKey; label: string; roles: CurrentUser["role"][] }> = [
-    { key: "my-tickets", label: "My Tickets", roles: ["REQUESTER"] },
+    { key: "dashboard", label: "Dashboard", roles: ["REQUESTER"] },\n    { key: "my-tickets", label: "My Tickets", roles: ["REQUESTER"] },
     { key: "create-ticket", label: "Create Ticket", roles: ["REQUESTER"] },
-    { key: "ticket-queue", label: "Ticket Queue", roles: ["IT_STAFF"] },
+    { key: "dashboard", label: "Dashboard", roles: ["IT_STAFF"] },\n    { key: "ticket-queue", label: "Ticket Queue", roles: ["IT_STAFF"] },
     { key: "user-management", label: "User Management", roles: ["ADMINISTRATOR"] },
   ];
   const visibleNavItems = navItems.filter((item) => item.roles.includes(user.role));
@@ -73,3 +73,4 @@ export function AppShell({ children, user, activeNav = "my-tickets", onNavigate,
     </div>
   );
 }
+

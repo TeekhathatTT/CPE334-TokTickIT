@@ -10,7 +10,7 @@ interface MyTicketsPageProps {
 const formatDate = (value: string) => new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 const badge = (value: string | null | undefined) => <span className={`badge badge--${(value ?? "none").toLowerCase()}`}>{value?.replaceAll("_", " ") ?? "None"}</span>;
 
-export default function MyTicketsPage({ onCreateTicket, onSelectTicket }: MyTicketsPageProps) {
+export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialFilters }: MyTicketsPageProps & { initialFilters?: Record<string, string | string[]> }) {
   const [rows, setRows] = useState<TicketListRow[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [meta, setMeta] = useState<TicketListMeta>({ page: 1, pageSize: 10, totalItems: 0, totalPages: 1, isEmpty: false, isNoResults: false });
@@ -20,7 +20,7 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket }: MyTick
   const [category, setCategory] = useState("");
   const [requestedPriority, setRequestedPriority] = useState("");
   const [itPriority, setItPriority] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(Array.isArray((initialFilters as any)?.status) ? "" : ((initialFilters as any)?.status || ""));
   const [sort, setSort] = useState("createdAt");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
@@ -160,3 +160,4 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket }: MyTick
     </div>
   );
 }
+
