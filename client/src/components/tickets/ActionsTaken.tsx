@@ -408,9 +408,9 @@ export function ActionsTaken({ ticketId, mode, currentUserId, onChanged }: Actio
 
   return (
     <div className="detail-section">
-      <h3>
+      <h2>
         <span aria-hidden="true">🛠 </span>Actions Taken
-      </h3>
+      </h2>
       <p className="helper-text">
         {mode === "staff"
           ? "The work performed on this ticket. Visible to the requester — keep wording requester-safe."

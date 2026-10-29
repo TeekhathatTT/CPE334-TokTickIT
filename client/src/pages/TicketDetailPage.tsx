@@ -115,6 +115,7 @@ export default function TicketDetailPage({ ticketId, onBack }: { ticketId: numbe
   return (
     <div className="page-card">
       <div className="breadcrumb" aria-label="Breadcrumb"><span>My Tickets</span><span aria-hidden="true"> &gt; </span><strong>Ticket Details</strong></div>
+      <h1 className="page-title">Ticket Details</h1>
       <div className="ticket-detail-header">
         <button type="button" className="secondary-button" onClick={onBack}>← Back to My Tickets</button>
       </div>
@@ -132,17 +133,17 @@ export default function TicketDetailPage({ ticketId, onBack }: { ticketId: numbe
       </div>
 
       <div className="detail-section">
-        <h3>Summary</h3>
+        <h2>Summary</h2>
         <p>{ticket.summary}</p>
       </div>
 
       <div className="detail-section">
-        <h3>Description</h3>
+        <h2>Description</h2>
         <p>{ticket.description}</p>
       </div>
 
       <div className="detail-section">
-        <h3>Problem resolution signal</h3>
+        <h2>Problem resolution signal</h2>
         {ticket.problemAppearsResolvedAt ? (
           <div className="success-panel success-panel--inline" role="status">
             <strong>✓ You marked this problem as appearing resolved</strong>
@@ -170,12 +171,12 @@ export default function TicketDetailPage({ ticketId, onBack }: { ticketId: numbe
       </div>
 
       <div className="detail-section">
-        <h3>Attachments</h3>
+        <h2>Attachments</h2>
         <div className="attachment-panel">
           {actionError && <div className="error-panel" role="alert">{actionError}</div>}
           <input ref={fileInputRef} type="file" hidden accept=".jpg,.jpeg,.png,.webp,.pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleAdd(file); event.target.value = ""; }} />
           <button type="button" className="primary-button" disabled={activeAttachments.length >= 5 || actionBusy} title={activeAttachments.length >= 5 ? "Maximum 5 active attachments reached" : "Add attachment"} onClick={() => fileInputRef.current?.click()}>Add Attachment</button>
-          <h4>Active</h4>
+          <h3>Active</h3>
           {activeAttachments.length === 0 ? <div>No active attachments.</div> : activeAttachments.map((attachment) => (
             <div key={attachment.id} className="attachment-card">
                 <div className="attachment-card__name" title={attachment.originalFilename}>{attachment.originalFilename}</div>
@@ -189,7 +190,7 @@ export default function TicketDetailPage({ ticketId, onBack }: { ticketId: numbe
           {removedAttachments.length > 0 && (
             <div className="attachment-removed">
               <button type="button" className="tertiary-button" onClick={() => setShowRemoved((current) => !current)}>Show removed ({removedAttachments.length})</button>
-              {showRemoved && <div><h4>Removed</h4>
+              {showRemoved && <div><h3>Removed</h3>
               {removedAttachments.map((attachment) => (
                 <div key={attachment.id} className="attachment-card attachment-card--removed">
                   <div className="attachment-card__name" title={attachment.originalFilename}>{attachment.originalFilename}</div>

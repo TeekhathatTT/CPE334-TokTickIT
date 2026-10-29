@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import {
   apiGet,
   apiPatch,
@@ -11,6 +11,7 @@ import {
   rotationPassword,
   runToken,
   setShared,
+  test,
 } from "./helpers";
 
 /**

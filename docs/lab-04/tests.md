@@ -25,8 +25,10 @@ Expected card values against this set (normative; tests assert these exact numbe
 |---|---|---|
 | Server unit/API | `cd server && npm test` | 15 files, **198 tests passed** |
 | Client unit/UI | `cd client && npm test` | 16 files, **102 tests passed** |
-| Full browser E2E | `cd client && npx playwright test --workers=1` | **35 tests passed** (Lab 2: 6, Lab 3: 23, Lab 4: 6) |
-| Dashboard live metric/SQL parity | `cd server && npm run verify:dashboards` | **53 checks, 0 mismatches**; requester p95 4.15 ms, staff p95 8.00 ms; **PASS** |
+| Full browser E2E | `cd client && npm run test:e2e -- --workers=1` | **41 tests passed** (Lab 2: 6, Lab 3: 23, Lab 4: 12) |
+| Lab 4 accessibility | `cd client && npm run test:e2e -- e2e/lab-04/dashboards.spec.ts --workers=1` | Axe scans pass for requester dashboard/detail, staff dashboard/Actions Taken, and admin user management; **0 violations** |
+| Dashboard live metric/SQL parity | `cd server && npm run verify:dashboards` | **60 checks, 0 mismatches**; requester p95 2.70 ms, staff p95 4.80 ms; **PASS** |
+| Visual evidence | `cd client && $env:CAPTURE_SCREENSHOTS="1"; npm run test:e2e -- e2e/lab-04/visual-evidence.spec.ts --workers=1` | **2 capture scenarios passed**; screenshots under `artifacts/lab-04/screenshots/` |
 | Production builds | `cd server && npm run build`; `cd client && npm run build` | **PASS** |
 | Visual evidence | Lab 4 E2E captures | `artifacts/lab-04/screenshots/{requester-dashboard,staff-dashboard,actions-taken}/*.png` |
 
@@ -99,7 +101,7 @@ client/e2e/lab-04/
 └── lab-04.spec.ts
 ```
 
-The consolidated Lab 4 spec covers the former L4-E2E-01/02/03, responsive, and accessibility rows. Regression rows reuse the existing lab-01…lab-03 suites in place. Captured visual evidence lives under `artifacts/lab-04/screenshots/{requester-dashboard,staff-dashboard,actions-taken}/`.
+The Lab 4 specs cover workflow, role boundaries, accessibility, dashboards, and responsive states. Regression rows reuse the existing Lab 2/3 suites in place. Run visual capture separately with `CAPTURE_SCREENSHOTS=1`; normal E2E excludes that capture-only spec. Captured visual evidence lives under `artifacts/lab-04/screenshots/{requester-dashboard,staff-dashboard,actions-taken,regression}/`.
 
 ## 3. AC to test traceability
 
@@ -122,5 +124,3 @@ The consolidated Lab 4 spec covers the former L4-E2E-01/02/03, responsive, and a
 ## 4. Coverage checklist
 
 The implemented suite covers Actions Taken create/edit/resolve (incl. author-vs-any-staff split, mixed-body fail-closed 403 by key presence incl. `null` loophole case, stored-vs-merged order + merge/null semantics with non-boolean-flag `400`, explicit-flip-only T1–T4 with field-only-edit preservation on resolved + pending rows and `followUpNote`-on-resolved preservation, `false+resolve` 400, `createdAt` alias, `getNow()`-stamped `actionDate`/`followUpResolvedAt`), all validation axes incl. strict-`400` server-owned fields, authorization in both directions (Requester forbidden, non-author edit forbidden but resolve-only allowed, admin API-only override, admin dashboard without links), the gate in all three blocked edges plus release plus zero-action plus out-of-scope edges plus detail `pendingFollowUpCount` (L4-API-10), stale-update `409` on every Ticket write (status all edges + assignment + priority, via post-lock re-read / conditional `UPDATE`, never lock-free) and Actions Taken writes with malformed-`400`, inactive-assignee rejection, every dashboard metric with exact expected numbers and count≡drill-down equality under frozen app-code clock `NOW` with app-computed bound params (never SQL `now()`, incl. additive filters and 200-cap non-truncation), full Labs 1–3 regression unmodified with unchanged `INVALID_STATUS_TRANSITION`, additive-migration verification incl. hand-written `CHECK`, accessibility and responsive checks at all three breakpoints, duplicate-click safety, draft preservation, and a performance smoke budget. The `FOR UPDATE` implementation path is exercised with mocked Prisma; a live two-writer PostgreSQL race remains the only explicit AC-07 gap.
-
-

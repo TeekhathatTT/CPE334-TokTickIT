@@ -65,7 +65,7 @@ describe("TicketDetailPage", () => {
     render(<TicketDetailPage ticketId={101} />);
 
     await screen.findByText("Thanks for looking into this.");
-    const headings = Array.from(document.querySelectorAll(".detail-section h3")).map(
+    const headings = Array.from(document.querySelectorAll(".detail-section h2")).map(
       (node) => node.textContent?.trim() ?? "",
     );
     const publicIndex = headings.findIndex((text) => /public comments/i.test(text));
