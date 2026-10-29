@@ -3,7 +3,10 @@ import { getStaffTickets, type StaffQueueMeta, type StaffQueueRow } from "../../
 
 interface TicketQueuePageProps {
   onSelectTicket?: (ticketId: number) => void;
+  currentUserId?: number;
 }
+
+type StatusFilter = string | string[];
 
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -14,12 +17,12 @@ const badge = (value: string | null | undefined) => (
 const STATUSES = ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "RESOLVED", "CLOSED", "REOPENED", "CANCELLED"];
 
 /**
- * IT Staff Ticket Queue (ui-spec.md §5, FR-07): searchable, filterable,
+ * IT Staff Ticket Queue (ui-spec.md Ãƒâ€šÃ‚Â§5, FR-07): searchable, filterable,
  * sortable, paginated table with stacked-card representation on small
  * screens (same responsive pattern as My Tickets). Columns follow ui-spec
- * §5 exactly; no description mega-column.
+ * Ãƒâ€šÃ‚Â§5 exactly; no description mega-column.
  */
-export function TicketQueuePage({ onSelectTicket }: TicketQueuePageProps) {
+export function TicketQueuePage({ onSelectTicket, currentUserId, initialFilters }: TicketQueuePageProps & { initialFilters?: Record<string, string | string[]> }) {
   const [rows, setRows] = useState<StaffQueueRow[]>([]);
   const [meta, setMeta] = useState<StaffQueueMeta>({
     page: 1, pageSize: 20, totalItems: 0, totalPages: 0, queueTotal: 0, isEmpty: true, isNoResults: false,
@@ -27,11 +30,31 @@ export function TicketQueuePage({ onSelectTicket }: TicketQueuePageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<StatusFilter>(() => {
+    const initialStatus = initialFilters?.status;
+    if (Array.isArray(initialStatus)) return initialStatus;
+    return typeof initialStatus === "string" ? initialStatus : "";
+  });
   const [requestedPriority, setRequestedPriority] = useState("");
   const [itPriority, setItPriority] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [ownerId, setOwnerId] = useState("");
+  const [ownerId, setOwnerId] = useState(() => {
+    const initialOwnerId = initialFilters?.ownerId;
+    if (typeof initialOwnerId !== "string") return "";
+    if (initialOwnerId === "me" && currentUserId !== undefined) return String(currentUserId);
+    return initialOwnerId;
+  });
+  const [hasPendingFollowUp, setHasPendingFollowUp] = useState(() =>
+    typeof initialFilters?.hasPendingFollowUp === "string"
+      ? initialFilters.hasPendingFollowUp
+      : "",
+  );
+  const [createdSince, setCreatedSince] = useState<string | undefined>(
+    typeof initialFilters?.createdSince === "string" ? initialFilters.createdSince : undefined,
+  );
+  const [updatedSince, setUpdatedSince] = useState<string | undefined>(
+    typeof initialFilters?.updatedSince === "string" ? initialFilters.updatedSince : undefined,
+  );
   const [sort, setSort] = useState("updatedAt");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
@@ -46,8 +69,23 @@ export function TicketQueuePage({ onSelectTicket }: TicketQueuePageProps) {
       setLoading(true);
       setError(null);
       try {
+        const statusFilter = Array.isArray(status)
+          ? status.length > 0 ? status : undefined
+          : status || undefined;
         const result = await getStaffTickets({
-          search, status, requestedPriority, itPriority, categoryId, ownerId, sort, order, page, pageSize,
+          search,
+          status: statusFilter,
+          requestedPriority,
+          itPriority,
+          categoryId,
+          ownerId,
+          hasPendingFollowUp,
+          createdSince,
+          updatedSince,
+          sort,
+          order,
+          page,
+          pageSize,
         });
         if (!active) return;
         setRows(result.data);
@@ -63,11 +101,12 @@ export function TicketQueuePage({ onSelectTicket }: TicketQueuePageProps) {
 
     void loadQueue();
     return () => { active = false; };
-  }, [search, status, requestedPriority, itPriority, categoryId, ownerId, sort, order, page, pageSize, retryToken]);
+  }, [search, status, requestedPriority, itPriority, categoryId, ownerId, hasPendingFollowUp, createdSince, updatedSince, sort, order, page, pageSize, retryToken]);
 
   const clearFilters = () => {
     setSearch(""); setStatus(""); setRequestedPriority(""); setItPriority("");
-    setCategoryId(""); setOwnerId(""); setPage(1);
+    setCategoryId(""); setOwnerId(""); setHasPendingFollowUp("");
+    setCreatedSince(undefined); setUpdatedSince(undefined); setPage(1);
   };
   const toggleSort = (field: string) => {
     setPage(1);
@@ -75,12 +114,13 @@ export function TicketQueuePage({ onSelectTicket }: TicketQueuePageProps) {
     else { setSort(field); setOrder("asc"); }
   };
   const sortLabel = (field: string) => (sort === field ? `, sorted ${order === "asc" ? "ascending" : "descending"}` : "");
+  const statusSelectValue = Array.isArray(status) ? "__preset__" : status;
 
   if (loading) {
     return (
       <div className="page-card">
         <h1 className="page-title">Ticket Queue</h1>
-        <div className="loading-state" role="status">Loading ticket queue…</div>
+        <div className="loading-state" role="status">Loading ticket queueÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</div>
       </div>
     );
   }
@@ -113,7 +153,8 @@ export function TicketQueuePage({ onSelectTicket }: TicketQueuePageProps) {
           onChange={(event) => { setSearch(event.target.value); setPage(1); }}
           placeholder="Number, summary, description, requester"
         />
-        <select aria-label="Queue status" className="select-field" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
+        <select aria-label="Queue status" className="select-field" value={statusSelectValue} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
+          {Array.isArray(status) && <option value="__preset__">Preset statuses ({status.length})</option>}
           <option value="">All Statuses</option>
           {STATUSES.map((value) => (
             <option key={value} value={value}>{value.replaceAll("_", " ")}</option>
@@ -155,7 +196,7 @@ export function TicketQueuePage({ onSelectTicket }: TicketQueuePageProps) {
         </div>
       ) : meta.isEmpty ? (
         <div className="empty-state">
-          <div aria-hidden="true">□</div>
+          <div aria-hidden="true">ÃƒÂ¢Ã¢â‚¬â€œÃ‚Â¡</div>
           <p>No tickets in the queue yet.</p>
         </div>
       ) : meta.isNoResults ? (
@@ -168,15 +209,15 @@ export function TicketQueuePage({ onSelectTicket }: TicketQueuePageProps) {
           <table className="ticket-table">
             <thead>
               <tr>
-                <th><button type="button" className="sort-button" aria-label={`Sort by ticket number${sortLabel("ticketNumber")}`} onClick={() => toggleSort("ticketNumber")}>Ticket No. {sort === "ticketNumber" && (order === "asc" ? "↑" : "↓")}</button></th>
-                <th><button type="button" className="sort-button" aria-label={`Sort by created date${sortLabel("createdAt")}`} onClick={() => toggleSort("createdAt")}>Created Date {sort === "createdAt" && (order === "asc" ? "↑" : "↓")}</button></th>
+                <th><button type="button" className="sort-button" aria-label={`Sort by ticket number${sortLabel("ticketNumber")}`} onClick={() => toggleSort("ticketNumber")}>Ticket No. {sort === "ticketNumber" && (order === "asc" ? "ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Ëœ" : "ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Å“")}</button></th>
+                <th><button type="button" className="sort-button" aria-label={`Sort by created date${sortLabel("createdAt")}`} onClick={() => toggleSort("createdAt")}>Created Date {sort === "createdAt" && (order === "asc" ? "ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Ëœ" : "ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Å“")}</button></th>
                 <th>Summary</th>
                 <th>Category</th>
-                <th><button type="button" className="sort-button" aria-label={`Sort by requested priority${sortLabel("requestedPriority")}`} onClick={() => toggleSort("requestedPriority")}>Requested Priority {sort === "requestedPriority" && (order === "asc" ? "↑" : "↓")}</button></th>
-                <th><button type="button" className="sort-button" aria-label={`Sort by IT priority${sortLabel("itPriority")}`} onClick={() => toggleSort("itPriority")}>IT Priority {sort === "itPriority" && (order === "asc" ? "↑" : "↓")}</button></th>
-                <th><button type="button" className="sort-button" aria-label={`Sort by status${sortLabel("status")}`} onClick={() => toggleSort("status")}>Current Status {sort === "status" && (order === "asc" ? "↑" : "↓")}</button></th>
-                <th><button type="button" className="sort-button" aria-label={`Sort by owner${sortLabel("owner")}`} onClick={() => toggleSort("owner")}>Ticket Owner {sort === "owner" && (order === "asc" ? "↑" : "↓")}</button></th>
-                <th><button type="button" className="sort-button" aria-label={`Sort by last updated${sortLabel("updatedAt")}`} onClick={() => toggleSort("updatedAt")}>Last Updated {sort === "updatedAt" && (order === "asc" ? "↑" : "↓")}</button></th>
+                <th><button type="button" className="sort-button" aria-label={`Sort by requested priority${sortLabel("requestedPriority")}`} onClick={() => toggleSort("requestedPriority")}>Requested Priority {sort === "requestedPriority" && (order === "asc" ? "ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Ëœ" : "ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Å“")}</button></th>
+                <th><button type="button" className="sort-button" aria-label={`Sort by IT priority${sortLabel("itPriority")}`} onClick={() => toggleSort("itPriority")}>IT Priority {sort === "itPriority" && (order === "asc" ? "ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Ëœ" : "ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Å“")}</button></th>
+                <th><button type="button" className="sort-button" aria-label={`Sort by status${sortLabel("status")}`} onClick={() => toggleSort("status")}>Current Status {sort === "status" && (order === "asc" ? "ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Ëœ" : "ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Å“")}</button></th>
+                <th><button type="button" className="sort-button" aria-label={`Sort by owner${sortLabel("owner")}`} onClick={() => toggleSort("owner")}>Ticket Owner {sort === "owner" && (order === "asc" ? "ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Ëœ" : "ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Å“")}</button></th>
+                <th><button type="button" className="sort-button" aria-label={`Sort by last updated${sortLabel("updatedAt")}`} onClick={() => toggleSort("updatedAt")}>Last Updated {sort === "updatedAt" && (order === "asc" ? "ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Ëœ" : "ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Å“")}</button></th>
               </tr>
             </thead>
             <tbody>
@@ -222,7 +263,7 @@ export function TicketQueuePage({ onSelectTicket }: TicketQueuePageProps) {
         <button type="button" className="secondary-button" disabled={page === 1} onClick={() => setPage((previous) => Math.max(1, previous - 1))}>
           Previous
         </button>
-        <span>Showing {meta.totalItems === 0 ? 0 : (meta.page - 1) * meta.pageSize + 1} to {Math.min(meta.page * meta.pageSize, meta.totalItems)} of {meta.totalItems} tickets · Page {meta.page} of {meta.totalPages}</span>
+        <span>Showing {meta.totalItems === 0 ? 0 : (meta.page - 1) * meta.pageSize + 1} to {Math.min(meta.page * meta.pageSize, meta.totalItems)} of {meta.totalItems} tickets Ãƒâ€šÃ‚Â· Page {meta.page} of {meta.totalPages}</span>
         <button type="button" className="secondary-button" disabled={page >= meta.totalPages} onClick={() => setPage((previous) => Math.min(meta.totalPages, previous + 1))}>
           Next
         </button>
@@ -235,3 +276,5 @@ export function TicketQueuePage({ onSelectTicket }: TicketQueuePageProps) {
     </div>
   );
 }
+
+

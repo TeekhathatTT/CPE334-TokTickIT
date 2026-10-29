@@ -248,14 +248,16 @@ Changed Lab 3 behavior is limited to the BR-12 list: gate precondition, optional
 
 ## 10. Definition of Done
 
-- [ ] FR-01–FR-10 and BR-01–BR-14 are implemented and **server-enforced** (UI hiding alone is never sufficient).
-- [ ] All AC-01–AC-13 trace to passing tests in `tests.md` (unit / API-integration / UI component / UI style / responsive / authorization / workflow / migration-regression / performance-smoke / E2E), including: gate rejection (AC-04), gate release + zero-action pass-through (AC-05), stale-update `409` on both Ticket and Actions Taken writes (AC-07), inactive-assignee rejection (AC-08), and Requester read-only Actions Taken (AC-09).
-- [ ] Full Labs 1–3 suites (server + client + E2E) still pass **unmodified** after the Lab 4 migration; seed remains idempotent.
-- [ ] Dashboards return exactly the BR-08 queries against seeded data, with empty states and working drill-downs at all three breakpoints.
-- [ ] No console errors or warnings in happy paths; no dead UI; duplicate-click safe; failures preserve input with Retry.
-- [ ] API responses and safe errors match `api-spec.md` (`RESOLUTION_BLOCKED` vs `INVALID_STATUS_TRANSITION` vs `VERSION_CONFLICT` vs `FOLLOW_UP_ALREADY_RESOLVED` distinguishable by `code`).
-- [ ] Screens match `ui-spec.md` at desktop/tablet/mobile; accessibility checks pass.
-- [ ] README/run instructions, seed docs, and visual-evidence paths are current.
+- [x] FR-01–FR-10 and BR-01–BR-14 are implemented and **server-enforced** (UI hiding alone is never sufficient).
+- [x] All AC-01–AC-13 trace to passing tests in `tests.md` (unit / API-integration / UI component / UI style / responsive / authorization / workflow / migration-regression / performance-smoke / E2E), including: gate rejection (AC-04), gate release + zero-action pass-through (AC-05), stale-update `409` on both Ticket and Actions Taken writes (AC-07), inactive-assignee rejection (AC-08), and Requester read-only Actions Taken (AC-09).
+- [x] Full Labs 1–3 suites (server + client + E2E) still pass **unmodified** after the Lab 4 migration; seed remains idempotent.
+- [x] Dashboards return exactly the BR-08 queries against seeded data, with empty states and working drill-downs at all three breakpoints.
+- [x] No console errors or warnings in happy paths; no dead UI; duplicate-click safe; failures preserve input with Retry.
+- [x] API responses and safe errors match `api-spec.md` (`RESOLUTION_BLOCKED` vs `INVALID_STATUS_TRANSITION` vs `VERSION_CONFLICT` vs `FOLLOW_UP_ALREADY_RESOLVED` distinguishable by `code`).
+- [x] Screens match `ui-spec.md` at desktop/tablet/mobile; accessibility checks pass.
+- [x] README/run instructions, seed docs, and visual-evidence paths are current.
+
+Verified 2026-10-29: server **198/198**, client **102/102**, full E2E **35/35**, dashboard verification **53 checks / 0 mismatches** (requester p95 4.15 ms, staff p95 8.00 ms), server/client production builds pass. Residual: AC-07's live two-writer PostgreSQL race is not exercised end-to-end; the stale/atomic contract tests use mocked Prisma, so `FOR UPDATE` serialization on real concurrent writers remains the documented gap.
 
 ## 11. Assumptions and Decisions
 
