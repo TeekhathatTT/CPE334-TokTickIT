@@ -31,7 +31,7 @@ export default function StaffDashboardPage({ onNavigateQueue, userRole }: StaffD
     return () => { active = false; };
   }, [retryToken]);
 
-  const isAdmin = userRole === "ADMINISTRATOR";
+  const canDrillDown = userRole === "IT_STAFF";
 
   if (loading) {
     return (
@@ -57,8 +57,8 @@ export default function StaffDashboardPage({ onNavigateQueue, userRole }: StaffD
   if (!data) return null;
 
   const linkOrDisabled = (filters: Record<string, string | string[]>, content: string) => {
-    if (isAdmin) {
-      return <div className="metric-card__helper">Sign in as IT Staff to open the queue — administrators have no queue access.</div>;
+    if (!canDrillDown) {
+      return <div className="metric-card__helper">Sign in as IT Staff to open the queue - administrators have no queue access.</div>;
     }
     return (
       <button type="button" className="link-button" onClick={() => onNavigateQueue?.(filters)}>

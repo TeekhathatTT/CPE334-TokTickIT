@@ -163,6 +163,14 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("POST /api/staff/tickets/:id/actions-taken (L4-API-01/02)", () => {
+  it("returns 401 without a session", async () => {
+    const response = await request(app)
+      .post("/api/staff/tickets/101/actions-taken")
+      .send({ description: "Restarted the print spooler and re-ran the job.", result: "RESOLVED_STEP" });
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe("UNAUTHENTICATED");
+  });
+
   function createMocks(sessionUser: TestUser = authorStaff, ticket: Record<string, unknown> | null = { id: 101 }) {
     const create = vi.fn(async (args: { data: Record<string, unknown> }) => ({
       id: 99,
@@ -294,6 +302,16 @@ describe("POST /api/staff/tickets/:id/actions-taken (L4-API-01/02)", () => {
 // ---------------------------------------------------------------------------
 
 describe("GET actions taken (L4-AUTHZ-01)", () => {
+  it("returns 401 without a session on staff and requester routes", async () => {
+    const staff = await request(app).get("/api/staff/tickets/101/actions-taken");
+    expect(staff.status).toBe(401);
+    expect(staff.body.error.code).toBe("UNAUTHENTICATED");
+
+    const requester = await request(app).get("/api/tickets/101/actions-taken");
+    expect(requester.status).toBe(401);
+    expect(requester.body.error.code).toBe("UNAUTHENTICATED");
+  });
+
   it("lists staff entries chronologically with the full shape", async () => {
     const rows = [actionRow({ id: 1 }), actionRow({ id: 2, followUpRequired: true, followUpNote: "follow up" })];
     mockPrisma({
@@ -369,6 +387,14 @@ describe("GET actions taken (L4-AUTHZ-01)", () => {
 // ---------------------------------------------------------------------------
 
 describe("PATCH /api/staff/tickets/:id/actions-taken/:actionId (L4-API-03)", () => {
+  it("returns 401 without a session", async () => {
+    const response = await request(app)
+      .patch("/api/staff/tickets/101/actions-taken/12")
+      .send({ markFollowUpResolved: true });
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe("UNAUTHENTICATED");
+  });
+
   function patched(body: Record<string, unknown>, options: {
     stored?: Record<string, unknown>;
     sessionUser?: TestUser;

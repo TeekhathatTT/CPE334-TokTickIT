@@ -201,6 +201,11 @@ app.get(
   authorize(["REQUESTER"]),
   getTicket,
 );
+app.get(
+  "/api/tickets/:id/actions-taken",
+  authorize(["REQUESTER"]),
+  getRequesterActions,
+);
 app.post(
   "/api/tickets/:id/attachments",
   authorize(["REQUESTER"]),
@@ -281,6 +286,21 @@ app.patch(
   "/api/staff/tickets/:id/status",
   authorize(["IT_STAFF"]),
   updateTicketStatus,
+);
+app.get(
+  "/api/staff/tickets/:id/actions-taken",
+  authorize(["IT_STAFF", "ADMINISTRATOR"]),
+  getStaffActions,
+);
+app.post(
+  "/api/staff/tickets/:id/actions-taken",
+  authorize(["IT_STAFF", "ADMINISTRATOR"]),
+  createAction,
+);
+app.patch(
+  "/api/staff/tickets/:id/actions-taken/:actionId",
+  authorize(["IT_STAFF", "ADMINISTRATOR"]),
+  patchAction,
 );
 // Internal Notes (api-spec.md §4): IT Staff or Administrator only. The
 // guard returns 403 with no note content/count for Requesters (AC-04).

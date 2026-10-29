@@ -29,7 +29,7 @@ function roleLabel(role: CurrentUser["role"]): string {
 export function AppShell({ children, user, activeNav = "my-tickets", onNavigate, onLogout }: AppShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Role navigation (ui-spec.md Ãƒâ€šÃ‚Â§2): Requester items, the staff-workflow
+  // Role navigation (ui-spec.md section 2): Requester items, the staff-workflow
   // Ticket Queue entry for IT Staff, and User Management for Administrators.
   const navItems: Array<{ key: NavKey; label: string; roles: CurrentUser["role"][] }> = [
     { key: "dashboard", label: "Dashboard", roles: ["REQUESTER"] },
@@ -49,7 +49,7 @@ export function AppShell({ children, user, activeNav = "my-tickets", onNavigate,
             <span className="brand__mark">TokTickIT</span>
           </div>
 
-          <button type="button" className="menu-toggle" aria-label="Open navigation menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((current) => !current)}>ÃƒÂ¢Ã‹Å“Ã‚Â°</button>
+          <button type="button" className="menu-toggle" aria-label="Open navigation menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((current) => !current)}>{"\u2630"}</button>
           <nav className={`main-nav ${menuOpen ? "main-nav--open" : ""}`} aria-label="Main navigation">
             {visibleNavItems.map((item) => (
               <button

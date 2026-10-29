@@ -1,8 +1,5 @@
 import { getPrisma } from "../../prisma.js";
-
-export function getNow(): Date {
-  return new Date();
-}
+import { getNow } from "../../utils/clock.js";
 
 export function startOfUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));

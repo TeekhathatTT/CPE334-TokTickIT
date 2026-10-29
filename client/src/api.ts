@@ -216,7 +216,8 @@ export async function getTickets(
     category?: string;
     requestedPriority?: string;
     itPriority?: string;
-    status?: string;
+    status?: string | string[];
+    updatedSince?: string;
     sort?: string;
     order?: "asc" | "desc";
     page?: number;
@@ -225,7 +226,12 @@ export async function getTickets(
 ): Promise<{ data: TicketListRow[]; meta: TicketListMeta }> {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
-    if (value !== undefined && value !== "" && value !== "All") params.set(key, String(value));
+    if (value === undefined || value === "" || value === "All") return;
+    if (Array.isArray(value)) {
+      value.forEach((entry) => params.append(key, String(entry)));
+    } else {
+      params.set(key, String(value));
+    }
   });
   const query = params.toString();
   return requestJson<{ data: TicketListRow[]; meta: TicketListMeta }>(`/api/tickets${query ? `?${query}` : ""}`, undefined, false);
@@ -368,6 +374,9 @@ export async function getStaffTickets(
     itPriority?: string;
     categoryId?: string;
     ownerId?: string;
+    hasPendingFollowUp?: string;
+    createdSince?: string;
+    updatedSince?: string;
     sort?: string;
     order?: "asc" | "desc";
     page?: number;

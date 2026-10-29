@@ -3,7 +3,10 @@ import { getStaffTickets, type StaffQueueMeta, type StaffQueueRow } from "../../
 
 interface TicketQueuePageProps {
   onSelectTicket?: (ticketId: number) => void;
+  currentUserId?: number;
 }
+
+type StatusFilter = string | string[];
 
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -19,7 +22,7 @@ const STATUSES = ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "RESOLV
  * screens (same responsive pattern as My Tickets). Columns follow ui-spec
  * Ãƒâ€šÃ‚Â§5 exactly; no description mega-column.
  */
-export function TicketQueuePage({ onSelectTicket, initialFilters }: TicketQueuePageProps & { initialFilters?: Record<string, string | string[]> }) {
+export function TicketQueuePage({ onSelectTicket, currentUserId, initialFilters }: TicketQueuePageProps & { initialFilters?: Record<string, string | string[]> }) {
   const [rows, setRows] = useState<StaffQueueRow[]>([]);
   const [meta, setMeta] = useState<StaffQueueMeta>({
     page: 1, pageSize: 20, totalItems: 0, totalPages: 0, queueTotal: 0, isEmpty: true, isNoResults: false,
@@ -27,11 +30,31 @@ export function TicketQueuePage({ onSelectTicket, initialFilters }: TicketQueueP
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<StatusFilter>(() => {
+    const initialStatus = initialFilters?.status;
+    if (Array.isArray(initialStatus)) return initialStatus;
+    return typeof initialStatus === "string" ? initialStatus : "";
+  });
   const [requestedPriority, setRequestedPriority] = useState("");
   const [itPriority, setItPriority] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [ownerId, setOwnerId] = useState(initialFilters?.ownerId === "me" ? "" : ((initialFilters?.ownerId as string) || ""));
+  const [ownerId, setOwnerId] = useState(() => {
+    const initialOwnerId = initialFilters?.ownerId;
+    if (typeof initialOwnerId !== "string") return "";
+    if (initialOwnerId === "me" && currentUserId !== undefined) return String(currentUserId);
+    return initialOwnerId;
+  });
+  const [hasPendingFollowUp, setHasPendingFollowUp] = useState(() =>
+    typeof initialFilters?.hasPendingFollowUp === "string"
+      ? initialFilters.hasPendingFollowUp
+      : "",
+  );
+  const [createdSince, setCreatedSince] = useState<string | undefined>(
+    typeof initialFilters?.createdSince === "string" ? initialFilters.createdSince : undefined,
+  );
+  const [updatedSince, setUpdatedSince] = useState<string | undefined>(
+    typeof initialFilters?.updatedSince === "string" ? initialFilters.updatedSince : undefined,
+  );
   const [sort, setSort] = useState("updatedAt");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
@@ -46,8 +69,23 @@ export function TicketQueuePage({ onSelectTicket, initialFilters }: TicketQueueP
       setLoading(true);
       setError(null);
       try {
-        const statusQ: any = Array.isArray((initialFilters as any)?.status) ? (initialFilters as any).status : (status || undefined); const efInit: any = {}; if ((initialFilters as any)?.hasPendingFollowUp) efInit.hasPendingFollowUp = String((initialFilters as any).hasPendingFollowUp); if ((initialFilters as any)?.createdSince) efInit.createdSince = String((initialFilters as any).createdSince); if ((initialFilters as any)?.updatedSince) efInit.updatedSince = String((initialFilters as any).updatedSince); const result = await getStaffTickets({
-          search, status: statusQ, requestedPriority, itPriority, categoryId, ownerId, sort, order, page, pageSize, ...(efInit as any),
+        const statusFilter = Array.isArray(status)
+          ? status.length > 0 ? status : undefined
+          : status || undefined;
+        const result = await getStaffTickets({
+          search,
+          status: statusFilter,
+          requestedPriority,
+          itPriority,
+          categoryId,
+          ownerId,
+          hasPendingFollowUp,
+          createdSince,
+          updatedSince,
+          sort,
+          order,
+          page,
+          pageSize,
         });
         if (!active) return;
         setRows(result.data);
@@ -63,11 +101,12 @@ export function TicketQueuePage({ onSelectTicket, initialFilters }: TicketQueueP
 
     void loadQueue();
     return () => { active = false; };
-  }, [search, status, requestedPriority, itPriority, categoryId, ownerId, sort, order, page, pageSize, retryToken]);
+  }, [search, status, requestedPriority, itPriority, categoryId, ownerId, hasPendingFollowUp, createdSince, updatedSince, sort, order, page, pageSize, retryToken]);
 
   const clearFilters = () => {
     setSearch(""); setStatus(""); setRequestedPriority(""); setItPriority("");
-    setCategoryId(""); setOwnerId(""); setPage(1);
+    setCategoryId(""); setOwnerId(""); setHasPendingFollowUp("");
+    setCreatedSince(undefined); setUpdatedSince(undefined); setPage(1);
   };
   const toggleSort = (field: string) => {
     setPage(1);
@@ -75,6 +114,7 @@ export function TicketQueuePage({ onSelectTicket, initialFilters }: TicketQueueP
     else { setSort(field); setOrder("asc"); }
   };
   const sortLabel = (field: string) => (sort === field ? `, sorted ${order === "asc" ? "ascending" : "descending"}` : "");
+  const statusSelectValue = Array.isArray(status) ? "__preset__" : status;
 
   if (loading) {
     return (
@@ -113,7 +153,8 @@ export function TicketQueuePage({ onSelectTicket, initialFilters }: TicketQueueP
           onChange={(event) => { setSearch(event.target.value); setPage(1); }}
           placeholder="Number, summary, description, requester"
         />
-        <select aria-label="Queue status" className="select-field" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
+        <select aria-label="Queue status" className="select-field" value={statusSelectValue} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
+          {Array.isArray(status) && <option value="__preset__">Preset statuses ({status.length})</option>}
           <option value="">All Statuses</option>
           {STATUSES.map((value) => (
             <option key={value} value={value}>{value.replaceAll("_", " ")}</option>

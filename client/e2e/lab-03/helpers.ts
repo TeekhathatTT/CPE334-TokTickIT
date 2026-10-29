@@ -20,6 +20,8 @@ import { fileURLToPath } from "node:url";
  * - user-administration.spec.ts: alice.admin, plus freshly created `e2e.*`
  *   users with run-unique emails.
  * - lab-02.spec.ts (Lab 2 regression under Lab 3 auth): emily.davis.
+ * - lab-04/lab-04.spec.ts (Lab 4 dashboards + Actions Taken): lisa.garcia,
+ *   kevin.thompson.
  * Adding a seed-account login to a file that does not own that account will
  * cause order-dependent failures.
  */

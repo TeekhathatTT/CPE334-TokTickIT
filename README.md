@@ -58,10 +58,28 @@ cd ../client
 npm run test:e2e
 ```
 
-Lab 3 E2E (`client/e2e/lab-03/`) reseeds automatically via Playwright
-`globalSetup` (set `E2E_SEED=0` to skip with hand-managed data) and requires
-the client origin `http://localhost:5173` to match the API CORS/CSRF contract
-(`CLIENT_URL`, see `client/playwright.config.ts`).
+Lab 2-4 E2E (`client/e2e/`) reset and reseed the disposable local database via
+Playwright `globalSetup` (`prisma migrate reset --force --skip-seed` + seed) so
+runs are hermetic (set `E2E_SEED=0` to skip with hand-managed data). They
+require the client origin `http://localhost:5173` to match the API CORS/CSRF
+contract (`CLIENT_URL`, see `client/playwright.config.ts`).
+
+Run the full browser suite (35 tests: Lab 2/3 regression + Lab 4):
+
+```
+cd client
+npx playwright test --workers=1
+```
+
+Lab 4 dashboard parity/performance check (requires seeded data):
+
+```
+cd server
+npm run verify:dashboards
+```
+
+Lab 4 visual evidence is captured by the E2E run under
+`artifacts/lab-04/screenshots/`.
 
 Notes:
 - Do not commit `.env` or `node_modules`. The client uses `VITE_API_URL` from `client/.env.example`.

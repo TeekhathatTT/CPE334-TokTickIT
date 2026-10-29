@@ -4,11 +4,12 @@ import { getRequesterDashboard, type RequesterDashboardData } from "../api";
 interface RequesterDashboardPageProps {
   onNavigateMyTickets?: (filters?: Record<string, string | string[]>) => void;
   onCreateTicket?: () => void;
+  onSelectTicket?: (ticketId: number) => void;
 }
 
 const formatDate = (value: string) => new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
-export default function RequesterDashboardPage({ onNavigateMyTickets, onCreateTicket }: RequesterDashboardPageProps) {
+export default function RequesterDashboardPage({ onNavigateMyTickets, onCreateTicket, onSelectTicket }: RequesterDashboardPageProps) {
   const [data, setData] = useState<RequesterDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +114,7 @@ export default function RequesterDashboardPage({ onNavigateMyTickets, onCreateTi
           <ul className="recent-list">
             {data.recentTickets.map((t) => (
               <li key={t.id} className="recent-list__item">
-                <button type="button" className="link-button" onClick={() => onNavigateMyTickets?.({})}>{t.ticketNumber}</button>
+                <button type="button" className="link-button" onClick={() => onSelectTicket?.(t.id)}>{t.ticketNumber}</button>
                 <span className="recent-list__summary">{t.summary}</span>
                 <span className={`badge badge--${((t.status as string)||"none").toLowerCase()}`}>{((t.status as string) || '').replaceAll('_', ' ')}</span>
                 <span className="recent-list__date">{formatDate(t.updatedAt)}</span>
