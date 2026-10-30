@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
 import {
   apiStatus,
   login,
@@ -8,6 +8,7 @@ import {
   rotatePassword,
   rotationPassword,
   runToken,
+  test,
 } from "./helpers";
 
 /**
@@ -134,7 +135,7 @@ test("authenticated requester keeps Lab 2 abilities: create, comment, signal res
   // Open it, post a public comment, and record the resolved-signal — the
   // status itself never changes to Resolved/Closed (BR-05, AC-18).
   await page.getByRole("button", { name: "View Ticket" }).click();
-  await expect(page.getByText("Ticket Details")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ticket Details" })).toBeVisible();
   const comment = `E2E regression comment ${token}`;
   await page.getByLabel("Add a public comment").fill(comment);
   await page.getByRole("button", { name: "Post comment" }).click();

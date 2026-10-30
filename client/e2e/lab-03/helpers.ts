@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, test as base, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,6 +28,27 @@ import { fileURLToPath } from "node:url";
 
 /** Local-dev-only seed password (see `server/prisma/seed.mjs`). */
 export const SEED_PASSWORD = "Password123!";
+
+export const test = base.extend({
+  page: async ({ page }, use) => {
+    const errors = watchConsoleErrors(page);
+    await use(page);
+    expect(errors(), "browser page errors and console.error calls").toEqual([]);
+  },
+});
+
+export function watchConsoleErrors(page: Page): () => string[] {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
+  page.on("console", (message) => {
+    const text = message.text();
+    // Chromium reports expected HTTP error responses as resource errors, not page console.error calls.
+    if (message.type() === "error" && !text.startsWith("Failed to load resource:")) {
+      errors.push(`console.error: ${text}`);
+    }
+  });
+  return () => errors;
+}
 
 /**
  * Cross-test shared state, persisted to disk.
@@ -151,6 +172,19 @@ export async function rotatePassword(page: Page, email: string, tag: string): Pr
   await completeForcedPasswordChange(page, passwordFor(email), next);
   rememberPassword(email, next);
   return next;
+}
+
+export async function loginWithRotation(page: Page, email: string, tag: string, home: RegExp): Promise<void> {
+  await loginKnown(page, email);
+  await expect(
+    page.getByRole("heading", {
+      name: /Change your password|Dashboard|My Tickets|Ticket Queue|User Management/,
+    }),
+  ).toBeVisible();
+  if ((await page.getByRole("heading", { name: "Change your password" }).count()) > 0) {
+    await rotatePassword(page, email, tag);
+  }
+  await expect(page.getByRole("heading", { name: home })).toBeVisible();
 }
 
 /**

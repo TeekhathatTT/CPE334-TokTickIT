@@ -320,6 +320,7 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
         <span aria-hidden="true"> &gt; </span>
         <strong>Ticket Details</strong>
       </div>
+      <h1 className="page-title">Ticket Details</h1>
       <div className="ticket-detail-header">
         <button type="button" className="secondary-button" onClick={onBack}>← Back to Ticket Queue</button>
       </div>
@@ -388,17 +389,17 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
       </div>
 
       <div className="detail-section">
-        <h3>Summary</h3>
+        <h2>Summary</h2>
         <p>{ticket.summary}</p>
       </div>
 
       <div className="detail-section">
-        <h3>Description</h3>
+        <h2>Description</h2>
         <p>{ticket.description}</p>
       </div>
 
       <div className="detail-section">
-        <h3>Ticket Owner</h3>
+        <h2>Ticket Owner</h2>
         <p className="helper-text">Current owner: {ticket.owner ? `${ticket.owner.name} (ID ${ticket.owner.id})` : "Unassigned"}</p>
         {fieldError(assignError)}
         {assignMessage ? <div className="success-panel success-panel--inline" role="status">{assignMessage}</div> : null}
@@ -446,7 +447,7 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
       </div>
 
       <div className="detail-section">
-        <h3>IT Priority</h3>
+        <h2>IT Priority</h2>
         <p className="helper-text">Requested Priority ({ticket.requestedPriority}) is read-only and never modified here.</p>
         {fieldError(priorityError)}
         {priorityMessage ? <div className="success-panel success-panel--inline" role="status">{priorityMessage}</div> : null}
@@ -466,7 +467,7 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
       </div>
 
       <div className="detail-section">
-        <h3>Status</h3>
+        <h2>Status</h2>
         <p className="helper-text">
           Only the transitions permitted from {ticket.status.replaceAll("_", " ")} are offered.
           Anything else is rejected server-side.
@@ -501,7 +502,7 @@ export function StaffTicketDetailPage({ ticketId, currentUserId, onBack }: Staff
       </div>
 
       <div className="detail-section">
-        <h3>Attachments</h3>
+        <h2>Attachments</h2>
         <div className="attachment-panel">
           {ticket.attachments.length === 0 ? (
             <div>No attachments.</div>

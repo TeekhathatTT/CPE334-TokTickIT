@@ -64,11 +64,11 @@ runs are hermetic (set `E2E_SEED=0` to skip with hand-managed data). They
 require the client origin `http://localhost:5173` to match the API CORS/CSRF
 contract (`CLIENT_URL`, see `client/playwright.config.ts`).
 
-Run the full browser suite (35 tests: Lab 2/3 regression + Lab 4):
+Run the full browser suite (41 tests: Lab 2/3 regression + Lab 4):
 
 ```
 cd client
-npx playwright test --workers=1
+npm run test:e2e -- --workers=1
 ```
 
 Lab 4 dashboard parity/performance check (requires seeded data):
@@ -78,8 +78,15 @@ cd server
 npm run verify:dashboards
 ```
 
-Lab 4 visual evidence is captured by the E2E run under
-`artifacts/lab-04/screenshots/`.
+Capture Lab 4 visual evidence separately (the screenshots are saved under
+`artifacts/lab-04/screenshots/`):
+
+```
+cd client
+$env:CAPTURE_SCREENSHOTS="1"; npm run test:e2e -- e2e/lab-04/visual-evidence.spec.ts --workers=1
+```
+
+The visual-evidence spec is excluded from the normal regression suite.
 
 Notes:
 - Do not commit `.env` or `node_modules`. The client uses `VITE_API_URL` from `client/.env.example`.

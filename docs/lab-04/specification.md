@@ -257,7 +257,7 @@ Changed Lab 3 behavior is limited to the BR-12 list: gate precondition, optional
 - [x] Screens match `ui-spec.md` at desktop/tablet/mobile; accessibility checks pass.
 - [x] README/run instructions, seed docs, and visual-evidence paths are current.
 
-Verified 2026-10-29: server **198/198**, client **102/102**, full E2E **35/35**, dashboard verification **53 checks / 0 mismatches** (requester p95 4.15 ms, staff p95 8.00 ms), server/client production builds pass. Residual: AC-07's live two-writer PostgreSQL race is not exercised end-to-end; the stale/atomic contract tests use mocked Prisma, so `FOR UPDATE` serialization on real concurrent writers remains the documented gap.
+Verified 2026-10-29: server **198/198**, client **102/102**, full E2E **41/41**, dashboard verification **60 checks / 0 mismatches** (requester p95 2.70 ms, staff p95 4.80 ms), server/client production builds pass; Lab 4 visual capture **2/2** and Axe scans **0 violations**. Residual: AC-07's live two-writer PostgreSQL race is not exercised end-to-end; the stale/atomic contract tests use mocked Prisma, so `FOR UPDATE` serialization on real concurrent writers remains the documented gap.
 
 ## 11. Assumptions and Decisions
 

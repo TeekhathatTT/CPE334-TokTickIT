@@ -1,6 +1,4 @@
-﻿import { expect, test, type Page } from "@playwright/test";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { expect, type Page } from "@playwright/test";
 import {
   apiGet,
   apiPatch,
@@ -8,6 +6,7 @@ import {
   loginKnown,
   rotatePassword,
   runToken,
+  test,
 } from "../lab-03/helpers";
 
 /**
@@ -33,14 +32,6 @@ import {
 
 const STAFF = "lisa.garcia@example.com";
 const REQUESTER = "kevin.thompson@example.com";
-const SCREENSHOTS = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../../../artifacts/lab-04/screenshots",
-);
-
-async function capture(page: Page, folder: string, name: string): Promise<void> {
-  await page.screenshot({ path: path.join(SCREENSHOTS, folder, name), fullPage: true });
-}
 
 interface CurrentUserResponse {
   data: { user: { id: number; name: string; email: string; role: string } };
@@ -106,7 +97,7 @@ async function openSeedTicket(page: Page, ticketNumber: string): Promise<void> {
   await expect(page.getByRole("heading", { name: "Ticket Queue" })).toBeVisible();
   await page.getByLabel("Search queue").fill(ticketNumber);
   await page.getByRole("button", { name: ticketNumber }).first().click();
-  await expect(page.getByText("Ticket Details")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ticket Details" })).toBeVisible();
 }
 
 async function seedTicketId(page: Page, ticketNumber: string): Promise<number> {
@@ -150,8 +141,6 @@ test("staff dashboard cards match the live API and each card opens its documente
   for (const [label, value] of Object.entries(expected)) {
     await expect(page.getByRole("article", { name: label }).locator(".metric-card__value")).toHaveText(String(value));
   }
-  await capture(page, "staff-dashboard", "staff-dashboard-desktop.png");
-
   async function drill(card: string): Promise<URL> {
     const requestPromise = page.waitForRequest(
       (request) => request.method() === "GET" && request.url().includes("/api/staff/tickets?"),
@@ -239,8 +228,6 @@ test("requester dashboard renders every zero state, then populated data after cr
     await expect(card.locator(".metric-card__helper")).toContainText(copy);
   }
   await expect(page.getByText("No recent tickets.")).toBeVisible();
-  await capture(page, "requester-dashboard", "requester-dashboard-zero-desktop.png");
-
   // totalSubmitted zero offers the Create path (documented exact drill-down).
   await page.getByRole("article", { name: "Total submitted" }).getByRole("button", { name: "Create a ticket" }).click();
   await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
@@ -267,12 +254,10 @@ test("requester dashboard renders every zero state, then populated data after cr
   await expect(page.getByRole("article", { name: "Open tickets" }).locator(".metric-card__value")).toHaveText("1");
   await expect(page.getByRole("button", { name: ticketNumber })).toBeVisible();
   await expect(page.getByText(summary)).toBeVisible();
-  await capture(page, "requester-dashboard", "requester-dashboard-populated-desktop.png");
-
   // The recent-ticket link opens the detail; the requester's Actions Taken
   // area is read-only (no Record action / Edit / resolve controls).
   await page.getByRole("button", { name: ticketNumber }).click();
-  await expect(page.getByText("Ticket Details")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ticket Details" })).toBeVisible();
   const actions = page.locator(".detail-section", { has: page.getByRole("heading", { name: "Actions Taken" }) });
   await expect(actions).toBeVisible();
   await expect(actions.getByText(/read-only/)).toBeVisible();
@@ -365,8 +350,6 @@ test("staff records, edits, and resolves Actions Taken; the resolution gate bloc
   await editedRow.getByRole("button", { name: "Mark follow-up resolved" }).click();
   await expect(editedRow.getByText("Follow-up resolved")).toBeVisible();
   await expect(page.getByText("Resolution is blocked")).toHaveCount(0);
-  await capture(page, "actions-taken", "actions-taken-staff-desktop.png");
-
   await page.getByLabel("Change status").selectOption("RESOLVED");
   await expect(page.getByText("Status updated.")).toBeVisible();
   await expect(page.getByLabel("Change status")).toHaveValue("RESOLVED");
@@ -415,7 +398,6 @@ test("Lab 4 screens are responsive and keyboard reachable without console errors
     await openDashboard(page);
     await expect(page.getByRole("article", { name: "New today" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
-    await capture(page, "staff-dashboard", `staff-dashboard-${viewport.name}.png`);
   }
 
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -440,5 +422,3 @@ test("Lab 4 screens are responsive and keyboard reachable without console errors
   await expect(page.locator(".action-form").getByLabel("Follow-up required")).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
-
-

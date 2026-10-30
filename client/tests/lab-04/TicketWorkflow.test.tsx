@@ -111,7 +111,7 @@ describe("Lab 4 TicketWorkflow (resolution gate)", () => {
     renderWorkflow();
 
     await screen.findByText("TKT-2026-000101");
-    const headings = Array.from(document.querySelectorAll(".detail-section h3")).map(
+    const headings = Array.from(document.querySelectorAll(".detail-section h2")).map(
       (node) => node.textContent?.trim() ?? "",
     );
     const publicIndex = headings.findIndex((text) => /public comments/i.test(text));
