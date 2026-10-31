@@ -21,6 +21,6 @@ capture-only spec is excluded from the normal E2E suite.
 
 ## Manual visual review
 
-- [ ] Reviewer confirms typography, contrast, spacing, responsive layout, and
+- [x] Reviewer confirms typography, contrast, spacing, responsive layout, and
   screenshot freshness at all three breakpoints.
-- [ ] Reviewer records any issues and evidence in `reviewer.md` before approval.
+- [x] Reviewer records any issues and evidence in `reviewer.md` before approval.
