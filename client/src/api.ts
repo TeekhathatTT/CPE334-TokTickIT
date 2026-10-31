@@ -1,4 +1,4 @@
-import type { Category, Priority, Requester, Ticket, TicketStatus } from "./types/ticket";
+﻿import type { Category, Priority, Requester, Ticket, TicketStatus } from "./types/ticket";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
@@ -60,36 +60,22 @@ export class ApiError extends Error {
   status: number;
   code: string;
   fields?: Record<string, string>;
-  /**
-   * Safe response payload that accompanies the error. BR-09 `VERSION_CONFLICT`
-   * replies with `{ currentUpdatedAt }` so a client can re-target a stale
-   * write without reloading the whole record first.
-   */
-  data?: Record<string, unknown>;
 
-  constructor(
-    status: number,
-    code: string,
-    message: string,
-    fields?: Record<string, string>,
-    data?: Record<string, unknown>,
-  ) {
+  constructor(status: number, code: string, message: string, fields?: Record<string, string>) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.fields = fields;
-    this.data = data;
   }
 }
 
 interface ErrorEnvelope {
   error?: { code?: string; message?: string; fields?: Record<string, string> };
-  data?: Record<string, unknown>;
 }
 
 async function requestJson<T>(path: string, init?: RequestInit, unwrapData = true): Promise<T> {
-  // BR-03: the session cookie identifies the caller Ã¢â‚¬â€ requester identity is
+  // BR-03: the session cookie identifies the caller ΓÇö requester identity is
   // never sent as a header or query parameter anymore.
   const response = await fetch(`${API_URL}${path}`, { ...init, credentials: "include" });
 
@@ -101,19 +87,17 @@ async function requestJson<T>(path: string, init?: RequestInit, unwrapData = tru
     let message = `Request failed: ${response.status}`;
     let code = "REQUEST_FAILED";
     let fields: Record<string, string> | undefined;
-    let data: Record<string, unknown> | undefined;
 
     try {
       const payload = (await response.json()) as ErrorEnvelope;
       if (payload?.error?.message) message = payload.error.message;
       if (payload?.error?.code) code = payload.error.code;
       if (payload?.error?.fields) fields = payload.error.fields;
-      if (payload?.data && typeof payload.data === "object") data = payload.data;
     } catch {
       // Ignore JSON parse failures and fall back to the status message.
     }
 
-    throw new ApiError(response.status, code, message, fields, data);
+    throw new ApiError(response.status, code, message, fields);
   }
 
   const payload = (await response.json()) as T | { data?: T };
@@ -125,7 +109,7 @@ async function requestJson<T>(path: string, init?: RequestInit, unwrapData = tru
 }
 
 // ---------------------------------------------------------------------------
-// Authentication (api-spec.md Ã‚Â§1).
+// Authentication (api-spec.md ┬º1).
 // ---------------------------------------------------------------------------
 
 export async function login(email: string, password: string): Promise<{ user: CurrentUser }> {
@@ -157,7 +141,7 @@ export async function changePassword(input: {
 }
 
 // ---------------------------------------------------------------------------
-// Authenticated Lab 2 continuation (api-spec.md Ã‚Â§2). Ownership derives from
+// Authenticated Lab 2 continuation (api-spec.md ┬º2). Ownership derives from
 // the session; there is no requesterId parameter anywhere.
 // ---------------------------------------------------------------------------
 
@@ -216,8 +200,7 @@ export async function getTickets(
     category?: string;
     requestedPriority?: string;
     itPriority?: string;
-    status?: string | string[];
-    updatedSince?: string;
+    status?: string;
     sort?: string;
     order?: "asc" | "desc";
     page?: number;
@@ -226,12 +209,7 @@ export async function getTickets(
 ): Promise<{ data: TicketListRow[]; meta: TicketListMeta }> {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
-    if (value === undefined || value === "" || value === "All") return;
-    if (Array.isArray(value)) {
-      value.forEach((entry) => params.append(key, String(entry)));
-    } else {
-      params.set(key, String(value));
-    }
+    if (value !== undefined && value !== "" && value !== "All") params.set(key, String(value));
   });
   const query = params.toString();
   return requestJson<{ data: TicketListRow[]; meta: TicketListMeta }>(`/api/tickets${query ? `?${query}` : ""}`, undefined, false);
@@ -265,7 +243,7 @@ export async function removeAttachment(attachmentId: number, reason: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Requester collaboration (api-spec.md Ã‚Â§4).
+// Requester collaboration (api-spec.md ┬º4).
 // ---------------------------------------------------------------------------
 
 export async function getComments(ticketId: number): Promise<PublicComment[]> {
@@ -287,8 +265,8 @@ export async function markProblemAppearsResolved(ticketId: number): Promise<Prob
 }
 
 // ---------------------------------------------------------------------------
-// IT Staff queue + ticket operations (api-spec.md Ã‚Â§3) and Internal Notes
-// (api-spec.md Ã‚Â§4). Queue/detail/assignment/priority/status are IT Staff
+// IT Staff queue + ticket operations (api-spec.md ┬º3) and Internal Notes
+// (api-spec.md ┬º4). Queue/detail/assignment/priority/status are IT Staff
 // only; notes additionally allow Administrators. No user-list endpoint
 // exists in the contract, so owner reassignment takes an explicit user id.
 // ---------------------------------------------------------------------------
@@ -343,8 +321,6 @@ export interface StaffTicketDetail {
   publicComments: PublicComment[];
   internalNotes: InternalNote[];
   permittedActions: { allowedStatuses: TicketStatus[] };
-  /** BR-07 (Lab 4 additive): authoritative pending-follow-up count. */
-  pendingFollowUpCount: number;
 }
 
 export interface InternalNote {
@@ -361,7 +337,7 @@ export interface StaffUser {
   email: string;
 }
 
-/** Assignable-owner directory (ui-spec.md Ã‚Â§6): active IT Staff, safe fields. */
+/** Assignable-owner directory (ui-spec.md ┬º6): active IT Staff, safe fields. */
 export async function getStaffUsers(): Promise<StaffUser[]> {
   return requestJson<StaffUser[]>("/api/staff/users");
 }
@@ -374,9 +350,6 @@ export async function getStaffTickets(
     itPriority?: string;
     categoryId?: string;
     ownerId?: string;
-    hasPendingFollowUp?: string;
-    createdSince?: string;
-    updatedSince?: string;
     sort?: string;
     order?: "asc" | "desc";
     page?: number;
@@ -407,36 +380,33 @@ export async function getStaffTicket(ticketId: number): Promise<StaffTicketDetai
 export async function assignStaffTicket(
   ticketId: number,
   ownerId: number | null,
-  expectedUpdatedAt?: string,
 ): Promise<StaffTicketDetail> {
   return requestJson<StaffTicketDetail>(`/api/staff/tickets/${ticketId}/assignment`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ownerId, ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}) }),
+    body: JSON.stringify({ ownerId }),
   });
 }
 
 export async function updateStaffPriority(
   ticketId: number,
   itPriority: Priority,
-  expectedUpdatedAt?: string,
 ): Promise<StaffTicketDetail> {
   return requestJson<StaffTicketDetail>(`/api/staff/tickets/${ticketId}/priority`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ itPriority, ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}) }),
+    body: JSON.stringify({ itPriority }),
   });
 }
 
 export async function updateStaffStatus(
   ticketId: number,
   status: TicketStatus,
-  expectedUpdatedAt?: string,
 ): Promise<StaffTicketDetail> {
   return requestJson<StaffTicketDetail>(`/api/staff/tickets/${ticketId}/status`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status, ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}) }),
+    body: JSON.stringify({ status }),
   });
 }
 
@@ -453,95 +423,10 @@ export async function postInternalNote(ticketId: number, content: string): Promi
 }
 
 // ---------------------------------------------------------------------------
-// Actions Taken (api-spec.md Ã‚Â§1, FR-01/FR-02/FR-03). Staff create/edit/resolve
-// live under /api/staff; the Requester read-only list under /api/tickets.
-// ---------------------------------------------------------------------------
-
-export type ActionResult =
-  | "RESOLVED_STEP"
-  | "WORKAROUND"
-  | "INFO_REQUESTED"
-  | "ESCALATED"
-  | "NO_FURTHER_ACTION";
-
-export const ACTION_RESULTS: ActionResult[] = [
-  "RESOLVED_STEP",
-  "WORKAROUND",
-  "INFO_REQUESTED",
-  "ESCALATED",
-  "NO_FURTHER_ACTION",
-];
-
-export interface ActionTaken {
-  id: number;
-  ticketId: number;
-  actionDate: string;
-  description: string;
-  result: ActionResult;
-  followUpRequired: boolean;
-  followUpNote: string | null;
-  followUpResolvedAt: string | null;
-  resolvedBy: { id: number; name: string; role: string } | null;
-  attachmentNotes: string | null;
-  performedBy: { id: number; name: string; role: string };
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CreateActionInput {
-  description: string;
-  result: ActionResult;
-  followUpRequired?: boolean;
-  followUpNote?: string | null;
-  attachmentNotes?: string | null;
-}
-
-export interface PatchActionInput {
-  description?: string;
-  result?: ActionResult;
-  followUpRequired?: boolean;
-  followUpNote?: string | null;
-  attachmentNotes?: string | null;
-  markFollowUpResolved?: true;
-  expectedUpdatedAt?: string;
-}
-
-export async function getStaffActions(ticketId: number): Promise<ActionTaken[]> {
-  return requestJson<ActionTaken[]>(`/api/staff/tickets/${ticketId}/actions-taken`);
-}
-
-export async function getRequesterActions(ticketId: number): Promise<ActionTaken[]> {
-  return requestJson<ActionTaken[]>(`/api/tickets/${ticketId}/actions-taken`);
-}
-
-export async function createStaffAction(
-  ticketId: number,
-  input: CreateActionInput,
-): Promise<ActionTaken> {
-  return requestJson<ActionTaken>(`/api/staff/tickets/${ticketId}/actions-taken`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-}
-
-export async function patchStaffAction(
-  ticketId: number,
-  actionId: number,
-  input: PatchActionInput,
-): Promise<ActionTaken> {
-  return requestJson<ActionTaken>(`/api/staff/tickets/${ticketId}/actions-taken/${actionId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Administrator user management (api-spec.md Ã‚Â§5, ui-spec.md Ã‚Â§7).
+// Administrator user management (api-spec.md ┬º5, ui-spec.md ┬º7).
 // Minimalist scope: list/search/role-filter, create, edit, activation, and
 // initial-password reset. No delete endpoint exists (BR-22). The reset path
-// is the canonical `initial-password` per api-spec Ã‚Â§5.
+// is the canonical `initial-password` per api-spec ┬º5.
 // ---------------------------------------------------------------------------
 
 export interface AdminUser {
@@ -605,32 +490,3 @@ export async function setAdminInitialPassword(
     body: JSON.stringify({ initialPassword }),
   });
 }
-
-export interface RequesterDashboardData {
-  openTickets: number;
-  awaitingMyResponse: number;
-  recentlyResolved: number;
-  recentlyResolvedSince: string;
-  totalSubmitted: number;
-  recentTickets: Array<{ id: number; ticketNumber: string; summary: string; status: string; updatedAt: string }>;
-}
-
-export interface StaffDashboardData {
-  unassignedActive: number;
-  assignedToMe: number;
-  waitingForRequester: number;
-  pendingFollowUp: number;
-  pendingFollowUpTicketIds: number[];
-  resolvedPendingClose: number;
-  newToday: number;
-  newTodaySince: string;
-}
-
-export async function getRequesterDashboard(): Promise<RequesterDashboardData> {
-  return requestJson<RequesterDashboardData>("/api/dashboard/requester");
-}
-
-export async function getStaffDashboard(): Promise<StaffDashboardData> {
-  return requestJson<StaffDashboardData>("/api/dashboard/staff");
-}
-

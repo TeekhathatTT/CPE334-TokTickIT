@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { getCategories, getTickets, type TicketListMeta, type TicketListRow } from "../api";
 import type { Category } from "../types/ticket";
 
@@ -10,9 +10,7 @@ interface MyTicketsPageProps {
 const formatDate = (value: string) => new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 const badge = (value: string | null | undefined) => <span className={`badge badge--${(value ?? "none").toLowerCase()}`}>{value?.replaceAll("_", " ") ?? "None"}</span>;
 
-type StatusFilter = string | string[];
-
-export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialFilters }: MyTicketsPageProps & { initialFilters?: Record<string, string | string[]> }) {
+export default function MyTicketsPage({ onCreateTicket, onSelectTicket }: MyTicketsPageProps) {
   const [rows, setRows] = useState<TicketListRow[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [meta, setMeta] = useState<TicketListMeta>({ page: 1, pageSize: 10, totalItems: 0, totalPages: 1, isEmpty: false, isNoResults: false });
@@ -22,14 +20,7 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialF
   const [category, setCategory] = useState("");
   const [requestedPriority, setRequestedPriority] = useState("");
   const [itPriority, setItPriority] = useState("");
-  const [status, setStatus] = useState<StatusFilter>(() => {
-    const initialStatus = initialFilters?.status;
-    if (Array.isArray(initialStatus)) return initialStatus;
-    return typeof initialStatus === "string" ? initialStatus : "";
-  });
-  const [updatedSince, setUpdatedSince] = useState<string | undefined>(
-    typeof initialFilters?.updatedSince === "string" ? initialFilters.updatedSince : undefined,
-  );
+  const [status, setStatus] = useState("");
   const [sort, setSort] = useState("createdAt");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
@@ -44,23 +35,9 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialF
       setLoading(true);
       setError(null);
       try {
-        // BR-03: ownership comes from the authenticated session â€” no
+        // BR-03: ownership comes from the authenticated session ΓÇö no
         // requesterId is passed (a forged value would be ignored anyway).
-        const statusFilter = Array.isArray(status)
-          ? status.length > 0 ? status : undefined
-          : status || undefined;
-        const result = await getTickets({
-          search,
-          category,
-          requestedPriority,
-          itPriority,
-          status: statusFilter,
-          updatedSince,
-          sort,
-          order,
-          page,
-          pageSize,
-        });
+        const result = await getTickets({ search, category, requestedPriority, itPriority, status, sort, order, page, pageSize });
         if (!active) return;
         setRows(result.data);
         setMeta(result.meta);
@@ -77,16 +54,15 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialF
 
     void loadTickets();
     return () => { active = false; };
-  }, [search, category, requestedPriority, itPriority, status, updatedSince, sort, order, page, pageSize, retryToken]);
+  }, [search, category, requestedPriority, itPriority, status, sort, order, page, pageSize, retryToken]);
 
   useEffect(() => { void getCategories().then(setCategories).catch(() => undefined); }, []);
-  const clearFilters = () => { setSearch(""); setCategory(""); setRequestedPriority(""); setItPriority(""); setStatus(""); setUpdatedSince(undefined); setPage(1); };
+  const clearFilters = () => { setSearch(""); setCategory(""); setRequestedPriority(""); setItPriority(""); setStatus(""); setPage(1); };
   const toggleSort = (field: string) => { setPage(1); if (sort === field) setOrder((current) => current === "asc" ? "desc" : "asc"); else { setSort(field); setOrder("asc"); } };
   const sortLabel = (field: string) => sort === field ? `, sorted ${order === "asc" ? "ascending" : "descending"}` : "";
-  const statusSelectValue = Array.isArray(status) ? "__preset__" : status;
 
   if (loading) {
-    return <div className="page-card"><div className="loading-state" role="status">Loading ticketsâ€¦</div></div>;
+    return <div className="page-card"><div className="loading-state" role="status">Loading ticketsΓÇª</div></div>;
   }
 
   return (
@@ -108,8 +84,7 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialF
         <select aria-label="Category" className="select-field" value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }}><option value="">All Categories</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
         <select aria-label="Requested priority" className="select-field" value={requestedPriority} onChange={(event) => { setRequestedPriority(event.target.value); setPage(1); }}><option value="">All Requested Priorities</option><option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option></select>
         <select aria-label="IT priority" className="select-field" value={itPriority} onChange={(event) => { setItPriority(event.target.value); setPage(1); }}><option value="">All IT Priorities</option><option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option></select>
-        <select aria-label="Ticket status" className="select-field" value={statusSelectValue} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
-          {Array.isArray(status) && <option value="__preset__">Preset statuses ({status.length})</option>}
+        <select aria-label="Ticket status" className="select-field" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
           <option value="">All Statuses</option>
           <option value="NEW">New</option>
           <option value="OPEN">Open</option>
@@ -123,7 +98,7 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialF
       </div>
 
       {error ? <div className="error-panel" role="alert">{error}<button type="button" className="secondary-button" onClick={() => setRetryToken((token) => token + 1)}>Retry</button></div> : meta.isEmpty ? (
-        <div className="empty-state"><div aria-hidden="true">â–¡</div><p>You have no tickets yet.</p><button type="button" className="primary-button" onClick={onCreateTicket}>Create your first ticket</button></div>
+        <div className="empty-state"><div aria-hidden="true">Γûí</div><p>You have no tickets yet.</p><button type="button" className="primary-button" onClick={onCreateTicket}>Create your first ticket</button></div>
       ) : meta.isNoResults ? (
         <div className="empty-state"><p>No tickets match your filters.</p><button type="button" className="secondary-button" onClick={clearFilters}>Clear Filters</button></div>
       ) : (
@@ -131,13 +106,13 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialF
         <table className="ticket-table">
           <thead>
             <tr>
-              <th><button type="button" className="sort-button" aria-label={`Sort by ticket number${sortLabel("ticketNumber")}`} onClick={() => toggleSort("ticketNumber")}>Ticket No. {sort === "ticketNumber" && (order === "asc" ? "â†‘" : "â†“")}</button></th>
-              <th><button type="button" className="sort-button" aria-label={`Sort by created date${sortLabel("createdAt")}`} onClick={() => toggleSort("createdAt")}>Created Date {sort === "createdAt" && (order === "asc" ? "â†‘" : "â†“")}</button></th>
+              <th><button type="button" className="sort-button" aria-label={`Sort by ticket number${sortLabel("ticketNumber")}`} onClick={() => toggleSort("ticketNumber")}>Ticket No. {sort === "ticketNumber" && (order === "asc" ? "Γåæ" : "Γåô")}</button></th>
+              <th><button type="button" className="sort-button" aria-label={`Sort by created date${sortLabel("createdAt")}`} onClick={() => toggleSort("createdAt")}>Created Date {sort === "createdAt" && (order === "asc" ? "Γåæ" : "Γåô")}</button></th>
               <th>Summary</th>
               <th>Category</th>
               <th>Requested Priority</th><th>IT Priority</th>
               <th>Status</th>
-              <th><button type="button" className="sort-button" aria-label={`Sort by last updated${sortLabel("updatedAt")}`} onClick={() => toggleSort("updatedAt")}>Last Updated {sort === "updatedAt" && (order === "asc" ? "â†‘" : "â†“")}</button></th>
+              <th><button type="button" className="sort-button" aria-label={`Sort by last updated${sortLabel("updatedAt")}`} onClick={() => toggleSort("updatedAt")}>Last Updated {sort === "updatedAt" && (order === "asc" ? "Γåæ" : "Γåô")}</button></th>
             </tr>
           </thead>
           <tbody>
@@ -172,7 +147,7 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialF
         <button type="button" className="secondary-button" disabled={page === 1} onClick={() => setPage((previous) => Math.max(1, previous - 1))}>
           Previous
         </button>
-        <span>Showing {meta.totalItems === 0 ? 0 : (meta.page - 1) * meta.pageSize + 1} to {Math.min(meta.page * meta.pageSize, meta.totalItems)} of {meta.totalItems} tickets Â· Page {meta.page} of {meta.totalPages}</span>
+        <span>Showing {meta.totalItems === 0 ? 0 : (meta.page - 1) * meta.pageSize + 1} to {Math.min(meta.page * meta.pageSize, meta.totalItems)} of {meta.totalItems} tickets ┬╖ Page {meta.page} of {meta.totalPages}</span>
         <button type="button" className="secondary-button" disabled={page >= meta.totalPages} onClick={() => setPage((previous) => Math.min(meta.totalPages, previous + 1))}>
           Next
         </button>
@@ -185,4 +160,3 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialF
     </div>
   );
 }
-
