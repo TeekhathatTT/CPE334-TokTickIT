@@ -23,6 +23,27 @@ describe("MyTicketsPage", () => {
     await waitFor(() => expect(screen.getByRole("textbox", { name: /search tickets/i })).toHaveValue(""));
   });
 
+  it("applies and shows Dashboard status and date drill-down filters", async () => {
+    const getTickets = vi.spyOn(api, "getTickets").mockResolvedValue({ data: [row], meta });
+    vi.spyOn(api, "getCategories").mockResolvedValue([]);
+    render(
+      <MyTicketsPage
+        initialFilters={{ status: ["RESOLVED", "CLOSED"], updatedSince: "2026-09-09T12:00:00.000Z" }}
+      />,
+    );
+
+    await screen.findAllByText("TKT-2026-000101");
+    await waitFor(() => {
+      expect(getTickets).toHaveBeenCalledWith(expect.objectContaining({
+        status: ["RESOLVED", "CLOSED"],
+        updatedSince: "2026-09-09T12:00:00.000Z",
+      }));
+    });
+    expect(screen.getByLabelText("Active filters")).toHaveTextContent("Statuses: Resolved, Closed");
+    expect(screen.getByLabelText("Active filters")).toHaveTextContent("Updated since 09 Sept 2026");
+    expect(screen.getByRole("combobox", { name: "Ticket status" })).toHaveDisplayValue("Preset statuses (2)");
+  });
+
   it("renders the empty and no-results states", async () => {
     vi.spyOn(api, "getCategories").mockResolvedValue([]);
     vi.spyOn(api, "getTickets").mockResolvedValueOnce({ data: [], meta: { ...meta, totalItems: 0, isEmpty: true } }).mockResolvedValueOnce({ data: [], meta: { ...meta, totalItems: 2, isNoResults: true } });

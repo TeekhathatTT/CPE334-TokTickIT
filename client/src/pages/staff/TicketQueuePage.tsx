@@ -4,12 +4,15 @@ import { getStaffTickets, type StaffQueueMeta, type StaffQueueRow } from "../../
 interface TicketQueuePageProps {
   onSelectTicket?: (ticketId: number) => void;
   currentUserId?: number;
+  initialFilters?: Record<string, string | string[]>;
 }
 
 type StatusFilter = string | string[];
 
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+const formatStatus = (value: string) =>
+  value.toLowerCase().split("_").map((part) => part[0].toUpperCase() + part.slice(1)).join(" ");
 const badge = (value: string | null | undefined) => (
   <span className={`badge badge--${(value ?? "none").toLowerCase()}`}>{value?.replaceAll("_", " ") ?? "None"}</span>
 );
@@ -22,7 +25,7 @@ const STATUSES = ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "RESOLV
  * screens (same responsive pattern as My Tickets). Columns follow ui-spec
  * §5 exactly; no description mega-column.
  */
-export function TicketQueuePage({ onSelectTicket, currentUserId, initialFilters }: TicketQueuePageProps & { initialFilters?: Record<string, string | string[]> }) {
+export function TicketQueuePage({ onSelectTicket, currentUserId, initialFilters }: TicketQueuePageProps) {
   const [rows, setRows] = useState<StaffQueueRow[]>([]);
   const [meta, setMeta] = useState<StaffQueueMeta>({
     page: 1, pageSize: 20, totalItems: 0, totalPages: 0, queueTotal: 0, isEmpty: true, isNoResults: false,
@@ -115,6 +118,19 @@ export function TicketQueuePage({ onSelectTicket, currentUserId, initialFilters 
   };
   const sortLabel = (field: string) => (sort === field ? `, sorted ${order === "asc" ? "ascending" : "descending"}` : "");
   const statusSelectValue = Array.isArray(status) ? "__preset__" : status;
+  const activeFilters = [
+    ...(Array.isArray(status) && status.length
+      ? [`Statuses: ${status.map(formatStatus).join(", ")}`]
+      : typeof status === "string" && status
+        ? [`Status: ${formatStatus(status)}`]
+        : []),
+    ...(ownerId
+      ? [`Owner: ${ownerId === "unassigned" ? "Unassigned" : currentUserId !== undefined && ownerId === String(currentUserId) ? "Me" : ownerId}`]
+      : []),
+    ...(hasPendingFollowUp ? [`Pending follow-up: ${hasPendingFollowUp === "true" ? "Yes" : "No"}`] : []),
+    ...(createdSince ? [`Created since ${formatDate(createdSince)}`] : []),
+    ...(updatedSince ? [`Updated since ${formatDate(updatedSince)}`] : []),
+  ];
 
   if (loading) {
     return (
@@ -188,6 +204,13 @@ export function TicketQueuePage({ onSelectTicket, currentUserId, initialFilters 
           placeholder='Owner ID or "unassigned"'
         />
       </div>
+
+      {activeFilters.length > 0 && (
+        <div className="active-filters" role="group" aria-label="Active filters">
+          <strong>Active filters:</strong>
+          {activeFilters.map((filter) => <span className="active-filter-chip" key={filter}>{filter}</span>)}
+        </div>
+      )}
 
       {error ? (
         <div className="error-panel" role="alert">
@@ -276,5 +299,3 @@ export function TicketQueuePage({ onSelectTicket, currentUserId, initialFilters 
     </div>
   );
 }
-
-

@@ -32,6 +32,16 @@ Expected card values against this set (normative; tests assert these exact numbe
 | Production builds | `cd server && npm run build`; `cd client && npm run build` | **PASS** |
 | Visual evidence | Lab 4 E2E captures | `artifacts/lab-04/screenshots/{requester-dashboard,staff-dashboard,actions-taken}/*.png` |
 
+## Follow-up verification (2026-10-31)
+
+| Check | Command | Result |
+|---|---|---|
+| TypeScript | `cd client && npx tsc --noEmit` | **PASS**, 0 errors |
+| Client tests | `cd client && npx vitest run` | **PASS**, 17 files and 107 tests |
+| Client production build | `cd client && npm run build` | **PASS** |
+| Source integrity | `SourceIntegrity.test.ts` (included in Vitest) | **PASS**; UTF-8 without BOM, no mojibake, Lab 4 API exports retained |
+| Regression screenshots | `CAPTURE_SCREENSHOTS=1 npx playwright test e2e/lab-04/visual-evidence.spec.ts --workers=1` | **PASS**, 2 capture scenarios; My Tickets and staff queue images show the active dashboard filters |
+
 E2E `globalSetup` now runs `prisma migrate reset --force --skip-seed` followed by the idempotent seed, so count-sensitive dashboard tests are hermetic across reruns. Set `E2E_SEED=0` to skip the reset when the database is managed externally.
 
 Known residual: AC-07 contract tests cover stale `409` and the atomic/locked implementation path with mocked Prisma, but the suite does not race two live PostgreSQL writers to prove `FOR UPDATE` serialization. This remains a documented verification gap, not a pass claim.

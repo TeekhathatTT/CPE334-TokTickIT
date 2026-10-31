@@ -441,6 +441,9 @@ button:disabled {
   margin-bottom: 16px;
 }
 
+.active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 16px; }
+.active-filter-chip { border: 1px solid var(--color-border); border-radius: 999px; padding: 5px 10px; background: var(--color-surface); color: var(--color-text); font-size: 0.875rem; }
+
 .ticket-table {
   width: 100%;
   border-collapse: collapse;

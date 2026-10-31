@@ -5,14 +5,16 @@ import type { Category } from "../types/ticket";
 interface MyTicketsPageProps {
   onCreateTicket?: () => void;
   onSelectTicket?: (ticketId: number) => void;
+  initialFilters?: Record<string, string | string[]>;
 }
 
 const formatDate = (value: string) => new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 const badge = (value: string | null | undefined) => <span className={`badge badge--${(value ?? "none").toLowerCase()}`}>{value?.replaceAll("_", " ") ?? "None"}</span>;
+const formatStatus = (value: string) => value.toLowerCase().split("_").map((part) => part[0].toUpperCase() + part.slice(1)).join(" ");
 
 type StatusFilter = string | string[];
 
-export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialFilters }: MyTicketsPageProps & { initialFilters?: Record<string, string | string[]> }) {
+export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialFilters }: MyTicketsPageProps) {
   const [rows, setRows] = useState<TicketListRow[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [meta, setMeta] = useState<TicketListMeta>({ page: 1, pageSize: 10, totalItems: 0, totalPages: 1, isEmpty: false, isNoResults: false });
@@ -84,6 +86,14 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialF
   const toggleSort = (field: string) => { setPage(1); if (sort === field) setOrder((current) => current === "asc" ? "desc" : "asc"); else { setSort(field); setOrder("asc"); } };
   const sortLabel = (field: string) => sort === field ? `, sorted ${order === "asc" ? "ascending" : "descending"}` : "";
   const statusSelectValue = Array.isArray(status) ? "__preset__" : status;
+  const activeFilters = [
+    ...(Array.isArray(status) && status.length
+      ? [`Statuses: ${status.map(formatStatus).join(", ")}`]
+      : typeof status === "string" && status
+        ? [`Status: ${formatStatus(status)}`]
+        : []),
+    ...(updatedSince ? [`Updated since ${formatDate(updatedSince)}`] : []),
+  ];
 
   if (loading) {
     return <div className="page-card"><div className="loading-state" role="status">Loading tickets…</div></div>;
@@ -121,6 +131,13 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialF
           <option value="CANCELLED">Cancelled</option>
         </select>
       </div>
+
+      {activeFilters.length > 0 && (
+        <div className="active-filters" role="group" aria-label="Active filters">
+          <strong>Active filters:</strong>
+          {activeFilters.map((filter) => <span className="active-filter-chip" key={filter}>{filter}</span>)}
+        </div>
+      )}
 
       {error ? <div className="error-panel" role="alert">{error}<button type="button" className="secondary-button" onClick={() => setRetryToken((token) => token + 1)}>Retry</button></div> : meta.isEmpty ? (
         <div className="empty-state"><div aria-hidden="true">□</div><p>You have no tickets yet.</p><button type="button" className="primary-button" onClick={onCreateTicket}>Create your first ticket</button></div>
@@ -185,4 +202,3 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialF
     </div>
   );
 }
-

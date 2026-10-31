@@ -48,6 +48,11 @@ test("captures requester dashboards and Lab 1–3 regression screens", async ({ 
   await capture(page, "regression", "login-desktop.png", "body");
 
   await loginWithRotation(page, "michael.chen@example.com", "lab04-visual-requester", /My Tickets/);
+  await page.getByRole("navigation").getByRole("button", { name: "Dashboard" }).click();
+  const openTickets = page.getByRole("article", { name: "Open tickets" });
+  await expect(openTickets).toBeVisible();
+  await openTickets.getByRole("button", { name: "View tickets" }).click();
+  await expect(page.getByLabel("Active filters")).toContainText("Statuses:");
   await capture(page, "regression", "my-tickets-desktop.png");
   await openRequesterTicket(page, "TKT-2026-000002");
   await expect(page.getByRole("heading", { name: "Attachments" })).toBeVisible();
@@ -137,6 +142,7 @@ test("captures staff dashboard states, Actions Taken, resolution, and admin regr
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.getByRole("article", { name: "Pending follow-up" }).getByRole("button", { name: "View queue" }).click();
   await expect(page.getByRole("heading", { name: "Ticket Queue" })).toBeVisible();
+  await expect(page.getByLabel("Active filters")).toContainText("Pending follow-up: Yes");
   await capture(page, "regression", "staff-queue-drilldown-desktop.png");
 
   await openStaffTicket(page, "TKT-2026-000002");
