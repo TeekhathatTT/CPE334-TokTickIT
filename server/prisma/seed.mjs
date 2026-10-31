@@ -9,10 +9,22 @@
 // rows are append-only per BR-14 — seed examples are ensured per ticket with an
 // existence check (findFirst by ticketId + content) and created only when missing,
 // never deleted, so reruns converge without erasing authored history.
+// Lab 4 Actions Taken rows follow the same existence-check pattern (findFirst by
+// the BR-06 immutable triple ticketId + performedById + actionDate):
+// reruns never duplicate rows and never overwrite
+// follow-up resolution state changed by tests or API exercise (a seeded pending
+// item that was explicitly resolved stays resolved). description is NOT part of
+// the match key because BR-06 lets authors and admins edit it — matching on it
+// would re-insert a duplicate after any edit of a seeded row.
 // Spec: docs/lab-03/specification.md §8 + BR-26 (4 active + 1 inactive Requester,
 // 3 active + 1 inactive IT Staff, 1 active Administrator, distributed tickets,
 // safe example comments/notes). Strategy is reference (not merge): Requester rows
 // are preserved and Requester-role Users link via legacyRequesterId.
+// Lab 4 (docs/lab-04/specification.md §7 + BR-07/BR-08/BR-12): one extra active
+// Requester with zero tickets (Kevin Thompson) so the requester dashboard empty
+// states are demonstrable; Actions Taken rows covering zero/one/several actions
+// across all 8 ticket statuses, a gate-blocking pending follow-up, completed
+// follow-up cycles, non-owner authorship (BR-06), and all five `result` values.
 
 import { PrismaClient } from "@prisma/client";
 import crypto from "node:crypto";
@@ -67,6 +79,14 @@ const requesters = [
     email: "david.brown@example.com",
     isActive: false,
   },
+  // Lab 4 zero-dashboard case (docs/lab-04/specification.md BR-08/BR-12): an
+  // active Requester who owns no tickets, so every requester-dashboard card
+  // renders its empty state for this user.
+  {
+    name: "Kevin Thompson",
+    email: "kevin.thompson@example.com",
+    isActive: true,
+  },
 ];
 
 const categories = [
@@ -111,15 +131,18 @@ const relatedSystems = [
   },
 ];
 
-// Lab 3 users: 5 Requester-role (4 active + 1 inactive), 4 IT Staff (3 active +
-// 1 inactive), 1 active Administrator (spec §8 / BR-26). Requester-role emails
-// match Requester rows for the legacyRequesterId link (reference strategy).
+// Lab 3 users + Lab 4 zero-dashboard requester: 6 Requester-role (5 active +
+// 1 inactive), 4 IT Staff (3 active + 1 inactive), 1 active Administrator
+// (Lab 3 spec §8 / BR-26 plus Lab 4 spec §7/BR-08 zero case). Requester-role
+// emails match Requester rows for the legacyRequesterId link (reference strategy).
 const seedUsers = [
   { name: "Jennifer Anderson", email: "jennifer.anderson@example.com", role: "REQUESTER", isActive: true },
   { name: "Michael Chen", email: "michael.chen@example.com", role: "REQUESTER", isActive: true },
   { name: "Sarah Williams", email: "sarah.williams@example.com", role: "REQUESTER", isActive: true },
   { name: "Emily Davis", email: "emily.davis@example.com", role: "REQUESTER", isActive: true },
   { name: "David Brown", email: "david.brown@example.com", role: "REQUESTER", isActive: false },
+  // Lab 4: active Requester with zero tickets (requester-dashboard empty states).
+  { name: "Kevin Thompson", email: "kevin.thompson@example.com", role: "REQUESTER", isActive: true },
   { name: "Priya Patel", email: "priya.patel@example.com", role: "IT_STAFF", isActive: true },
   { name: "Tom Nguyen", email: "tom.nguyen@example.com", role: "IT_STAFF", isActive: true },
   { name: "Lisa Garcia", email: "lisa.garcia@example.com", role: "IT_STAFF", isActive: true },
@@ -130,6 +153,15 @@ const seedUsers = [
 // Realistic tickets spanning all 8 statuses, requested + IT priorities, and
 // assigned/unassigned ownership. Owners (when set) are active IT Staff only
 // (BR-11/BR-16); Administrators and inactive users are never owners.
+// createdAt is set explicitly (fixed September dates, all before the earliest
+// seeded actionDate of 2026-09-19) so the timeline never shows actions dated
+// before their ticket existed on a fresh database. It is written on create
+// only (never on update) so re-seeding is zero-touch on Lab 1–3 rows per
+// Lab 4 BR-12 / AC-12: existing tickets keep their original createdAt.
+// On an existing database seeded before these fixed dates, seeded actionDates
+// may therefore appear before the ticket's original wall-clock createdAt
+// (demo data only). For a clean demo timeline, run a fresh database
+// (`npx prisma migrate reset`) then re-seed.
 const seedTickets = [
   {
     ticketNumber: "TKT-2026-000001",
@@ -143,6 +175,7 @@ const seedTickets = [
     status: "NEW",
     ownerEmail: null,
     problemAppearsResolvedAt: null,
+    createdAt: new Date("2026-09-15T08:00:00Z"),
   },
   {
     ticketNumber: "TKT-2026-000002",
@@ -156,6 +189,7 @@ const seedTickets = [
     status: "OPEN",
     ownerEmail: "priya.patel@example.com",
     problemAppearsResolvedAt: null,
+    createdAt: new Date("2026-09-16T08:00:00Z"),
   },
   {
     ticketNumber: "TKT-2026-000003",
@@ -169,6 +203,7 @@ const seedTickets = [
     status: "IN_PROGRESS",
     ownerEmail: "tom.nguyen@example.com",
     problemAppearsResolvedAt: null,
+    createdAt: new Date("2026-09-17T08:00:00Z"),
   },
   {
     ticketNumber: "TKT-2026-000004",
@@ -182,6 +217,7 @@ const seedTickets = [
     status: "WAITING_FOR_REQUESTER",
     ownerEmail: "lisa.garcia@example.com",
     problemAppearsResolvedAt: null,
+    createdAt: new Date("2026-09-17T09:00:00Z"),
   },
   {
     ticketNumber: "TKT-2026-000005",
@@ -195,6 +231,7 @@ const seedTickets = [
     status: "RESOLVED",
     ownerEmail: "priya.patel@example.com",
     problemAppearsResolvedAt: new Date("2026-09-20T10:00:00Z"),
+    createdAt: new Date("2026-09-18T08:00:00Z"),
   },
   {
     ticketNumber: "TKT-2026-000006",
@@ -208,6 +245,7 @@ const seedTickets = [
     status: "CLOSED",
     ownerEmail: "tom.nguyen@example.com",
     problemAppearsResolvedAt: new Date("2026-09-18T14:30:00Z"),
+    createdAt: new Date("2026-09-15T09:00:00Z"),
   },
   {
     ticketNumber: "TKT-2026-000007",
@@ -221,6 +259,7 @@ const seedTickets = [
     status: "REOPENED",
     ownerEmail: "lisa.garcia@example.com",
     problemAppearsResolvedAt: null,
+    createdAt: new Date("2026-09-18T09:00:00Z"),
   },
   {
     ticketNumber: "TKT-2026-000008",
@@ -234,6 +273,7 @@ const seedTickets = [
     status: "CANCELLED",
     ownerEmail: null,
     problemAppearsResolvedAt: null,
+    createdAt: new Date("2026-09-18T10:00:00Z"),
   },
 ];
 
@@ -346,6 +386,8 @@ async function main() {
         status: t.status,
         ticketOwnerId: owner ? owner.id : null,
         problemAppearsResolvedAt: t.problemAppearsResolvedAt,
+        // NOTE: no createdAt here — zero-touch on Lab 1–3 rows (BR-12/AC-12).
+        // createdAt is create-only; re-seeding must not rewrite it.
       },
       create: {
         ticketNumber: t.ticketNumber,
@@ -360,6 +402,7 @@ async function main() {
         status: t.status,
         ticketOwnerId: owner ? owner.id : null,
         problemAppearsResolvedAt: t.problemAppearsResolvedAt,
+        createdAt: t.createdAt,
       },
     });
   }
@@ -412,16 +455,181 @@ async function main() {
     }
   }
 
+  // Lab 4 Actions Taken (docs/lab-04/specification.md §7; BR-01…BR-07).
+  // Coverage: zero-action tickets (TKT-2026-000001 NEW, TKT-2026-000006 CLOSED —
+  // the gate never blocks them, AC-05), one-action tickets (000002/000004/
+  // 000005/000008), several-action tickets (000003 ×2, 000007 ×3); all five
+  // `result` values (BR-03); a gate-blocking pending follow-up on 000002 (AC-04)
+  // vs completed follow-up cycles on 000003/000005 that leave the gate open
+  // (AC-05); non-owner authorship throughout (BR-06: ownership ≠ authorship —
+  // e.g. Tom authors on Priya's ticket); one ≤500-char `attachmentNotes` pointer
+  // (BR-05, no upload). The inactive IT Staff account (mark.lee@example.com) is
+  // deliberately left with zero authored rows so the inactive-author/admin-only
+  // correction paths stay demonstrable. Spec §7 defines no assignee FK and no
+  // ActionStatus enum, so there is no "assigned/cancelled action" state to seed;
+  // the closest seeded case is the NO_FURTHER_ACTION entry on the CANCELLED
+  // ticket 000008 (flagged in the PR).
+  // Idempotency: existence check by the BR-06 immutable triple
+  // (ticketId + performedById + actionDate); rows are created
+  // only when missing and never updated or deleted, so reruns neither duplicate
+  // nor clobber follow-up state changed after seeding. description is editable
+  // per BR-06, so it must not be part of the match key.
+  const SEED_ACTIONS_TAKEN = [
+    {
+      ticketNumber: "TKT-2026-000002",
+      performedByEmail: "tom.nguyen@example.com",
+      actionDate: new Date("2026-09-21T09:15:00Z"),
+      description: "Reproduced the sync failure on a test profile; inbox rules look fine, server-side mailbox may be stuck.",
+      result: "INFO_REQUESTED",
+      followUpRequired: true,
+      followUpNote: "Ask the requester for the exact error code shown when sync fails, then re-test.",
+      followUpResolvedAt: null,
+      resolvedByEmail: null,
+      attachmentNotes: null,
+    },
+    {
+      ticketNumber: "TKT-2026-000003",
+      performedByEmail: "lisa.garcia@example.com",
+      actionDate: new Date("2026-09-21T11:00:00Z"),
+      description: "Switched the affected shelf to the backup access point as a temporary workaround.",
+      result: "WORKAROUND",
+      followUpRequired: false,
+      followUpNote: null,
+      followUpResolvedAt: null,
+      resolvedByEmail: null,
+      attachmentNotes: null,
+    },
+    {
+      ticketNumber: "TKT-2026-000003",
+      performedByEmail: "tom.nguyen@example.com",
+      actionDate: new Date("2026-09-22T08:40:00Z"),
+      description: "Escalated to network operations after interference was confirmed on channel 6.",
+      result: "ESCALATED",
+      followUpRequired: true,
+      followUpNote: "Confirm with network operations that the channel plan change was applied.",
+      followUpResolvedAt: new Date("2026-09-23T10:05:00Z"),
+      resolvedByEmail: "priya.patel@example.com",
+      attachmentNotes: null,
+    },
+    {
+      ticketNumber: "TKT-2026-000004",
+      performedByEmail: "lisa.garcia@example.com",
+      actionDate: new Date("2026-09-22T14:20:00Z"),
+      description: "Reviewed sign-in logs; hourly re-prompts match the current session policy for VPN users.",
+      result: "INFO_REQUESTED",
+      followUpRequired: false,
+      followUpNote: null,
+      followUpResolvedAt: null,
+      resolvedByEmail: null,
+      attachmentNotes: null,
+    },
+    {
+      ticketNumber: "TKT-2026-000005",
+      performedByEmail: "priya.patel@example.com",
+      actionDate: new Date("2026-09-19T16:45:00Z"),
+      description: "Replaced the dock cable and verified the external monitor is stable for a full workday.",
+      result: "RESOLVED_STEP",
+      followUpRequired: true,
+      followUpNote: "Ask the requester to confirm the flicker is gone after one week of use.",
+      followUpResolvedAt: new Date("2026-09-20T09:30:00Z"),
+      resolvedByEmail: "priya.patel@example.com",
+      attachmentNotes: "Photo of the replaced dock cable (see ticket attachments).",
+    },
+    {
+      ticketNumber: "TKT-2026-000007",
+      performedByEmail: "priya.patel@example.com",
+      actionDate: new Date("2026-09-23T09:00:00Z"),
+      description: "Re-ran throughput tests after the reopen; speeds are still below baseline on two machines.",
+      result: "INFO_REQUESTED",
+      followUpRequired: false,
+      followUpNote: null,
+      followUpResolvedAt: null,
+      resolvedByEmail: null,
+      attachmentNotes: null,
+    },
+    {
+      ticketNumber: "TKT-2026-000007",
+      performedByEmail: "tom.nguyen@example.com",
+      actionDate: new Date("2026-09-23T13:30:00Z"),
+      description: "Updated the lab switch firmware to the vendor recommended release.",
+      result: "RESOLVED_STEP",
+      followUpRequired: false,
+      followUpNote: null,
+      followUpResolvedAt: null,
+      resolvedByEmail: null,
+      attachmentNotes: null,
+    },
+    {
+      ticketNumber: "TKT-2026-000007",
+      performedByEmail: "lisa.garcia@example.com",
+      actionDate: new Date("2026-09-24T10:10:00Z"),
+      description: "Documented the firmware change and the remaining slow hosts for the next shift.",
+      result: "WORKAROUND",
+      followUpRequired: false,
+      followUpNote: null,
+      followUpResolvedAt: null,
+      resolvedByEmail: null,
+      attachmentNotes: null,
+    },
+    {
+      ticketNumber: "TKT-2026-000008",
+      performedByEmail: "priya.patel@example.com",
+      actionDate: new Date("2026-09-20T12:00:00Z"),
+      description: "Confirmed duplicate filing with the requester; no further action needed on this copy.",
+      result: "NO_FURTHER_ACTION",
+      followUpRequired: false,
+      followUpNote: null,
+      followUpResolvedAt: null,
+      resolvedByEmail: null,
+      attachmentNotes: null,
+    },
+  ];
+  const ticketByNumber = new Map(tickets.map((t) => [t.ticketNumber, t]));
+  for (const a of SEED_ACTIONS_TAKEN) {
+    const ticket = ticketByNumber.get(a.ticketNumber);
+    const performer = liveUsersByEmail.get(normalizeEmail(a.performedByEmail));
+    if (!ticket || !performer) {
+      throw new Error(`Seed action lookup failed for ticket ${a.ticketNumber}`);
+    }
+    const existing = await prisma.actionTaken.findFirst({
+      where: { ticketId: ticket.id, performedById: performer.id, actionDate: a.actionDate },
+      select: { id: true },
+    });
+    if (existing) continue;
+    const resolver = a.resolvedByEmail
+      ? liveUsersByEmail.get(normalizeEmail(a.resolvedByEmail))
+      : null;
+    if (a.resolvedByEmail && !resolver) {
+      throw new Error(`Seed resolver lookup failed for ticket ${a.ticketNumber}`);
+    }
+    await prisma.actionTaken.create({
+      data: {
+        ticketId: ticket.id,
+        performedById: performer.id,
+        actionDate: a.actionDate,
+        description: a.description,
+        result: a.result,
+        followUpRequired: a.followUpRequired,
+        followUpNote: a.followUpNote,
+        followUpResolvedAt: a.followUpResolvedAt,
+        followUpResolvedById: resolver ? resolver.id : null,
+        attachmentNotes: a.attachmentNotes,
+      },
+    });
+  }
+
   const userCount = await prisma.user.count();
   const ticketCount = await prisma.ticket.count();
   const commentCount = await prisma.publicComment.count();
   const noteCount = await prisma.internalNote.count();
+  const actionTakenCount = await prisma.actionTaken.count();
   console.log(`Seeded ${categories.length} categories.`);
   console.log(`Seeded ${requesters.length} requesters.`);
   console.log(`Seeded ${relatedSystems.length} related systems.`);
-  console.log(`Seeded ${userCount} users (5 requester + 4 IT staff + 1 admin expected at minimum).`);
+  console.log(`Seeded ${userCount} users (6 requester + 4 IT staff + 1 admin expected at minimum).`);
   console.log(`Seeded ${ticketCount} tickets across 8 statuses.`);
   console.log(`Seeded ${commentCount} public comments and ${noteCount} internal notes (safe examples only).`);
+  console.log(`Seeded ${actionTakenCount} actions-taken entries (zero/one/several across all 8 statuses; pending + resolved follow-ups).`);
 }
 
 main()

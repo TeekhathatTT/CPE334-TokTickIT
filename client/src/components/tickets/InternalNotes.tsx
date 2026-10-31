@@ -86,9 +86,9 @@ export function InternalNotes({ ticketId }: { ticketId: number }) {
 
   return (
     <div className="detail-section">
-      <h3>
+      <h2>
         <span aria-hidden="true">🔒 </span>Internal Notes — staff only
-      </h3>
+      </h2>
       <p className="helper-text">Private to IT Staff and Administrators. Never visible to the requester.</p>
       <div className="internal-notes-panel">
         {loading ? (

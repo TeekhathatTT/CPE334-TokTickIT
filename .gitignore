@@ -18,6 +18,7 @@ client/src/*.js
 client/src/*.jsx
 client/playwright-report/
 client/test-results/
+client/.tsupgrader/
 client/tests/*.js
 
 # Ignore local node_modules per-package
@@ -32,3 +33,8 @@ server/dist/
 .env.*.local
 
 server/uploads/
+
+# Lab 4 migration backups: pg_dump output includes User password hashes
+# (scrypt). Never commit dumps.
+backups/
+*.sql.dump

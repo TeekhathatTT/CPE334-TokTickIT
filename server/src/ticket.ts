@@ -153,6 +153,16 @@ function parsePositiveInt(value: unknown): number | null {
   return number;
 }
 
+function parseIsoDate(value: unknown): Date | null {
+  if (typeof value !== "string" || value.trim() === "") {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function getCurrentYear() {
   return new Date().getUTCFullYear();
 }
@@ -689,26 +699,45 @@ export async function getTickets(
     ] as const;
 
     const rawStatus = req.query.status;
-    if (
-      rawStatus !== undefined &&
-      rawStatus !== "" &&
-      !allowedStatuses.includes(
-        rawStatus as (typeof allowedStatuses)[number],
-      )
-    ) {
+    const rawStatuses =
+      rawStatus === undefined || rawStatus === ""
+        ? []
+        : (Array.isArray(rawStatus) ? rawStatus : [rawStatus])
+            .map((value) => String(value))
+            .filter((value) => value !== "");
+
+    const invalidStatus = rawStatuses.find(
+      (value) =>
+        !allowedStatuses.includes(
+          value as (typeof allowedStatuses)[number],
+        ),
+    );
+
+    if (invalidStatus !== undefined) {
       return validationError(res, "Please correct the invalid fields.", {
         status:
-          rawStatus === "PENDING"
+          invalidStatus === "PENDING"
             ? "Legacy PENDING is no longer accepted; it was migrated to WAITING_FOR_REQUESTER."
             : "Status must be one of NEW, OPEN, IN_PROGRESS, WAITING_FOR_REQUESTER, RESOLVED, CLOSED, REOPENED, CANCELLED.",
       });
     }
 
-    const status = allowedStatuses.includes(
-      req.query.status as (typeof allowedStatuses)[number],
-    )
-      ? (req.query.status as (typeof allowedStatuses)[number])
-      : undefined;
+    const statuses = rawStatuses as (typeof allowedStatuses)[number][];
+
+    const rawUpdatedSince = req.query.updatedSince;
+    let updatedSince: Date | undefined;
+
+    if (rawUpdatedSince !== undefined && rawUpdatedSince !== "") {
+      const parsed = parseIsoDate(rawUpdatedSince);
+
+      if (!parsed) {
+        return validationError(res, "Please correct the invalid fields.", {
+          updatedSince: "Updated since must be a valid ISO-8601 timestamp.",
+        });
+      }
+
+      updatedSince = parsed;
+    }
 
     const allowedSorts = [
       "createdAt",
@@ -745,7 +774,12 @@ export async function getTickets(
         ? { requestedPriority }
         : {}),
       ...(itPriority ? { itPriority } : {}),
-      ...(status ? { status } : {}),
+      ...(statuses.length === 1
+        ? { status: statuses[0] }
+        : statuses.length > 1
+          ? { status: { in: statuses } }
+          : {}),
+      ...(updatedSince ? { updatedAt: { gte: updatedSince } } : {}),
       ...(search
         ? {
             OR: [

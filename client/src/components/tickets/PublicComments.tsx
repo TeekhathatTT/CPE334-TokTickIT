@@ -86,7 +86,7 @@ export function PublicComments({ ticketId }: { ticketId: number }) {
 
   return (
     <div className="detail-section">
-      <h3>Public Comments</h3>
+      <h2>Public Comments</h2>
       <div className="comment-panel">
         {loading ? (
           <div className="loading-state" role="status">
