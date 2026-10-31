@@ -89,7 +89,7 @@ interface ErrorEnvelope {
 }
 
 async function requestJson<T>(path: string, init?: RequestInit, unwrapData = true): Promise<T> {
-  // BR-03: the session cookie identifies the caller Ã¢â‚¬â€ requester identity is
+  // BR-03: the session cookie identifies the caller — requester identity is
   // never sent as a header or query parameter anymore.
   const response = await fetch(`${API_URL}${path}`, { ...init, credentials: "include" });
 
@@ -125,7 +125,7 @@ async function requestJson<T>(path: string, init?: RequestInit, unwrapData = tru
 }
 
 // ---------------------------------------------------------------------------
-// Authentication (api-spec.md Ã‚Â§1).
+// Authentication (api-spec.md §1).
 // ---------------------------------------------------------------------------
 
 export async function login(email: string, password: string): Promise<{ user: CurrentUser }> {
@@ -157,7 +157,7 @@ export async function changePassword(input: {
 }
 
 // ---------------------------------------------------------------------------
-// Authenticated Lab 2 continuation (api-spec.md Ã‚Â§2). Ownership derives from
+// Authenticated Lab 2 continuation (api-spec.md §2). Ownership derives from
 // the session; there is no requesterId parameter anywhere.
 // ---------------------------------------------------------------------------
 
@@ -265,7 +265,7 @@ export async function removeAttachment(attachmentId: number, reason: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Requester collaboration (api-spec.md Ã‚Â§4).
+// Requester collaboration (api-spec.md §4).
 // ---------------------------------------------------------------------------
 
 export async function getComments(ticketId: number): Promise<PublicComment[]> {
@@ -287,8 +287,8 @@ export async function markProblemAppearsResolved(ticketId: number): Promise<Prob
 }
 
 // ---------------------------------------------------------------------------
-// IT Staff queue + ticket operations (api-spec.md Ã‚Â§3) and Internal Notes
-// (api-spec.md Ã‚Â§4). Queue/detail/assignment/priority/status are IT Staff
+// IT Staff queue + ticket operations (api-spec.md §3) and Internal Notes
+// (api-spec.md §4). Queue/detail/assignment/priority/status are IT Staff
 // only; notes additionally allow Administrators. No user-list endpoint
 // exists in the contract, so owner reassignment takes an explicit user id.
 // ---------------------------------------------------------------------------
@@ -361,7 +361,7 @@ export interface StaffUser {
   email: string;
 }
 
-/** Assignable-owner directory (ui-spec.md Ã‚Â§6): active IT Staff, safe fields. */
+/** Assignable-owner directory (ui-spec.md §6): active IT Staff, safe fields. */
 export async function getStaffUsers(): Promise<StaffUser[]> {
   return requestJson<StaffUser[]>("/api/staff/users");
 }
@@ -453,7 +453,7 @@ export async function postInternalNote(ticketId: number, content: string): Promi
 }
 
 // ---------------------------------------------------------------------------
-// Actions Taken (api-spec.md Ã‚Â§1, FR-01/FR-02/FR-03). Staff create/edit/resolve
+// Actions Taken (api-spec.md §1, FR-01/FR-02/FR-03). Staff create/edit/resolve
 // live under /api/staff; the Requester read-only list under /api/tickets.
 // ---------------------------------------------------------------------------
 
@@ -538,10 +538,10 @@ export async function patchStaffAction(
 }
 
 // ---------------------------------------------------------------------------
-// Administrator user management (api-spec.md Ã‚Â§5, ui-spec.md Ã‚Â§7).
+// Administrator user management (api-spec.md §5, ui-spec.md §7).
 // Minimalist scope: list/search/role-filter, create, edit, activation, and
 // initial-password reset. No delete endpoint exists (BR-22). The reset path
-// is the canonical `initial-password` per api-spec Ã‚Â§5.
+// is the canonical `initial-password` per api-spec §5.
 // ---------------------------------------------------------------------------
 
 export interface AdminUser {

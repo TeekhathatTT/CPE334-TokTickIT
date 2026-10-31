@@ -44,7 +44,7 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialF
       setLoading(true);
       setError(null);
       try {
-        // BR-03: ownership comes from the authenticated session â€” no
+        // BR-03: ownership comes from the authenticated session — no
         // requesterId is passed (a forged value would be ignored anyway).
         const statusFilter = Array.isArray(status)
           ? status.length > 0 ? status : undefined
@@ -86,7 +86,7 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialF
   const statusSelectValue = Array.isArray(status) ? "__preset__" : status;
 
   if (loading) {
-    return <div className="page-card"><div className="loading-state" role="status">Loading ticketsâ€¦</div></div>;
+    return <div className="page-card"><div className="loading-state" role="status">Loading tickets…</div></div>;
   }
 
   return (
@@ -123,7 +123,7 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialF
       </div>
 
       {error ? <div className="error-panel" role="alert">{error}<button type="button" className="secondary-button" onClick={() => setRetryToken((token) => token + 1)}>Retry</button></div> : meta.isEmpty ? (
-        <div className="empty-state"><div aria-hidden="true">â–¡</div><p>You have no tickets yet.</p><button type="button" className="primary-button" onClick={onCreateTicket}>Create your first ticket</button></div>
+        <div className="empty-state"><div aria-hidden="true">□</div><p>You have no tickets yet.</p><button type="button" className="primary-button" onClick={onCreateTicket}>Create your first ticket</button></div>
       ) : meta.isNoResults ? (
         <div className="empty-state"><p>No tickets match your filters.</p><button type="button" className="secondary-button" onClick={clearFilters}>Clear Filters</button></div>
       ) : (
@@ -131,13 +131,13 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialF
         <table className="ticket-table">
           <thead>
             <tr>
-              <th><button type="button" className="sort-button" aria-label={`Sort by ticket number${sortLabel("ticketNumber")}`} onClick={() => toggleSort("ticketNumber")}>Ticket No. {sort === "ticketNumber" && (order === "asc" ? "â†‘" : "â†“")}</button></th>
-              <th><button type="button" className="sort-button" aria-label={`Sort by created date${sortLabel("createdAt")}`} onClick={() => toggleSort("createdAt")}>Created Date {sort === "createdAt" && (order === "asc" ? "â†‘" : "â†“")}</button></th>
+              <th><button type="button" className="sort-button" aria-label={`Sort by ticket number${sortLabel("ticketNumber")}`} onClick={() => toggleSort("ticketNumber")}>Ticket No. {sort === "ticketNumber" && (order === "asc" ? "↑" : "↓")}</button></th>
+              <th><button type="button" className="sort-button" aria-label={`Sort by created date${sortLabel("createdAt")}`} onClick={() => toggleSort("createdAt")}>Created Date {sort === "createdAt" && (order === "asc" ? "↑" : "↓")}</button></th>
               <th>Summary</th>
               <th>Category</th>
               <th>Requested Priority</th><th>IT Priority</th>
               <th>Status</th>
-              <th><button type="button" className="sort-button" aria-label={`Sort by last updated${sortLabel("updatedAt")}`} onClick={() => toggleSort("updatedAt")}>Last Updated {sort === "updatedAt" && (order === "asc" ? "â†‘" : "â†“")}</button></th>
+              <th><button type="button" className="sort-button" aria-label={`Sort by last updated${sortLabel("updatedAt")}`} onClick={() => toggleSort("updatedAt")}>Last Updated {sort === "updatedAt" && (order === "asc" ? "↑" : "↓")}</button></th>
             </tr>
           </thead>
           <tbody>
@@ -172,7 +172,7 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialF
         <button type="button" className="secondary-button" disabled={page === 1} onClick={() => setPage((previous) => Math.max(1, previous - 1))}>
           Previous
         </button>
-        <span>Showing {meta.totalItems === 0 ? 0 : (meta.page - 1) * meta.pageSize + 1} to {Math.min(meta.page * meta.pageSize, meta.totalItems)} of {meta.totalItems} tickets Â· Page {meta.page} of {meta.totalPages}</span>
+        <span>Showing {meta.totalItems === 0 ? 0 : (meta.page - 1) * meta.pageSize + 1} to {Math.min(meta.page * meta.pageSize, meta.totalItems)} of {meta.totalItems} tickets · Page {meta.page} of {meta.totalPages}</span>
         <button type="button" className="secondary-button" disabled={page >= meta.totalPages} onClick={() => setPage((previous) => Math.min(meta.totalPages, previous + 1))}>
           Next
         </button>
