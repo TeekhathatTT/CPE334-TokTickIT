@@ -4,7 +4,7 @@
 
 | Reviewer | GitHub Username | Role | PRs reviewed |
 |---|---|---|---|
-| Chessuker | `Chessuker` | Peer Reviewer | #51, #56, #57 |
+| Chessuker | `Chessuker` | Peer Reviewer | #51, #56, #57 #60 |
 | Khwanklao | `Khwanklao` | Peer Reviewer | #58, #59 |
 
 ---
