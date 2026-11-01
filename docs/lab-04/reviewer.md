@@ -18,7 +18,7 @@
 | [#57](https://github.com/TeekhathatTT/CPE334-TokTickIT/pull/57) | `feature/lab4-actions-taken-workflow` | `lab4-staging` | #53 | Chessuker | Changes Requested (2 rounds) → Approved | Merged 2026-10-27 |
 | [#58](https://github.com/TeekhathatTT/CPE334-TokTickIT/pull/58) | `feature/lab4-dashboards` | `lab4-staging` | #54 | Khwanklao | Changes Requested (2 rounds) → Approved | Merged 2026-10-29 |
 | [#59](https://github.com/TeekhathatTT/CPE334-TokTickIT/pull/59) | `feature/lab4-hardening` | `lab4-staging` | #55 | Khwanklao | Changes Requested → Approved | Merged 2026-10-30 |
-| [#60](https://github.com/TeekhathatTT/CPE334-TokTickIT/pull/60) | `lab4-staging` | `main` | — | #60 | Chessuker | Changes Requested (2 rounds) → Approved | Merged 2026-10-31
+| [#60](https://github.com/TeekhathatTT/CPE334-TokTickIT/pull/60) | `lab4-staging` | `main` | #60 | Chessuker | Changes Requested (2 rounds) → Approved | Merged 2026-10-31 |
 
 ---
 
