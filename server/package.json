@@ -9,7 +9,8 @@
     "start": "node dist/src/index.js",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "node prisma/seed.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "verify:dashboards": "npm run build && node scripts/verify-dashboard-metrics.mjs"
   },
   "prisma": {
     "seed": "node prisma/seed.mjs"

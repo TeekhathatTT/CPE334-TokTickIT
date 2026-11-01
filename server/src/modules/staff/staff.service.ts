@@ -84,6 +84,9 @@ export interface StaffQueueFilters {
   categoryId?: number;
   /** Numeric owner user id, or the string "unassigned". */
   ownerId?: number | "unassigned";
+  hasPendingFollowUp?: boolean;
+  createdSince?: Date;
+  updatedSince?: Date;
   sort: StaffSort;
   order: "asc" | "desc";
   page: number;
@@ -99,6 +102,12 @@ function parsePositiveInt(value: unknown): number | null {
 function splitStatuses(raw: string | string[]): string[] {
   const parts = Array.isArray(raw) ? raw : [raw];
   return parts.flatMap((part) => String(part).split(",")).map((part) => part.trim()).filter((part) => part !== "");
+}
+
+function parseIsoDate(value: unknown): Date | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 /**
@@ -173,6 +182,37 @@ export function parseStaffQueueQuery(query: Record<string, unknown>): {
     }
   }
 
+  let hasPendingFollowUp: boolean | undefined;
+  if (query.hasPendingFollowUp !== undefined && query.hasPendingFollowUp !== "") {
+    if (query.hasPendingFollowUp === "true" || query.hasPendingFollowUp === true) {
+      hasPendingFollowUp = true;
+    } else if (query.hasPendingFollowUp === "false" || query.hasPendingFollowUp === false) {
+      hasPendingFollowUp = false;
+    } else {
+      fields.hasPendingFollowUp = 'Has pending follow-up must be "true" or "false".';
+    }
+  }
+
+  let createdSince: Date | undefined;
+  if (query.createdSince !== undefined && query.createdSince !== "") {
+    const parsed = parseIsoDate(query.createdSince);
+    if (!parsed) {
+      fields.createdSince = "Created since must be a valid ISO-8601 timestamp.";
+    } else {
+      createdSince = parsed;
+    }
+  }
+
+  let updatedSince: Date | undefined;
+  if (query.updatedSince !== undefined && query.updatedSince !== "") {
+    const parsed = parseIsoDate(query.updatedSince);
+    if (!parsed) {
+      fields.updatedSince = "Updated since must be a valid ISO-8601 timestamp.";
+    } else {
+      updatedSince = parsed;
+    }
+  }
+
   let sort: StaffSort = "updatedAt";
   if (query.sort !== undefined && query.sort !== "") {
     if (!isStaffSort(query.sort)) {
@@ -225,6 +265,9 @@ export function parseStaffQueueQuery(query: Record<string, unknown>): {
       itPriority,
       categoryId,
       ownerId,
+      hasPendingFollowUp,
+      createdSince,
+      updatedSince,
       sort,
       order,
       page,
@@ -255,6 +298,20 @@ export function buildStaffQueueWhere(filters: StaffQueueFilters): Record<string,
   }
   if (filters.ownerId !== undefined) {
     where.ticketOwnerId = filters.ownerId === "unassigned" ? null : filters.ownerId;
+  }
+  if (filters.hasPendingFollowUp !== undefined) {
+    const pendingFollowUp = {
+      some: { followUpRequired: true, followUpResolvedAt: null },
+    };
+    where.actionsTaken = filters.hasPendingFollowUp
+      ? pendingFollowUp
+      : { none: { followUpRequired: true, followUpResolvedAt: null } };
+  }
+  if (filters.createdSince) {
+    where.createdAt = { gte: filters.createdSince };
+  }
+  if (filters.updatedSince) {
+    where.updatedAt = { gte: filters.updatedSince };
   }
 
   if (filters.search) {

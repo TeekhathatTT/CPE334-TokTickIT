@@ -1,8 +1,9 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import {
   expectNoHorizontalOverflow,
   loginKnown,
   rotatePassword,
+  test,
 } from "./lab-03/helpers";
 
 /**

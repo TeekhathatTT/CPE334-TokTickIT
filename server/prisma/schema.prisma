@@ -65,6 +65,13 @@ model User {
   ownedTickets     Ticket[]   @relation("TicketOwner")
   publicComments   PublicComment[]
   internalNotes    InternalNote[]
+  // Lab 4 (spec §7, BR-04/BR-06/BR-07): Actions Taken authorship + follow-up
+  // resolution audit. No assignee FK and no ActionStatus enum per spec — the
+  // model tracks performedBy (server-derived session actor) and resolvedBy
+  // (explicit per-row resolver) only; `result` stays a String with a
+  // migration-level CHECK (BR-03) so vocabulary growth is a data change.
+  actionsTaken     ActionTaken[]
+  resolvedFollowUps ActionTaken[] @relation("ActionTakenResolver")
 
   @@index([role])
   @@index([isActive])
@@ -127,6 +134,10 @@ model Ticket {
   attachments   Attachment[]
   publicComments PublicComment[]
   internalNotes  InternalNote[]
+  // Lab 4 (spec §7, BR-07/BR-12): back-relation only. No new column is added
+  // to Ticket for the gate — the gate is a derived EXISTS query on
+  // ActionTaken (followUpRequired AND followUpResolvedAt IS NULL).
+  actionsTaken  ActionTaken[]
 
   @@index([requesterId])
   @@index([requesterUserId])
@@ -150,6 +161,38 @@ model Attachment {
 
   @@index([ticketId])
   @@index([removedAt])
+}
+
+// Lab 4 Actions Taken (spec §7 + Assumptions 7-10,12; BR-01…BR-09).
+// Additive only: no Lab 1–3 table/column/enum value is altered, renamed, or
+// dropped. Concurrency reuses Ticket.updatedAt (existing) + ActionTaken.updatedAt
+// (new) — no version column (Assumption 10). `result` is a String with a
+// migration-level CHECK, not a Prisma enum (Assumption 12). API responses expose
+// `createdAt` as an alias of `actionDate` — no redundant column (spec §7).
+// Indexes mirror the PublicComment/InternalNote pattern ([ticketId],
+// [ticketId, actionDate-equivalent]) plus [performedById] for author audit;
+// the BR-07 gate EXISTS query is served by the [ticketId] index.
+model ActionTaken {
+  id                   Int       @id @default(autoincrement())
+  ticketId             Int
+  performedById        Int
+  actionDate           DateTime  @default(now())
+  description          String    @db.Text
+  result               String
+  followUpRequired     Boolean   @default(false)
+  followUpNote         String?   @db.Text
+  followUpResolvedAt   DateTime?
+  followUpResolvedById Int?
+  attachmentNotes      String?   @db.Text
+  updatedAt            DateTime  @updatedAt
+
+  ticket      Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  performedBy User   @relation(fields: [performedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  resolvedBy  User?  @relation("ActionTakenResolver", fields: [followUpResolvedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([ticketId])
+  @@index([ticketId, actionDate])
+  @@index([performedById])
 }
 
 // Append-only per BR-14 (no updatedAt). Non-empty and max-2,000-char rules are

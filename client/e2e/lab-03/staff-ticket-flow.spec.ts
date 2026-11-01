@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import {
   apiGet,
   apiPatch,
@@ -6,6 +6,7 @@ import {
   loginKnown,
   rotatePassword,
   runToken,
+  test,
 } from "./helpers";
 
 /**
@@ -30,7 +31,7 @@ async function openSeedTicket(page: Page, ticketNumber: string): Promise<void> {
   await expect(page.getByRole("heading", { name: "Ticket Queue" })).toBeVisible();
   await page.getByLabel("Search queue").fill(ticketNumber);
   await page.getByRole("button", { name: ticketNumber }).first().click();
-  await expect(page.getByText("Ticket Details")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ticket Details" })).toBeVisible();
 }
 
 test("staff works a ticket end to end: queue, claim, priority, comments, notes, status", async ({
@@ -56,7 +57,7 @@ test("staff works a ticket end to end: queue, claim, priority, comments, notes, 
   // Open the ticket and claim ownership.
   await page.getByLabel("Search queue").fill("TKT-2026-000001");
   await page.getByRole("button", { name: "TKT-2026-000001" }).first().click();
-  await expect(page.getByText("Ticket Details")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ticket Details" })).toBeVisible();
   await page.getByRole("button", { name: "Claim (assign to me)" }).click();
   await expect(page.getByText("Ticket claimed.")).toBeVisible();
   await expect(page.getByText(/Current owner: Priya Patel/)).toBeVisible();
@@ -128,7 +129,7 @@ test("a requester never sees internal-note content or staff routes", async ({ pa
   expect(mine.status).toBe(200);
   const ticketNumber = mine.body.data[0].ticketNumber;
   await page.getByRole("button", { name: ticketNumber }).first().click();
-  await expect(page.getByText("Ticket Details")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ticket Details" })).toBeVisible();
 
   // Public collaboration is visible …
   await expect(page.getByRole("heading", { name: "Public Comments" })).toBeVisible();

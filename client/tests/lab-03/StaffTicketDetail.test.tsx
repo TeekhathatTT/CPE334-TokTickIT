@@ -27,12 +27,17 @@ function detail(overrides: Partial<api.StaffTicketDetail> = {}): api.StaffTicket
     publicComments: [],
     internalNotes: [],
     permittedActions: { allowedStatuses: ["IN_PROGRESS", "WAITING_FOR_REQUESTER", "RESOLVED", "CANCELLED"] },
+    // Lab 4 additive field (BR-07); Lab 3 suites are unaffected by its default.
+    pendingFollowUpCount: 0,
     ...overrides,
   };
 }
 
 function renderDetail(props: Record<string, unknown> = {}) {
   vi.spyOn(api, "getInternalNotes").mockResolvedValue([]);
+  // Lab 4: the Actions Taken panel now mounts on this page; stub its loader so
+  // the Lab 3 detail assertions exercise only the Lab 3 surfaces.
+  vi.spyOn(api, "getStaffActions").mockResolvedValue([]);
   vi.spyOn(api, "getStaffUsers").mockResolvedValue([
     { id: 21, name: "Priya Patel", email: "priya.patel@example.com" },
     { id: 22, name: "Tom Nguyen", email: "tom.nguyen@example.com" },
@@ -61,7 +66,7 @@ describe("Lab 3 StaffTicketDetail", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /claim \(assign to me\)/i }));
 
-    await waitFor(() => expect(assign).toHaveBeenCalledWith(101, 21));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith(101, 21, expect.any(String)));
     expect(await screen.findByText(/ticket claimed/i)).toBeInTheDocument();
   });
 
@@ -84,7 +89,7 @@ describe("Lab 3 StaffTicketDetail", () => {
     fireEvent.change(select, { target: { value: "22" } });
     fireEvent.click(screen.getByRole("button", { name: /^reassign$/i }));
 
-    await waitFor(() => expect(assign).toHaveBeenCalledWith(101, 22));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith(101, 22, expect.any(String)));
     expect(await screen.findByText(/ticket reassigned/i)).toBeInTheDocument();
   });
 

@@ -172,7 +172,7 @@ describe("Lab 3 UserFormDrawer validation", () => {
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
     // Reset flow is a distinct action with its own password fields.
-    fireEvent.click(screen.getByRole("button", { name: /set new password for jennifer anderson/i }));
+    fireEvent.click(screen.getByRole("button", { name: /set password for jennifer anderson/i }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByLabelText(/new initial password/i)).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText(/new initial password/i), {

@@ -57,6 +57,39 @@ describe("Lab 3 StaffTicketQueue", () => {
     });
   });
 
+  it("applies and shows Dashboard drill-down filters, resolving owner me", async () => {
+    const loader = vi.spyOn(api, "getStaffTickets").mockResolvedValue({ data: [row(101)], meta: meta() });
+    render(
+      <TicketQueuePage
+        currentUserId={21}
+        initialFilters={{
+          ownerId: "21",
+          status: ["NEW", "OPEN"],
+          hasPendingFollowUp: "true",
+          createdSince: "2026-10-09T00:00:00.000Z",
+          updatedSince: "2026-10-10T00:00:00.000Z",
+        }}
+      />,
+    );
+
+    await screen.findAllByText("TKT-2026-000101");
+    await waitFor(() => {
+      expect(loader).toHaveBeenCalledWith(expect.objectContaining({
+        ownerId: "21",
+        status: ["NEW", "OPEN"],
+        hasPendingFollowUp: "true",
+        createdSince: "2026-10-09T00:00:00.000Z",
+        updatedSince: "2026-10-10T00:00:00.000Z",
+      }));
+    });
+    expect(screen.getByLabelText("Active filters")).toHaveTextContent("Owner: Me");
+    expect(screen.getByLabelText("Active filters")).toHaveTextContent("Statuses: New, Open");
+    expect(screen.getByLabelText("Active filters")).toHaveTextContent("Pending follow-up: Yes");
+    expect(screen.getByLabelText("Active filters")).toHaveTextContent("Created since 09 Oct 2026");
+    expect(screen.getByLabelText("Active filters")).toHaveTextContent("Updated since 10 Oct 2026");
+    expect(screen.getByRole("combobox", { name: "Queue status" })).toHaveDisplayValue("Preset statuses (2)");
+  });
+
   it("shows distinct empty, no-results, loading, and failure states", async () => {
     const loader = vi.spyOn(api, "getStaffTickets").mockResolvedValue({ data: [row(101)], meta: meta() });
     const { unmount } = render(<TicketQueuePage />);

@@ -5,12 +5,16 @@ import type { Category } from "../types/ticket";
 interface MyTicketsPageProps {
   onCreateTicket?: () => void;
   onSelectTicket?: (ticketId: number) => void;
+  initialFilters?: Record<string, string | string[]>;
 }
 
 const formatDate = (value: string) => new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 const badge = (value: string | null | undefined) => <span className={`badge badge--${(value ?? "none").toLowerCase()}`}>{value?.replaceAll("_", " ") ?? "None"}</span>;
+const formatStatus = (value: string) => value.toLowerCase().split("_").map((part) => part[0].toUpperCase() + part.slice(1)).join(" ");
 
-export default function MyTicketsPage({ onCreateTicket, onSelectTicket }: MyTicketsPageProps) {
+type StatusFilter = string | string[];
+
+export default function MyTicketsPage({ onCreateTicket, onSelectTicket, initialFilters }: MyTicketsPageProps) {
   const [rows, setRows] = useState<TicketListRow[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [meta, setMeta] = useState<TicketListMeta>({ page: 1, pageSize: 10, totalItems: 0, totalPages: 1, isEmpty: false, isNoResults: false });
@@ -20,7 +24,14 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket }: MyTick
   const [category, setCategory] = useState("");
   const [requestedPriority, setRequestedPriority] = useState("");
   const [itPriority, setItPriority] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<StatusFilter>(() => {
+    const initialStatus = initialFilters?.status;
+    if (Array.isArray(initialStatus)) return initialStatus;
+    return typeof initialStatus === "string" ? initialStatus : "";
+  });
+  const [updatedSince, setUpdatedSince] = useState<string | undefined>(
+    typeof initialFilters?.updatedSince === "string" ? initialFilters.updatedSince : undefined,
+  );
   const [sort, setSort] = useState("createdAt");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
@@ -37,7 +48,21 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket }: MyTick
       try {
         // BR-03: ownership comes from the authenticated session — no
         // requesterId is passed (a forged value would be ignored anyway).
-        const result = await getTickets({ search, category, requestedPriority, itPriority, status, sort, order, page, pageSize });
+        const statusFilter = Array.isArray(status)
+          ? status.length > 0 ? status : undefined
+          : status || undefined;
+        const result = await getTickets({
+          search,
+          category,
+          requestedPriority,
+          itPriority,
+          status: statusFilter,
+          updatedSince,
+          sort,
+          order,
+          page,
+          pageSize,
+        });
         if (!active) return;
         setRows(result.data);
         setMeta(result.meta);
@@ -54,12 +79,21 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket }: MyTick
 
     void loadTickets();
     return () => { active = false; };
-  }, [search, category, requestedPriority, itPriority, status, sort, order, page, pageSize, retryToken]);
+  }, [search, category, requestedPriority, itPriority, status, updatedSince, sort, order, page, pageSize, retryToken]);
 
   useEffect(() => { void getCategories().then(setCategories).catch(() => undefined); }, []);
-  const clearFilters = () => { setSearch(""); setCategory(""); setRequestedPriority(""); setItPriority(""); setStatus(""); setPage(1); };
+  const clearFilters = () => { setSearch(""); setCategory(""); setRequestedPriority(""); setItPriority(""); setStatus(""); setUpdatedSince(undefined); setPage(1); };
   const toggleSort = (field: string) => { setPage(1); if (sort === field) setOrder((current) => current === "asc" ? "desc" : "asc"); else { setSort(field); setOrder("asc"); } };
   const sortLabel = (field: string) => sort === field ? `, sorted ${order === "asc" ? "ascending" : "descending"}` : "";
+  const statusSelectValue = Array.isArray(status) ? "__preset__" : status;
+  const activeFilters = [
+    ...(Array.isArray(status) && status.length
+      ? [`Statuses: ${status.map(formatStatus).join(", ")}`]
+      : typeof status === "string" && status
+        ? [`Status: ${formatStatus(status)}`]
+        : []),
+    ...(updatedSince ? [`Updated since ${formatDate(updatedSince)}`] : []),
+  ];
 
   if (loading) {
     return <div className="page-card"><div className="loading-state" role="status">Loading tickets…</div></div>;
@@ -84,7 +118,8 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket }: MyTick
         <select aria-label="Category" className="select-field" value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }}><option value="">All Categories</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
         <select aria-label="Requested priority" className="select-field" value={requestedPriority} onChange={(event) => { setRequestedPriority(event.target.value); setPage(1); }}><option value="">All Requested Priorities</option><option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option></select>
         <select aria-label="IT priority" className="select-field" value={itPriority} onChange={(event) => { setItPriority(event.target.value); setPage(1); }}><option value="">All IT Priorities</option><option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option></select>
-        <select aria-label="Ticket status" className="select-field" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
+        <select aria-label="Ticket status" className="select-field" value={statusSelectValue} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
+          {Array.isArray(status) && <option value="__preset__">Preset statuses ({status.length})</option>}
           <option value="">All Statuses</option>
           <option value="NEW">New</option>
           <option value="OPEN">Open</option>
@@ -96,6 +131,13 @@ export default function MyTicketsPage({ onCreateTicket, onSelectTicket }: MyTick
           <option value="CANCELLED">Cancelled</option>
         </select>
       </div>
+
+      {activeFilters.length > 0 && (
+        <div className="active-filters" role="group" aria-label="Active filters">
+          <strong>Active filters:</strong>
+          {activeFilters.map((filter) => <span className="active-filter-chip" key={filter}>{filter}</span>)}
+        </div>
+      )}
 
       {error ? <div className="error-panel" role="alert">{error}<button type="button" className="secondary-button" onClick={() => setRetryToken((token) => token + 1)}>Retry</button></div> : meta.isEmpty ? (
         <div className="empty-state"><div aria-hidden="true">□</div><p>You have no tickets yet.</p><button type="button" className="primary-button" onClick={onCreateTicket}>Create your first ticket</button></div>

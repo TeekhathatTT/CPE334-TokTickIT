@@ -6,14 +6,15 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 /**
- * Playwright global setup: reseed the database once before the E2E suite so
- * every run starts from the documented seed (all users on the local-dev
- * initial password with `mustChangePassword=true`).
+ * Playwright global setup: reset and reseed the database once before the E2E
+ * suite so every run starts from the documented seed (all users on the
+ * local-dev initial password with `mustChangePassword=true`).
  *
- * The reseed makes the suite hermetic when a database is available; without
- * one the E2E specs cannot run at all (they exercise the real API).
- * Set `E2E_SEED=0` to skip (e.g. hand-managed grading data), in which case
- * the specs assume an equivalently fresh seed.
+ * `migrate reset` is intentional: the seed is idempotent and never deletes
+ * rows, so tickets/users created by a previous run would otherwise leak into
+ * count-sensitive dashboard assertions. The E2E database is a disposable
+ * local database; set `E2E_SEED=0` to skip (e.g. hand-managed grading data),
+ * in which case the specs assume an equivalently fresh seed.
  */
 async function globalSetup(): Promise<void> {
   // Cross-test shared state (rotated passwords, mid-file created users) is
@@ -31,10 +32,10 @@ async function globalSetup(): Promise<void> {
   const serverDir = path.resolve(here, "..", "..", "server");
   console.log("[e2e] Reseeding the database from", serverDir);
 
-  // The seed assumes tables exist: migrate first so a fresh database works
-  // with a bare `npm run test:e2e` (no manual prisma steps). The Node
-  // processes below do not load server/.env on their own, so pass an
-  // explicit DATABASE_URL (same default as the webServer entry in
+  // Reset applies every migration to a clean schema so a bare
+  // `npm run test:e2e` works without manual prisma steps. The Node processes
+  // below do not load server/.env on their own, so pass an explicit
+  // DATABASE_URL (same default as the webServer entry in
   // playwright.config.ts and server/.env).
   const env = {
     ...process.env,
@@ -47,11 +48,15 @@ async function globalSetup(): Promise<void> {
     // Invoke the Prisma CLI through node directly (`npx` is a shell shim
     // that child_process cannot spawn without a shell on Windows).
     const prismaBin = path.resolve(serverDir, "node_modules", "prisma", "build", "index.js");
-    await execFileAsync(process.execPath, [prismaBin, "migrate", "deploy"], {
-      cwd: serverDir,
-      timeout: 180000,
-      env,
-    });
+    await execFileAsync(
+      process.execPath,
+      [prismaBin, "migrate", "reset", "--force", "--skip-seed"],
+      {
+        cwd: serverDir,
+        timeout: 180000,
+        env,
+      },
+    );
     const { stdout, stderr } = await execFileAsync("node", ["prisma/seed.mjs"], {
       cwd: serverDir,
       timeout: 180000,

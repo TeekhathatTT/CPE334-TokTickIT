@@ -80,7 +80,7 @@ export function UserList({ users, currentUserId, onEdit, onResetPassword }: User
                     <button
                       type="button"
                       className="link-button"
-                      aria-label={`Set new password for ${user.name}`}
+                      aria-label={`Set Password for ${user.name}`}
                       onClick={() => onResetPassword(user)}
                     >
                       Set Password

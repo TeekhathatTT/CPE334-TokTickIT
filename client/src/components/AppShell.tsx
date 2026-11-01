@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from "react";
 import type { CurrentUser } from "../api";
 
-export type RequesterNavKey = "my-tickets" | "create-ticket";
-export type StaffNavKey = "ticket-queue";
+export type RequesterNavKey = "dashboard" | "my-tickets" | "create-ticket";
+export type StaffNavKey = "dashboard" | "ticket-queue";
 export type AdminNavKey = "user-management";
 export type NavKey = RequesterNavKey | StaffNavKey | AdminNavKey;
 
@@ -29,11 +29,13 @@ function roleLabel(role: CurrentUser["role"]): string {
 export function AppShell({ children, user, activeNav = "my-tickets", onNavigate, onLogout }: AppShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Role navigation (ui-spec.md §2): Requester items, the staff-workflow
+  // Role navigation (ui-spec.md section 2): Requester items, the staff-workflow
   // Ticket Queue entry for IT Staff, and User Management for Administrators.
   const navItems: Array<{ key: NavKey; label: string; roles: CurrentUser["role"][] }> = [
+    { key: "dashboard", label: "Dashboard", roles: ["REQUESTER"] },
     { key: "my-tickets", label: "My Tickets", roles: ["REQUESTER"] },
     { key: "create-ticket", label: "Create Ticket", roles: ["REQUESTER"] },
+    { key: "dashboard", label: "Dashboard", roles: ["IT_STAFF"] },
     { key: "ticket-queue", label: "Ticket Queue", roles: ["IT_STAFF"] },
     { key: "user-management", label: "User Management", roles: ["ADMINISTRATOR"] },
   ];
@@ -47,7 +49,7 @@ export function AppShell({ children, user, activeNav = "my-tickets", onNavigate,
             <span className="brand__mark">TokTickIT</span>
           </div>
 
-          <button type="button" className="menu-toggle" aria-label="Open navigation menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((current) => !current)}>☰</button>
+          <button type="button" className="menu-toggle" aria-label="Open navigation menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((current) => !current)}>{"\u2630"}</button>
           <nav className={`main-nav ${menuOpen ? "main-nav--open" : ""}`} aria-label="Main navigation">
             {visibleNavItems.map((item) => (
               <button

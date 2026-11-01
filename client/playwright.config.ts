@@ -2,6 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore:
+    process.env.CAPTURE_SCREENSHOTS === "1"
+      ? []
+      : ["**/lab-04/visual-evidence.spec.ts"],
   globalSetup: "./e2e/global-setup.ts",
   fullyParallel: false,
   reporter: "html",
